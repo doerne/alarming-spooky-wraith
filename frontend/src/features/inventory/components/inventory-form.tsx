@@ -79,14 +79,62 @@ function DirectField({ registration }: { registration: UseFormRegisterReturn }) 
   );
 }
 
-export function InventoryForm({ onSubmit }: { onSubmit: (values: ComponentInput) => void }) {
+interface InventoryFormProps {
+  onSubmit: (values: ComponentInput) => void;
+  initialValues?: ComponentInput;
+  submitLabel?: string;
+  isSubmitting?: boolean;
+  onCancel?: () => void;
+}
+
+const EMPTY_COMPONENT: ComponentInput = {
+  name: "",
+  version: "",
+  category: "library",
+  ecosystem: null,
+  direct: true,
+};
+
+interface FormActionsProps {
+  submitLabel: string;
+  isSubmitting?: boolean;
+  onCancel?: () => void;
+}
+
+function FormActions({ submitLabel, isSubmitting, onCancel }: FormActionsProps) {
+  return (
+    <div className="flex gap-3">
+      <Button type="submit" disabled={isSubmitting} data-testid="inventory-btn-submit">
+        {submitLabel}
+      </Button>
+      {onCancel && (
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onCancel}
+          data-testid="inventory-btn-cancel"
+        >
+          Abbrechen
+        </Button>
+      )}
+    </div>
+  );
+}
+
+export function InventoryForm({
+  onSubmit,
+  initialValues,
+  submitLabel = "Komponente hinzufügen",
+  isSubmitting,
+  onCancel,
+}: InventoryFormProps) {
   const {
     register,
     handleSubmit,
     formState: { errors },
   } = useForm<ComponentInput>({
     resolver: zodResolver(componentSchema),
-    defaultValues: { name: "", version: "", category: "library", ecosystem: null, direct: true },
+    defaultValues: initialValues ?? EMPTY_COMPONENT,
   });
 
   return (
@@ -118,9 +166,7 @@ export function InventoryForm({ onSubmit }: { onSubmit: (values: ComponentInput)
         })}
       />
       <DirectField registration={register("direct")} />
-      <Button type="submit" data-testid="inventory-btn-submit">
-        Komponente hinzufügen
-      </Button>
+      <FormActions submitLabel={submitLabel} isSubmitting={isSubmitting} onCancel={onCancel} />
     </form>
   );
 }

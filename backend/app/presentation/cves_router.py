@@ -30,8 +30,8 @@ class FindingsPage(ApiModel):
 
 
 @router.get("/cves")
-def list_cves(uow: UnitOfWorkDep) -> FindingsPage:
-    views = ListFindings(uow).execute()
+def list_cves(uow: UnitOfWorkDep, application_id: int | None = None) -> FindingsPage:
+    views = ListFindings(uow).execute(application_id)
     items = [
         FindingResponse(
             advisory_id=view.advisory_id,

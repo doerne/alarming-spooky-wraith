@@ -95,8 +95,33 @@ class SqlAlchemyComponentRepository:
         self._session.flush()
         return _to_component(model)
 
+    def get(self, component_id: int) -> Component:
+        model = self._session.get(ComponentModel, component_id)
+        if model is None:
+            raise EntityNotFoundError("Komponente", component_id)
+        return _to_component(model)
+
+    def update(self, component: Component) -> Component:
+        assert component.id is not None
+        model = self._session.get(ComponentModel, component.id)
+        if model is None:
+            raise EntityNotFoundError("Komponente", component.id)
+        model.name = component.name
+        model.version = component.version
+        model.category = component.category.value
+        model.ecosystem = component.ecosystem.value if component.ecosystem else None
+        model.direct = component.direct
+        self._session.flush()
+        return _to_component(model)
+
     def list_all(self) -> list[Component]:
         models = self._session.scalars(select(ComponentModel)).all()
+        return [_to_component(model) for model in models]
+
+    def list_for_application(self, application_id: int) -> list[Component]:
+        models = self._session.scalars(
+            select(ComponentModel).where(ComponentModel.application_id == application_id)
+        ).all()
         return [_to_component(model) for model in models]
 
 

@@ -39,8 +39,25 @@ class InMemoryComponentRepository:
         self._next_id += 1
         return saved
 
+    def get(self, component_id: int) -> Component:
+        for _, component in self._items:
+            if component.id == component_id:
+                return component
+        raise EntityNotFoundError("Komponente", component_id)
+
+    def update(self, component: Component) -> Component:
+        assert component.id is not None
+        for index, (app_id, existing) in enumerate(self._items):
+            if existing.id == component.id:
+                self._items[index] = (app_id, component)
+                return component
+        raise EntityNotFoundError("Komponente", component.id)
+
     def list_all(self) -> list[Component]:
         return [component for _, component in self._items]
+
+    def list_for_application(self, application_id: int) -> list[Component]:
+        return [component for app_id, component in self._items if app_id == application_id]
 
     def application_id_of(self, component_id: int) -> int:
         for application_id, component in self._items:

@@ -26,13 +26,18 @@ class ListFindings:
     def __init__(self, uow: UnitOfWork) -> None:
         self._uow = uow
 
-    def execute(self) -> list[FindingView]:
+    def execute(self, application_id: int | None = None) -> list[FindingView]:
         components: dict[int, Component] = {
             component.id: component
             for component in self._uow.components.list_all()
             if component.id is not None
         }
-        views = [self._to_view(finding, components) for finding in self._uow.findings.list()]
+        findings = [
+            finding
+            for finding in self._uow.findings.list()
+            if application_id is None or finding.application_id == application_id
+        ]
+        views = [self._to_view(finding, components) for finding in findings]
         return sorted(views, key=lambda view: view.risk_score, reverse=True)
 
     def _to_view(self, finding: Finding, components: dict[int, Component]) -> FindingView:

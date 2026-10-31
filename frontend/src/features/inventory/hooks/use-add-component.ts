@@ -12,6 +12,10 @@ export function useAddComponent() {
   const queryClient = useQueryClient();
   return useMutation<void, Error, AddComponentVars>({
     mutationFn: ({ applicationId, input }) => addComponent(applicationId, input),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["findings"] }),
+    onSuccess: (_data, { applicationId }) => {
+      queryClient.invalidateQueries({ queryKey: ["application", applicationId] });
+      queryClient.invalidateQueries({ queryKey: ["application-findings", applicationId] });
+      queryClient.invalidateQueries({ queryKey: ["findings"] });
+    },
   });
 }

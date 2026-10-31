@@ -1,33 +1,30 @@
 import { useState } from "react";
 
+import { ApplicationDetailPage } from "./application-detail-page";
 import { ApplicationForm } from "./components/application-form";
-import { InventoryForm } from "./components/inventory-form";
-import { useAddComponent } from "./hooks/use-add-component";
+import { ApplicationList } from "./components/application-list";
+import { useApplications } from "./hooks/use-applications";
 import { useCreateApplication } from "./hooks/use-create-application";
 
 export function InventoryPage() {
-  const [applicationId, setApplicationId] = useState<number | null>(null);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const applications = useApplications();
   const createApplication = useCreateApplication();
-  const addComponent = useAddComponent();
+
+  if (selectedId !== null) {
+    return <ApplicationDetailPage applicationId={selectedId} onBack={() => setSelectedId(null)} />;
+  }
 
   return (
-    <section className="w-full" data-testid="inventory-section-manage">
-      <h2 className="mb-4 text-lg font-semibold">Inventar</h2>
+    <section className="flex flex-col gap-6" data-testid="inventory-section-manage">
       <ApplicationForm
         onCreate={(values) =>
           createApplication.mutate(values, {
-            onSuccess: (application) => setApplicationId(application.id),
+            onSuccess: (application) => setSelectedId(application.id),
           })
         }
       />
-      {applicationId !== null && (
-        <div className="mt-6" data-testid="inventory-container-component">
-          <p className="mb-3 text-sm text-muted-foreground">
-            Komponente zu Anwendung #{applicationId} hinzufügen
-          </p>
-          <InventoryForm onSubmit={(input) => addComponent.mutate({ applicationId, input })} />
-        </div>
-      )}
+      <ApplicationList applications={applications.data ?? []} onSelect={setSelectedId} />
     </section>
   );
 }
