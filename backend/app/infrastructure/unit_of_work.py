@@ -3,39 +3,23 @@ from contextlib import contextmanager
 
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.domain.ports import (
-    AdvisoryRepository,
-    ApplicationRepository,
-    ComponentRepository,
-    FindingRepository,
+from app.infrastructure.repositories import (
+    SqlAlchemyAdvisoryRepository,
+    SqlAlchemyApplicationRepository,
+    SqlAlchemyComponentRepository,
+    SqlAlchemyFindingRepository,
 )
 
 
 class SqlAlchemyUnitOfWork:
-    """Haelt die Repositories fuer eine Session.
-
-    Die konkreten Repository-Implementierungen werden in Task 8 angelegt und
-    hier verdrahtet; bis dahin erfuellen die Properties nur das Protocol.
-    """
+    """Haelt die Repositories fuer eine Session."""
 
     def __init__(self, session: Session) -> None:
         self._session = session
-
-    @property
-    def applications(self) -> ApplicationRepository:
-        raise NotImplementedError
-
-    @property
-    def components(self) -> ComponentRepository:
-        raise NotImplementedError
-
-    @property
-    def findings(self) -> FindingRepository:
-        raise NotImplementedError
-
-    @property
-    def advisories(self) -> AdvisoryRepository:
-        raise NotImplementedError
+        self.applications = SqlAlchemyApplicationRepository(session)
+        self.components = SqlAlchemyComponentRepository(session)
+        self.findings = SqlAlchemyFindingRepository(session)
+        self.advisories = SqlAlchemyAdvisoryRepository(session)
 
     def commit(self) -> None:
         self._session.commit()
