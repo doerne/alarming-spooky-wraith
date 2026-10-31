@@ -33,7 +33,7 @@ class AdvisoryModel(Base):
 
     advisory_id: Mapped[str] = mapped_column(String(64), primary_key=True)
     cve_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    okf_pfad: Mapped[str] = mapped_column(String(300))
+    okf_path: Mapped[str] = mapped_column(String(300))
     title: Mapped[str] = mapped_column(String(500))
     description: Mapped[str] = mapped_column(Text)
     cvss_score: Mapped[float | None] = mapped_column(nullable=True)
@@ -52,12 +52,12 @@ class FindingModel(Base):
     advisory_id: Mapped[str] = mapped_column(ForeignKey("advisory.advisory_id"))
     component_id: Mapped[int] = mapped_column(ForeignKey("component.id"))
     application_id: Mapped[int] = mapped_column(ForeignKey("application.id"))
-    gefundene_version: Mapped[str] = mapped_column(String(100))
+    found_version: Mapped[str] = mapped_column(String(100))
     risk_score: Mapped[int] = mapped_column()
     risk_level: Mapped[str] = mapped_column(String(20))
     status: Mapped[str] = mapped_column(String(20), default="offen")
-    kommentar: Mapped[str] = mapped_column(Text, default="")
-    zuletzt_aktualisiert: Mapped[datetime] = mapped_column(
+    comment: Mapped[str] = mapped_column(Text, default="")
+    updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC),
         onupdate=lambda: datetime.now(UTC),

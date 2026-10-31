@@ -36,15 +36,18 @@ def _to_vuln(raw: dict[str, Any]) -> OsvVuln:
         details=raw.get("details", ""),
         cvss_base=_cvss_base(raw.get("severity", [])),
         fixed_version=_fixed_version(raw.get("affected", [])),
-        references=[ref["url"] for ref in raw.get("references", [])],
+        references=[ref["url"] for ref in raw.get("references", []) if "url" in ref],
     )
 
 
 def _cvss_base(severity: list[dict[str, Any]]) -> float | None:
-    for entry in severity:
-        base = _parse_vector(entry.get("type", ""), entry.get("score", ""))
-        if base is not None:
-            return base
+    # Spec 5.5: CVSS v4.0 bevorzugt, sonst v3.1.
+    for kind in ("CVSS_V4", "CVSS_V3"):
+        for entry in severity:
+            if entry.get("type") == kind:
+                base = _parse_vector(kind, entry.get("score", ""))
+                if base is not None:
+                    return base
     return None
 
 

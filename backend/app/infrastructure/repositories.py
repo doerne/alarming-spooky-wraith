@@ -39,7 +39,7 @@ def _to_advisory(model: AdvisoryModel) -> Advisory:
         cvss_base=model.cvss_score,
         fixed_version=model.fix_version,
         references=[],
-        okf_path=model.okf_pfad,
+        okf_path=model.okf_path,
     )
 
 
@@ -48,10 +48,10 @@ def _to_finding(model: FindingModel) -> Finding:
         advisory_id=model.advisory_id,
         component_id=model.component_id,
         application_id=model.application_id,
-        found_version=model.gefundene_version,
+        found_version=model.found_version,
         risk=RiskScore(value=model.risk_score, level=Severity(model.risk_level), rationale=""),
         status=FindingStatus(model.status),
-        comment=model.kommentar,
+        comment=model.comment,
         id=model.id,
     )
 
@@ -110,7 +110,7 @@ class SqlAlchemyAdvisoryRepository:
             model = AdvisoryModel(advisory_id=advisory.advisory_id)
             self._session.add(model)
         model.cve_id = advisory.cve_id
-        model.okf_pfad = advisory.okf_path
+        model.okf_path = advisory.okf_path
         model.title = advisory.title
         model.description = advisory.description
         model.cvss_score = advisory.cvss_base
@@ -143,11 +143,11 @@ class SqlAlchemyFindingRepository:
                 application_id=finding.application_id,
             )
             self._session.add(model)
-        model.gefundene_version = finding.found_version
+        model.found_version = finding.found_version
         model.risk_score = finding.risk.value
         model.risk_level = finding.risk.level.value
         model.status = finding.status.value
-        model.kommentar = finding.comment
+        model.comment = finding.comment
         self._session.flush()
         finding.id = model.id
         return finding

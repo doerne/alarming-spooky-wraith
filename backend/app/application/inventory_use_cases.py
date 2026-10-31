@@ -19,6 +19,7 @@ class AddComponent:
         self._uow = uow
 
     def execute(self, *, application_id: int, component: Component) -> Component:
+        self._uow.applications.get(application_id)  # EntityNotFoundError, falls unbekannt
         saved = self._uow.components.add(application_id, component)
         self._uow.commit()
         return saved
