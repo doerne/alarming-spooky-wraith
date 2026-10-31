@@ -11,15 +11,18 @@ dependencies = [
     "alembic>=1.16",
     "pydantic>=2.11",
     "pydantic-settings>=2.10",
+    "httpx>=0.28",
+    "pyyaml>=6.0",
+    "cvss>=3.2",
 ]
 
 [dependency-groups]
 dev = [
     "pytest>=8.4",
-    "httpx>=0.28",
     "ruff>=0.13",
     "mypy>=1.18",
     "import-linter>=2.5",
+    "types-pyyaml>=6.0",
 ]
 
 [tool.uv]
