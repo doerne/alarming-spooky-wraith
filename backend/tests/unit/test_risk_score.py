@@ -1,6 +1,6 @@
 import pytest
-from app.application.risk_score import compute_risk_score
 
+from app.application.risk_score import compute_risk_score
 from app.domain.vulnerability import Severity
 
 
