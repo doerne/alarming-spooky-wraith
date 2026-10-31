@@ -14,12 +14,19 @@ function renderApp() {
 }
 
 describe("App", () => {
-  it("zeigt Kopfzeile, Inventar und Funde-Bereich", () => {
+  it("zeigt standardmaessig das Schwachstellen-Dashboard", () => {
     renderApp();
 
-    expect(screen.getByTestId("app-text-title")).toHaveTextContent("alarming-spooky-wraith");
-    expect(screen.getByTestId("inventory-section-manage")).toBeInTheDocument();
+    expect(screen.getByTestId("app-text-title")).toHaveTextContent("Schwachstellen");
     expect(screen.getByTestId("cves-section-overview")).toBeInTheDocument();
+  });
+
+  it("wechselt ueber die Navigation zum Inventar", async () => {
+    renderApp();
+
+    await userEvent.click(screen.getByTestId("app-btn-nav-inventory"));
+
+    expect(screen.getByTestId("inventory-section-manage")).toBeInTheDocument();
   });
 
   it("schaltet das dunkle Design um", async () => {
