@@ -1,6 +1,6 @@
+import { CvesPage } from "@/features/cves";
+import { InventoryPage } from "@/features/inventory";
 import { ThemeToggle } from "@/shared/components/theme-toggle";
-
-import { HomePage } from "./home-page";
 
 export function App() {
   return (
@@ -14,10 +14,11 @@ export function App() {
         </div>
       </header>
       <main
-        className="mx-auto flex max-w-5xl justify-center px-4 py-10"
+        className="mx-auto flex max-w-5xl flex-col gap-10 px-4 py-10"
         data-testid="app-main-content"
       >
-        <HomePage />
+        <InventoryPage />
+        <CvesPage />
       </main>
     </div>
   );
