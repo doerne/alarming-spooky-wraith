@@ -3,17 +3,34 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
 import { App } from "./app";
+import { Providers } from "./providers";
+
+function renderApp() {
+  return render(
+    <Providers>
+      <App />
+    </Providers>,
+  );
+}
 
 describe("App", () => {
-  it("zeigt Kopfzeile und Startseite", () => {
-    render(<App />);
+  it("zeigt standardmaessig das Schwachstellen-Dashboard", () => {
+    renderApp();
 
-    expect(screen.getByTestId("app-text-title")).toHaveTextContent("alarming-spooky-wraith");
-    expect(screen.getByTestId("home-card-welcome")).toBeInTheDocument();
+    expect(screen.getByTestId("app-text-title")).toHaveTextContent("Schwachstellen");
+    expect(screen.getByTestId("cves-section-overview")).toBeInTheDocument();
+  });
+
+  it("wechselt ueber die Navigation zum Inventar", async () => {
+    renderApp();
+
+    await userEvent.click(screen.getByTestId("app-btn-nav-inventory"));
+
+    expect(screen.getByTestId("inventory-section-manage")).toBeInTheDocument();
   });
 
   it("schaltet das dunkle Design um", async () => {
-    render(<App />);
+    renderApp();
 
     await userEvent.click(screen.getByTestId("app-btn-theme-toggle"));
 

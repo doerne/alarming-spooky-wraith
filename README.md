@@ -17,6 +17,9 @@ make up       # gehärteter Stack auf http://localhost:8080
 make help     # alle Befehle
 ```
 
+Ausführliche Anleitung (inkl. buildx-Hinweis und Notweg ohne Image-Build):
+[`docs/local-development.md`](docs/local-development.md).
+
 ## Struktur
 
 ```

@@ -38,6 +38,16 @@ Object.defineProperty(window, "matchMedia", {
   })),
 });
 
+// jsdom kennt ResizeObserver nicht; recharts (ResponsiveContainer) benoetigt ihn.
+if (typeof globalThis.ResizeObserver === "undefined") {
+  class ResizeObserverStub {
+    observe(): void {}
+    unobserve(): void {}
+    disconnect(): void {}
+  }
+  globalThis.ResizeObserver = ResizeObserverStub as unknown as typeof ResizeObserver;
+}
+
 afterEach(() => {
   cleanup();
   document.documentElement.classList.remove("dark");

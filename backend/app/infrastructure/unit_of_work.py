@@ -3,15 +3,23 @@ from contextlib import contextmanager
 
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.infrastructure.repositories import (
+    SqlAlchemyAdvisoryRepository,
+    SqlAlchemyApplicationRepository,
+    SqlAlchemyComponentRepository,
+    SqlAlchemyFindingRepository,
+)
+
 
 class SqlAlchemyUnitOfWork:
-    """Neue Repositories im Konstruktor anlegen.
-
-    Beispiel: self.orders = SqlAlchemyOrderRepository(session)
-    """
+    """Haelt die Repositories fuer eine Session."""
 
     def __init__(self, session: Session) -> None:
         self._session = session
+        self.applications = SqlAlchemyApplicationRepository(session)
+        self.components = SqlAlchemyComponentRepository(session)
+        self.findings = SqlAlchemyFindingRepository(session)
+        self.advisories = SqlAlchemyAdvisoryRepository(session)
 
     def commit(self) -> None:
         self._session.commit()

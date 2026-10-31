@@ -2,16 +2,25 @@ from collections.abc import Callable
 from contextlib import AbstractContextManager
 from typing import Protocol
 
+from app.domain.ports import (
+    AdvisoryRepository,
+    ApplicationRepository,
+    ComponentRepository,
+    FindingRepository,
+)
+
 
 class UnitOfWork(Protocol):
-    """Transaktionsgrenze. Use Cases entscheiden, wann bestätigt wird.
+    """Transaktionsgrenze. Use Cases entscheiden, wann bestätigt wird."""
 
-    Jedes neue Repository hier als read-only Property ergänzen, z. B.:
-
-        @property
-        def orders(self) -> OrderRepository: ...
-    """
-
+    @property
+    def applications(self) -> ApplicationRepository: ...
+    @property
+    def components(self) -> ComponentRepository: ...
+    @property
+    def findings(self) -> FindingRepository: ...
+    @property
+    def advisories(self) -> AdvisoryRepository: ...
     def commit(self) -> None: ...
 
 

@@ -11,15 +11,18 @@ dependencies = [
     "alembic>=1.16",
     "pydantic>=2.11",
     "pydantic-settings>=2.10",
+    "httpx>=0.28",
+    "pyyaml>=6.0",
+    "cvss>=3.2",
 ]
 
 [dependency-groups]
 dev = [
     "pytest>=8.4",
-    "httpx>=0.28",
     "ruff>=0.13",
     "mypy>=1.18",
     "import-linter>=2.5",
+    "types-pyyaml>=6.0",
 ]
 
 [tool.uv]
@@ -43,12 +46,18 @@ max-branches = 8
 max-statements = 30
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["PLR2004", "ARG001"]
+# Test-Fakes erfüllen Protocols und dürfen Argumente ungenutzt lassen.
+"tests/**" = ["PLR2004", "ARG001", "ARG002"]
 
 [tool.mypy]
 strict = true
 files = ["app", "tests"]
 plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+# cvss liefert keine Typ-Stubs.
+module = ["cvss.*"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
