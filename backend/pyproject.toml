@@ -54,6 +54,11 @@ strict = true
 files = ["app", "tests"]
 plugins = ["pydantic.mypy"]
 
+[[tool.mypy.overrides]]
+# cvss liefert keine Typ-Stubs.
+module = ["cvss.*"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
