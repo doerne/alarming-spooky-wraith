@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "shadcn": {
+      "command": "./scripts/mcp-shadcn.sh",
+      "args": []
+    },
+    "playwright": {
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp@latest"]
+    },
+    "mariadb": {
+      "command": "./scripts/mcp-dbhub.sh",
+      "args": []
+    }
+  }
+}

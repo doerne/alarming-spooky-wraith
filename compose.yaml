@@ -1,0 +1,99 @@
+# Produktionsnahe, gehärtete Konfiguration.
+# Für die Entwicklung: docker compose -f compose.yaml -f compose.dev.yaml up  (oder: make dev)
+
+name: alarming-spooky-wraith
+
+x-hardening: &hardening
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  tmpfs: ["/tmp:size=64m,noexec,nosuid,nodev"]
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options: { max-size: "10m", max-file: "3" }
+
+services:
+  db:
+    <<: *hardening
+    image: mariadb:11.4
+    user: "999:999"
+    tmpfs:
+      - "/tmp:size=64m,noexec,nosuid,nodev"
+      - "/run/mysqld:uid=999,gid=999,mode=0755"
+    networks: [data]
+    secrets: [db_password, db_root_password]
+    environment:
+      MARIADB_DATABASE: appdb
+      MARIADB_USER: app
+      MARIADB_PASSWORD_FILE: /run/secrets/db_password
+      MARIADB_ROOT_PASSWORD_FILE: /run/secrets/db_root_password
+      MARIADB_AUTO_UPGRADE: "1"
+    volumes:
+      - dbdata:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    deploy:
+      resources:
+        limits: { cpus: "1.0", memory: 1G, pids: 200 }
+
+  migrate:
+    <<: *hardening
+    build: ./backend
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+    networks: [data]
+    secrets: [db_password]
+    environment: &backend-env
+      DB_HOST: db
+      DB_NAME: appdb
+      DB_USER: app
+      DB_PASSWORD_FILE: /run/secrets/db_password
+    depends_on:
+      db: { condition: service_healthy }
+    deploy:
+      resources:
+        limits: { cpus: "0.5", memory: 256M, pids: 200 }
+
+  backend:
+    <<: *hardening
+    build: ./backend
+    networks: [web, data]
+    secrets: [db_password]
+    environment:
+      <<: *backend-env
+      ENABLE_DOCS: "false"
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    deploy:
+      resources:
+        limits: { cpus: "1.0", memory: 512M, pids: 200 }
+
+  frontend:
+    <<: *hardening
+    build: ./frontend
+    ports: ["${FRONTEND_PORT:-8080}:8080"]
+    networks: [web]
+    depends_on:
+      backend: { condition: service_healthy }
+    deploy:
+      resources:
+        limits: { cpus: "0.5", memory: 128M, pids: 200 }
+
+networks:
+  web: {}
+  data:
+    internal: true # Datenbanknetz ohne Internetzugang
+
+secrets:
+  db_password:
+    file: ./secrets/db_password.txt
+  db_root_password:
+    file: ./secrets/db_root_password.txt
+
+volumes:
+  dbdata: {}

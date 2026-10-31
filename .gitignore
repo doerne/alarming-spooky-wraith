@@ -1,0 +1,25 @@
+# Geheimnisse
+secrets/*.txt
+.env
+.env.*
+!.env.example
+
+# Claude Code (persönlich / Laufzeit)
+.claude/settings.local.json
+.claude/.state/
+
+# Python
+backend/.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node
+frontend/node_modules/
+frontend/dist/
+frontend/coverage/
+
+# System
+.DS_Store

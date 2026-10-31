@@ -1,0 +1,83 @@
+[project]
+name = "alarming-spooky-wraith-backend"
+version = "0.1.0"
+description = "alarming-spooky-wraith – FastAPI-Backend nach Clean Architecture"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.120",
+    "uvicorn[standard]>=0.35",
+    "sqlalchemy>=2.0.40",
+    "pymysql>=1.1",
+    "alembic>=1.16",
+    "pydantic>=2.11",
+    "pydantic-settings>=2.10",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4",
+    "httpx>=0.28",
+    "ruff>=0.13",
+    "mypy>=1.18",
+    "import-linter>=2.5",
+]
+
+[tool.uv]
+package = false
+
+# ---------------------------------------------------------------- Clean Code
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+extend-exclude = ["migrations/versions"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "B", "UP", "SIM", "C90", "PL", "RUF", "PT", "RET", "ARG"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 8
+
+[tool.ruff.lint.pylint]
+max-args = 5
+max-branches = 8
+max-statements = 30
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["PLR2004", "ARG001"]
+
+[tool.mypy]
+strict = true
+files = ["app", "tests"]
+plugins = ["pydantic.mypy"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-ra --strict-markers"
+
+# ------------------------------------------------------- Clean Architecture
+[tool.importlinter]
+root_package = "app"
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "Abhängigkeiten zeigen nur nach innen"
+type = "layers"
+layers = [
+    "app.main",
+    "app.presentation | app.infrastructure",
+    "app.application",
+    "app.domain",
+]
+
+[[tool.importlinter.contracts]]
+name = "Domain ist framework-frei"
+type = "forbidden"
+source_modules = ["app.domain"]
+forbidden_modules = ["fastapi", "starlette", "sqlalchemy", "pydantic", "pydantic_settings"]
+
+[[tool.importlinter.contracts]]
+name = "Use Cases kennen weder Web noch Datenbank"
+type = "forbidden"
+source_modules = ["app.application"]
+forbidden_modules = ["fastapi", "starlette", "sqlalchemy", "pydantic_settings"]

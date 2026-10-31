@@ -1,0 +1,15 @@
+# Ergänzungen für die lokale Entwicklung. Nie auf einem Server verwenden.
+# Ports werden nur auf 127.0.0.1 geöffnet.
+
+services:
+  db:
+    networks: [data, dbdev]
+    ports: ["127.0.0.1:3306:3306"] # für DBHub (MCP) und lokale Tools
+
+  backend:
+    ports: ["127.0.0.1:8000:8000"] # für den Vite-Dev-Server
+    environment:
+      ENABLE_DOCS: "true" # Swagger UI unter /api/docs
+
+networks:
+  dbdev: {} # zusätzliches, nicht-internes Netz, damit der DB-Port erreichbar ist

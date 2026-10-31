@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(make check)",
+      "Bash(make check-backend)",
+      "Bash(make check-frontend)",
+      "Bash(make check-docker)",
+      "Bash(make test)",
+      "Bash(make migrate)",
+      "Bash(make dev-services)",
+      "Bash(make ps)",
+      "Bash(make logs*)",
+      "Bash(uv run *)",
+      "Bash(uv sync*)",
+      "Bash(npm run *)",
+      "Bash(npx vitest *)",
+      "Bash(npx eslint *)",
+      "Bash(npx tsc *)",
+      "Bash(npx prettier *)",
+      "Bash(npx shadcn@latest add *)",
+      "Bash(npx shadcn@latest search *)",
+      "Bash(npx shadcn@latest view *)",
+      "Bash(npx shadcn@latest docs *)",
+      "Bash(npx shadcn@latest diff*)",
+      "Bash(npx shadcn@latest info*)",
+      "Bash(docker compose ps*)",
+      "Bash(docker compose logs*)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./secrets/**)",
+      "Bash(cat secrets/*)",
+      "Bash(docker compose down -v*)",
+      "Bash(docker volume rm*)",
+      "Bash(docker system prune*)"
+    ]
+  },
+  "enabledPlugins": {
+    "fullstack-standards@claude-standards": true
+  }
+}
