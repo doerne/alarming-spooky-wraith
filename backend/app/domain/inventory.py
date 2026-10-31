@@ -29,6 +29,7 @@ class Component:
     ecosystem: Ecosystem | None
     direct: bool
     id: int | None = None
+    application_id: int | None = None
 
 
 @dataclass

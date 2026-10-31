@@ -4,6 +4,7 @@ from dataclasses import replace
 
 from app.domain.errors import EntityNotFoundError
 from app.domain.inventory import Application, Component
+from app.domain.ports import OsvVuln
 from app.domain.vulnerability import Advisory, Finding
 
 
@@ -33,7 +34,7 @@ class InMemoryComponentRepository:
         self._next_id = 1
 
     def add(self, application_id: int, component: Component) -> Component:
-        saved = replace(component, id=self._next_id)
+        saved = replace(component, id=self._next_id, application_id=application_id)
         self._items.append((application_id, saved))
         self._next_id += 1
         return saved
@@ -91,3 +92,23 @@ class InMemoryUnitOfWork:
 
     def commit(self) -> None:
         self.commits += 1
+
+
+class FakeOsvClient:
+    def __init__(self, vulns_by_name: dict[str, list[OsvVuln]]) -> None:
+        self._vulns_by_name = vulns_by_name
+
+    def query(self, ecosystem: str, name: str, version: str) -> list[OsvVuln]:
+        return self._vulns_by_name.get(name, [])
+
+
+class FakeAdvisoryStore:
+    def __init__(self) -> None:
+        self.saved: dict[str, str] = {}
+
+    def save(self, advisory: Advisory, *, tags: list[str], source_url: str, body: str) -> str:
+        self.saved[advisory.advisory_id] = body
+        return f"advisories/{advisory.advisory_id}.md"
+
+    def read(self, advisory_id: str) -> str:
+        return self.saved[advisory_id]
