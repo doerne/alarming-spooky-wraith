@@ -1,3 +1,4 @@
+import httpx
 import pytest
 
 from app.domain.errors import SourceAccessError
@@ -33,7 +34,7 @@ _RESPONSE = {
 
 def _source() -> PackagistSource:
     return PackagistSource(
-        mock_client(lambda _: __import__("httpx").Response(200, json=_RESPONSE)),
+        mock_client(lambda _: httpx.Response(200, json=_RESPONSE)),
         UniversVersionMatcher(),
     )
 
