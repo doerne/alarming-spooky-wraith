@@ -48,3 +48,11 @@ export function hasActiveFilters(filters: FindingFilters): boolean {
     filters.query.trim() !== ""
   );
 }
+
+/** Anwendungen aus den Funden, je einmal, alphabetisch (für den Anwendungsfilter). */
+export function applicationsOf(
+  findings: ReadonlyArray<{ applicationId: number; applicationName: string }>,
+): { id: number; name: string }[] {
+  const byId = new Map(findings.map((finding) => [finding.applicationId, finding.applicationName]));
+  return [...byId].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+}

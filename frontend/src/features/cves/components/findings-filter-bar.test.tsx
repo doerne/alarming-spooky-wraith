@@ -37,7 +37,7 @@ describe("FindingsFilterBar", () => {
   it("meldet Status, Ökosystem und Anwendung", async () => {
     const { onChange } = renderBar();
 
-    await userEvent.click(screen.getByTestId("cves-select-status-false_positive"));
+    await userEvent.click(screen.getByTestId("cves-select-status-false-positive"));
     await userEvent.click(screen.getByTestId("cves-select-ecosystem-none"));
     await userEvent.selectOptions(screen.getByTestId("cves-select-application"), "2");
 
@@ -78,13 +78,13 @@ describe("FindingsFilterBar", () => {
 
 describe("FilterSummary", () => {
   it("zeigt N von M", () => {
-    render(<FilterSummary shown={12} total={83} />);
+    render(<FilterSummary shown={12} total={83} onReset={vi.fn()} />);
 
     expect(screen.getByTestId("cves-text-filter-summary")).toHaveTextContent("12 von 83 Funden");
   });
 
   it("zeigt leeren Zustand", () => {
-    render(<FilterSummary shown={0} total={83} />);
+    render(<FilterSummary shown={0} total={83} onReset={vi.fn()} />);
 
     expect(screen.getByTestId("cves-text-no-results")).toHaveTextContent(
       "Keine Funde für diese Filter",

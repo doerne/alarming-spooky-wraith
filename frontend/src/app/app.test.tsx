@@ -65,12 +65,17 @@ function bodyFor(url: URL): unknown {
 }
 
 const requests: string[] = [];
+let failFilteredRequests = false;
 
 function mockApi() {
   requests.length = 0;
+  failFilteredRequests = false;
   vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
     const url = new URL(String(input), "http://localhost");
     requests.push(url.pathname + url.search);
+    if (failFilteredRequests && url.pathname === "/api/cves" && url.search) {
+      return Promise.resolve(new Response("{}", { status: 500 }));
+    }
     return Promise.resolve(new Response(JSON.stringify(bodyFor(url)), { status: 200 }));
   });
 }
@@ -80,6 +85,32 @@ afterEach(() => {
 });
 
 describe("App", () => {
+  it("zeigt bei 0 Treffern nur den Hinweis mit Zurücksetzen", async () => {
+    mockApi();
+    renderApp();
+
+    await screen.findByTestId("cves-item-CVE-2024-2-1");
+    await userEvent.click(screen.getByTestId("cves-select-severity-niedrig"));
+
+    expect(await screen.findByTestId("cves-text-no-results")).toBeInTheDocument();
+    expect(screen.queryByTestId("cves-list-findings")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByTestId("cves-btn-reset-no-results"));
+    expect(await screen.findByTestId("cves-item-CVE-2024-2-1")).toBeInTheDocument();
+  });
+
+  it("zeigt einen Fehler, wenn die gefilterte Abfrage scheitert", async () => {
+    mockApi();
+    renderApp();
+    await screen.findByTestId("cves-item-CVE-2024-2-1");
+    failFilteredRequests = true;
+
+    await userEvent.click(screen.getByTestId("cves-select-severity-hoch"));
+
+    expect(
+      await screen.findByTestId("cves-error-findings", {}, { timeout: 4000 }),
+    ).toBeInTheDocument();
+  });
+
   it("filtert nur die Tabelle, Kacheln zeigen den Gesamtstand", async () => {
     mockApi();
     renderApp();

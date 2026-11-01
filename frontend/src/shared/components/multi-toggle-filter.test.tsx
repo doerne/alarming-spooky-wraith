@@ -43,4 +43,22 @@ describe("MultiToggleFilter", () => {
 
     expect(onChange).toHaveBeenCalledWith(["b"]);
   });
+
+  it("bildet Test-IDs in kebab-case aus beliebigen Werten", () => {
+    render(
+      <MultiToggleFilter
+        label="Ökosystem"
+        options={[
+          { value: "crates.io", label: "crates.io" },
+          { value: "PyPI", label: "PyPI" },
+        ]}
+        selected={[]}
+        onChange={vi.fn()}
+        testIdPrefix="shared-select-test"
+      />,
+    );
+
+    expect(screen.getByTestId("shared-select-test-crates-io")).toBeInTheDocument();
+    expect(screen.getByTestId("shared-select-test-pypi")).toBeInTheDocument();
+  });
 });

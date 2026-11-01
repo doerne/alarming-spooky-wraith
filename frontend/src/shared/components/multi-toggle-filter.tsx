@@ -13,6 +13,14 @@ interface MultiToggleFilterProps<T extends string> {
   testIdPrefix: string;
 }
 
+/** Test-IDs in kebab-case, auch für Werte wie "crates.io" oder "PyPI". */
+function slug(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
 /** Mehrfachauswahl als Umschalt-Knöpfe; keine Auswahl = kein Filter. */
 export function MultiToggleFilter<T extends string>({
   label,
@@ -38,7 +46,7 @@ export function MultiToggleFilter<T extends string>({
           <ToggleGroupItem
             key={option.value}
             value={option.value}
-            data-testid={`${testIdPrefix}-${option.value}`}
+            data-testid={`${testIdPrefix}-${slug(option.value)}`}
           >
             {option.label}
           </ToggleGroupItem>

@@ -5,3 +5,4 @@ package-lock.json
 
 # Generierte shadcn-Komponenten nie umformatieren (Hausregel)
 src/shared/ui
+src/shared/hooks/use-mobile.ts
