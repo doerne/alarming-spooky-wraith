@@ -194,3 +194,20 @@ def test_list_cves_filtered_by_application() -> None:
     page = client.get(f"/api/cves?application_id={shop_id}").json()
     assert page["total"] == 1
     assert page["items"][0]["applicationName"] == "Shop"
+
+
+def test_component_with_pypi_ecosystem_is_accepted() -> None:
+    client = _client(_build([]))
+    app_id = client.post("/api/applications", json={"name": "Api"}).json()["id"]
+    response = client.post(
+        f"/api/applications/{app_id}/components",
+        json={
+            "name": "django",
+            "version": "5.1.0",
+            "category": "framework",
+            "ecosystem": "PyPI",
+            "direct": True,
+        },
+    )
+    assert response.status_code == 201
+    assert response.json()["ecosystem"] == "PyPI"

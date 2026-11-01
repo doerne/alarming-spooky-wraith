@@ -17,6 +17,16 @@ class Ecosystem(StrEnum):
     """Paket-Ökosystem für das versionsgenaue OSV-Matching."""
 
     NPM = "npm"
+    PYPI = "PyPI"
+    GO = "Go"
+    CRATES_IO = "crates.io"
+    RUBYGEMS = "RubyGems"
+    PACKAGIST = "Packagist"
+    MAVEN = "Maven"
+    NUGET = "NuGet"
+    HACKAGE = "Hackage"
+    CRAN = "CRAN"
+    OPAM = "opam"
 
 
 @dataclass(frozen=True)
