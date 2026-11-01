@@ -17,6 +17,7 @@ const FINDING = {
   advisoryId: "CVE-2024-1",
   cveId: "CVE-2024-1",
   title: "XSS",
+  applicationId: 1,
   applicationName: "Shop",
   componentId: 1,
   componentName: "react",
@@ -52,17 +53,25 @@ const IDLE_INGEST = {
   error: null,
 };
 
-const RESPONSES: ReadonlyArray<[suffix: string, body: unknown]> = [
-  ["/api/cves/CVE-2024-1", DETAIL],
-  ["/api/cves", { items: [FINDING], total: 1 }],
-];
+const SECOND = { ...FINDING, advisoryId: "CVE-2024-2", cveId: "CVE-2024-2", riskLevel: "mittel" };
+
+function bodyFor(url: URL): unknown {
+  if (url.pathname === "/api/cves/CVE-2024-1") return DETAIL;
+  if (url.pathname !== "/api/cves") return IDLE_INGEST;
+  const all = [FINDING, SECOND];
+  const severities = url.searchParams.getAll("severity");
+  const items = severities.length ? all.filter((f) => severities.includes(f.riskLevel)) : all;
+  return { items, total: items.length, unfilteredTotal: all.length };
+}
+
+const requests: string[] = [];
 
 function mockApi() {
+  requests.length = 0;
   vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
-    const url = String(input);
-    const match = RESPONSES.find(([suffix]) => url.endsWith(suffix));
-    const body = match ? match[1] : IDLE_INGEST;
-    return Promise.resolve(new Response(JSON.stringify(body), { status: 200 }));
+    const url = new URL(String(input), "http://localhost");
+    requests.push(url.pathname + url.search);
+    return Promise.resolve(new Response(JSON.stringify(bodyFor(url)), { status: 200 }));
   });
 }
 
@@ -71,6 +80,19 @@ afterEach(() => {
 });
 
 describe("App", () => {
+  it("filtert nur die Tabelle, Kacheln zeigen den Gesamtstand", async () => {
+    mockApi();
+    renderApp();
+
+    await screen.findByTestId("cves-item-CVE-2024-2-1");
+    await userEvent.click(screen.getByTestId("cves-select-severity-kritisch"));
+
+    expect(await screen.findByTestId("cves-text-filter-summary")).toHaveTextContent("1 von 2");
+    expect(screen.queryByTestId("cves-item-CVE-2024-2-1")).not.toBeInTheDocument();
+    expect(screen.getByTestId("cves-list-kpis")).toHaveTextContent("2");
+    expect(requests).toContain("/api/cves?severity=kritisch");
+  });
+
   it("öffnet den CVE-Drawer per Klick auf eine Zeile", async () => {
     mockApi();
     renderApp();

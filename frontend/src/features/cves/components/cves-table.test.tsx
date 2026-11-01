@@ -15,6 +15,7 @@ function finding(
     advisoryId,
     cveId: advisoryId,
     title: `t ${advisoryId}`,
+    applicationId: 1,
     applicationName: "Shop",
     componentId,
     componentName: "react",

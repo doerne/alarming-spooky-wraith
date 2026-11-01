@@ -7,6 +7,7 @@ export const findingSchema = z.object({
   advisoryId: z.string(),
   cveId: z.string().nullable(),
   title: z.string(),
+  applicationId: z.number(),
   applicationName: z.string(),
   componentId: z.number(),
   componentName: z.string(),
@@ -22,6 +23,7 @@ export type Finding = z.infer<typeof findingSchema>;
 export const findingsPageSchema = z.object({
   items: z.array(findingSchema),
   total: z.number(),
+  unfilteredTotal: z.number(),
 });
 export type FindingsPage = z.infer<typeof findingsPageSchema>;
 

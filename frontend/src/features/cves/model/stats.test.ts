@@ -8,6 +8,7 @@ function makeFinding(overrides: Partial<Finding>): Finding {
     advisoryId: "GHSA-x",
     cveId: null,
     title: "Titel",
+    applicationId: 1,
     applicationName: "App",
     componentId: 1,
     componentName: "Komponente",
