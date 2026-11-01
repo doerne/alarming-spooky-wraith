@@ -35,7 +35,12 @@ from app.domain.sources import (
     SourceStatus,
     source_status,
 )
-from app.domain.vulnerability import Advisory, Finding
+from app.domain.vulnerability import (
+    ADVISORY_TITLE_MAX_LENGTH,
+    FIX_VERSION_MAX_LENGTH,
+    Advisory,
+    Finding,
+)
 
 _logger = logging.getLogger(__name__)
 _MAX_MESSAGE_LENGTH = 500
@@ -88,6 +93,16 @@ def _error_message(error: Exception) -> str:
         return (str(error) or "Quelle nicht erreichbar")[:_MAX_MESSAGE_LENGTH]
     _logger.exception("Unerwarteter Fehler in einer Quelle")
     return f"Unerwarteter Fehler ({type(error).__name__})"
+
+
+def _shorten(text: str, limit: int) -> str:
+    """Kürzt lange Texte (z. B. NVD-Beschreibungen als Titel) mit Auslassungszeichen."""
+    return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
+
+
+def _fitting(value: str | None, limit: int) -> str | None:
+    """Ein abgeschnittener Versionsstring wäre falsch - dann lieber keiner."""
+    return value if value is None or len(value) <= limit else None
 
 
 def _render_body(merged: MergedAdvisory, rationale: str) -> str:
@@ -228,10 +243,10 @@ class RunIngest:
         advisory = Advisory(
             advisory_id=merged.advisory_id,
             cve_id=merged.cve_id,
-            title=merged.title,
+            title=_shorten(merged.title, ADVISORY_TITLE_MAX_LENGTH),
             description=merged.description,
             cvss_base=merged.cvss_base,
-            fixed_version=merged.fixed_version,
+            fixed_version=_fitting(merged.fixed_version, FIX_VERSION_MAX_LENGTH),
             references=merged.references,
             okf_path="",
         )

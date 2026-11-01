@@ -13,11 +13,14 @@ from app.application.source_use_cases import reset_interrupted_runs
 from app.infrastructure.config import get_settings
 from app.infrastructure.database import create_session_factory
 from app.infrastructure.okf_store import FileAdvisoryStore
-from app.infrastructure.sources.osv import OsvSource
+from app.infrastructure.sources.catalog import build_sources
+from app.infrastructure.sources.http_cache import HttpCache
 from app.infrastructure.thread_ingest_runner import ThreadIngestRunner
 from app.infrastructure.unit_of_work import sqlalchemy_unit_of_work
 from app.infrastructure.univers_matcher import UniversVersionMatcher
 from app.presentation.app_factory import create_app
+
+_HTTP_TIMEOUT_SECONDS = 60.0
 
 
 def _now() -> datetime:
@@ -29,8 +32,11 @@ def build_app() -> FastAPI:
     uow_factory = partial(
         sqlalchemy_unit_of_work, create_session_factory(settings.sqlalchemy_url())
     )
-    registry = SourceRegistry([OsvSource(settings.osv_base_url, httpx.Client(timeout=30.0))])
-    matcher = ComponentMatcher(UniversVersionMatcher())
+    client = httpx.Client(timeout=_HTTP_TIMEOUT_SECONDS, headers={"User-Agent": "cve-radar"})
+    versions = UniversVersionMatcher()
+    cache = HttpCache(settings.source_cache_root, client)
+    registry = SourceRegistry(build_sources(client, cache, versions, settings.osv_base_url))
+    matcher = ComponentMatcher(versions)
     store = FileAdvisoryStore(settings.okf_root)
     job = partial(run_ingest_job, uow_factory, registry, matcher, store, _now)
     return create_app(

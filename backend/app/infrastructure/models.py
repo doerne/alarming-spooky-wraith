@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from sqlalchemy import DateTime, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.domain.vulnerability import ADVISORY_TITLE_MAX_LENGTH, FIX_VERSION_MAX_LENGTH
 from app.infrastructure.database import Base
 
 
@@ -34,12 +35,12 @@ class AdvisoryModel(Base):
     advisory_id: Mapped[str] = mapped_column(String(64), primary_key=True)
     cve_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
     okf_path: Mapped[str] = mapped_column(String(300))
-    title: Mapped[str] = mapped_column(String(500))
+    title: Mapped[str] = mapped_column(String(ADVISORY_TITLE_MAX_LENGTH))
     description: Mapped[str] = mapped_column(Text)
     cvss_score: Mapped[float | None] = mapped_column(nullable=True)
     epss_score: Mapped[float | None] = mapped_column(nullable=True)
     in_kev: Mapped[bool] = mapped_column(default=False)
-    fix_version: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    fix_version: Mapped[str | None] = mapped_column(String(FIX_VERSION_MAX_LENGTH), nullable=True)
 
 
 class FindingModel(Base):

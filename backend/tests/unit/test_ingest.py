@@ -14,7 +14,7 @@ from app.domain.sources import (
     SourceKind,
     SourceSetting,
 )
-from app.domain.vulnerability import FindingStatus
+from app.domain.vulnerability import ADVISORY_TITLE_MAX_LENGTH, FindingStatus
 from app.infrastructure.univers_matcher import UniversVersionMatcher
 from tests.fakes import (
     FakeAdvisoryStore,
@@ -249,3 +249,22 @@ def test_bulk_source_gets_names_of_components_in_scope() -> None:
     bulk = FakeBulkSource(descriptor("cve-org", kind=SourceKind.BULK, scope=MatchScope.PRODUCT))
     _run(uow, bulk)
     assert bulk.names == [frozenset({"mariadb"})]
+
+
+def test_long_summary_is_shortened_for_title() -> None:
+    uow = _uow(_REACT)
+    long_text = "A" * 2000
+    store = FakeAdvisoryStore()
+    source = FakePackageSource(descriptor("osv"), {"react": [_vuln(summary=long_text)]})
+    _run(uow, source, store=store)
+    advisory = uow.advisories.get("CVE-2024-123")
+    assert len(advisory.title) <= ADVISORY_TITLE_MAX_LENGTH
+    assert advisory.title.endswith("…")
+    assert advisory.description == long_text
+
+
+def test_long_fix_version_is_dropped() -> None:
+    uow = _uow(_REACT)
+    source = FakePackageSource(descriptor("osv"), {"react": [_vuln(fixed_version="9" * 300)]})
+    _run(uow, source)
+    assert uow.advisories.get("CVE-2024-123").fixed_version is None
