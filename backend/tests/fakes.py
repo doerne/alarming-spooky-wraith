@@ -5,6 +5,7 @@ from dataclasses import replace
 from app.domain.errors import EntityNotFoundError
 from app.domain.inventory import Application, Component
 from app.domain.ports import SourceReference, SourceVuln
+from app.domain.sources import SourceSetting
 from app.domain.vulnerability import Advisory, Finding
 
 
@@ -99,6 +100,21 @@ class InMemoryAdvisoryRepository:
         return self._items[advisory_id]
 
 
+class InMemorySourceSettingRepository:
+    def __init__(self) -> None:
+        self._items: dict[str, SourceSetting] = {}
+
+    def get_all(self) -> list[SourceSetting]:
+        return [replace(setting) for setting in self._items.values()]
+
+    def get(self, source_key: str) -> SourceSetting | None:
+        setting = self._items.get(source_key)
+        return replace(setting) if setting else None
+
+    def save(self, setting: SourceSetting) -> None:
+        self._items[setting.source_key] = replace(setting)
+
+
 class InMemoryUnitOfWork:
     def __init__(self) -> None:
         self.commits = 0
@@ -106,6 +122,7 @@ class InMemoryUnitOfWork:
         self.components = InMemoryComponentRepository()
         self.findings = InMemoryFindingRepository()
         self.advisories = InMemoryAdvisoryRepository()
+        self.source_settings = InMemorySourceSettingRepository()
 
     def commit(self) -> None:
         self.commits += 1

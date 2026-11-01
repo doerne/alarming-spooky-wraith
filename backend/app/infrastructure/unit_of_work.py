@@ -8,6 +8,7 @@ from app.infrastructure.repositories import (
     SqlAlchemyApplicationRepository,
     SqlAlchemyComponentRepository,
     SqlAlchemyFindingRepository,
+    SqlAlchemySourceSettingRepository,
 )
 
 
@@ -20,6 +21,7 @@ class SqlAlchemyUnitOfWork:
         self.components = SqlAlchemyComponentRepository(session)
         self.findings = SqlAlchemyFindingRepository(session)
         self.advisories = SqlAlchemyAdvisoryRepository(session)
+        self.source_settings = SqlAlchemySourceSettingRepository(session)
 
     def commit(self) -> None:
         self._session.commit()

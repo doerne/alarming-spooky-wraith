@@ -62,3 +62,15 @@ class FindingModel(Base):
         default=lambda: datetime.now(UTC),
         onupdate=lambda: datetime.now(UTC),
     )
+
+
+class SourceSettingModel(Base):
+    __tablename__ = "source_setting"
+
+    source_key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    enabled: Mapped[bool] = mapped_column(default=True)
+    api_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    last_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_status: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    last_message: Mapped[str] = mapped_column(Text, default="")
+    last_findings: Mapped[int | None] = mapped_column(nullable=True)
