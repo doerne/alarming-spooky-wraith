@@ -15,9 +15,14 @@ import type { Component } from "./model/types";
 interface ApplicationDetailPageProps {
   applicationId: number;
   onBack: () => void;
+  onSelectCve: (advisoryId: string) => void;
 }
 
-export function ApplicationDetailPage({ applicationId, onBack }: ApplicationDetailPageProps) {
+export function ApplicationDetailPage({
+  applicationId,
+  onBack,
+  onSelectCve,
+}: ApplicationDetailPageProps) {
   const detail = useApplication(applicationId);
   const findings = useApplicationFindings(applicationId);
   const addComponent = useAddComponent();
@@ -55,6 +60,7 @@ export function ApplicationDetailPage({ applicationId, onBack }: ApplicationDeta
         <Skeleton className="h-40 w-full" />
       ) : (
         <DetailTabs
+          onSelectCve={onSelectCve}
           components={detail.data?.components ?? []}
           findings={findings.data ?? []}
           editing={editing}

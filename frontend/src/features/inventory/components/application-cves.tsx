@@ -1,3 +1,4 @@
+import { ClickableRow } from "@/shared/components/clickable-row";
 import { Badge } from "@/shared/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/ui/table";
 
@@ -10,7 +11,12 @@ const RISK_VARIANT: Record<string, "default" | "secondary" | "destructive" | "ou
   niedrig: "outline",
 };
 
-export function ApplicationCves({ findings }: { findings: ApplicationFinding[] }) {
+interface ApplicationCvesProps {
+  findings: ApplicationFinding[];
+  onSelect: (advisoryId: string) => void;
+}
+
+export function ApplicationCves({ findings, onSelect }: ApplicationCvesProps) {
   if (findings.length === 0) {
     return (
       <p className="text-sm text-muted-foreground" data-testid="inventory-text-no-cves">
@@ -32,9 +38,11 @@ export function ApplicationCves({ findings }: { findings: ApplicationFinding[] }
       </TableHeader>
       <TableBody>
         {findings.map((finding) => (
-          <TableRow
-            key={finding.advisoryId}
-            data-testid={`inventory-item-cve-${finding.advisoryId}`}
+          <ClickableRow
+            key={`${finding.advisoryId}-${finding.componentId}`}
+            label={`Details zu ${finding.advisoryId}`}
+            testId={`inventory-item-cve-${finding.advisoryId}-${finding.componentId}`}
+            onActivate={() => onSelect(finding.advisoryId)}
           >
             <TableCell>
               <Badge
@@ -50,7 +58,7 @@ export function ApplicationCves({ findings }: { findings: ApplicationFinding[] }
             </TableCell>
             <TableCell>{finding.fixVersion ?? "-"}</TableCell>
             <TableCell>{finding.status}</TableCell>
-          </TableRow>
+          </ClickableRow>
         ))}
       </TableBody>
     </Table>

@@ -22,6 +22,7 @@ export interface ApplicationFinding {
   advisoryId: string;
   cveId: string | null;
   title: string;
+  componentId: number;
   componentName: string;
   componentVersion: string;
   riskScore: number;

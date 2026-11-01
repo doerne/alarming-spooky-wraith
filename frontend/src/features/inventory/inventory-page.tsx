@@ -6,13 +6,19 @@ import { ApplicationList } from "./components/application-list";
 import { useApplications } from "./hooks/use-applications";
 import { useCreateApplication } from "./hooks/use-create-application";
 
-export function InventoryPage() {
+export function InventoryPage({ onSelectCve }: { onSelectCve: (advisoryId: string) => void }) {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const applications = useApplications();
   const createApplication = useCreateApplication();
 
   if (selectedId !== null) {
-    return <ApplicationDetailPage applicationId={selectedId} onBack={() => setSelectedId(null)} />;
+    return (
+      <ApplicationDetailPage
+        applicationId={selectedId}
+        onBack={() => setSelectedId(null)}
+        onSelectCve={onSelectCve}
+      />
+    );
   }
 
   return (

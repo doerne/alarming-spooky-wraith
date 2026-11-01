@@ -1,9 +1,15 @@
+import { ClickableRow } from "@/shared/components/clickable-row";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/ui/table";
 
 import type { Finding } from "../model/types";
 import { SeverityBadge } from "./severity-badge";
 
-export function CvesTable({ findings }: { findings: Finding[] }) {
+interface CvesTableProps {
+  findings: Finding[];
+  onSelect: (advisoryId: string) => void;
+}
+
+export function CvesTable({ findings, onSelect }: CvesTableProps) {
   return (
     <Table data-testid="cves-list-findings">
       <TableHeader>
@@ -18,7 +24,12 @@ export function CvesTable({ findings }: { findings: Finding[] }) {
       </TableHeader>
       <TableBody>
         {findings.map((item) => (
-          <TableRow key={item.advisoryId} data-testid={`cves-item-${item.advisoryId}`}>
+          <ClickableRow
+            key={`${item.advisoryId}-${item.componentId}`}
+            label={`Details zu ${item.advisoryId}`}
+            testId={`cves-item-${item.advisoryId}-${item.componentId}`}
+            onActivate={() => onSelect(item.advisoryId)}
+          >
             <TableCell>
               <SeverityBadge level={item.riskLevel} score={item.riskScore} />
             </TableCell>
@@ -29,7 +40,7 @@ export function CvesTable({ findings }: { findings: Finding[] }) {
             </TableCell>
             <TableCell>{item.fixVersion ?? "-"}</TableCell>
             <TableCell>{item.status}</TableCell>
-          </TableRow>
+          </ClickableRow>
         ))}
       </TableBody>
     </Table>

@@ -13,6 +13,7 @@ interface DetailTabsProps {
   onEdit: (component: Component) => void;
   onSubmitComponent: (values: ComponentInput) => void;
   onCancelEdit: () => void;
+  onSelectCve: (advisoryId: string) => void;
 }
 
 export function DetailTabs({
@@ -23,6 +24,7 @@ export function DetailTabs({
   onEdit,
   onSubmitComponent,
   onCancelEdit,
+  onSelectCve,
 }: DetailTabsProps) {
   return (
     <Tabs defaultValue="components" data-testid="inventory-tab-detail">
@@ -45,7 +47,7 @@ export function DetailTabs({
         />
       </TabsContent>
       <TabsContent value="cves" className="pt-4">
-        <ApplicationCves findings={findings} />
+        <ApplicationCves findings={findings} onSelect={onSelectCve} />
       </TabsContent>
     </Tabs>
   );

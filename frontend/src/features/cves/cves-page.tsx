@@ -6,7 +6,7 @@ import { IngestControl } from "./components/ingest-control";
 import { isAlreadyRunning, useIngestStatus, useStartIngest } from "./hooks/use-run-ingest";
 import { computeKpis, countBySeverity } from "./model/stats";
 
-export function CvesPage() {
+export function CvesPage({ onSelectCve }: { onSelectCve: (advisoryId: string) => void }) {
   const { data: findings = [] } = useFindings();
   const ingestStatus = useIngestStatus();
   const startIngest = useStartIngest();
@@ -23,7 +23,7 @@ export function CvesPage() {
       </div>
       <SectionCards kpis={computeKpis(findings)} />
       <SeverityChart data={countBySeverity(findings)} />
-      <CvesTable findings={findings} />
+      <CvesTable findings={findings} onSelect={onSelectCve} />
     </section>
   );
 }
