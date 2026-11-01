@@ -41,7 +41,7 @@ function SourceRow({
 }: { source: Source } & Omit<SourceTableProps, "sources">) {
   return (
     <TableRow data-testid={`sources-item-${source.key}`}>
-      <TableCell>
+      <TableCell className="min-w-64 whitespace-normal">
         <div className="flex flex-col gap-1">
           <a
             href={source.homepageUrl}
@@ -60,7 +60,7 @@ function SourceRow({
       <TableCell>
         <SourceStatusBadge sourceKey={source.key} status={source.status} />
       </TableCell>
-      <TableCell>
+      <TableCell className="max-w-64 whitespace-normal">
         <LastRun source={source} />
       </TableCell>
       <TableCell>

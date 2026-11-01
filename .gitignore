@@ -23,3 +23,7 @@ frontend/coverage/
 
 # System
 .DS_Store
+
+# Lokale Daten im Notweg ohne buildx (OKF-Files, Quellen-Cache)
+.okf-dev/
+.sources-dev/
