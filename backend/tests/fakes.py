@@ -5,7 +5,13 @@ from dataclasses import replace
 from app.domain.errors import EntityNotFoundError
 from app.domain.inventory import Application, Component
 from app.domain.ports import SourceReference, SourceVuln
-from app.domain.sources import SourceSetting
+from app.domain.sources import (
+    ApiKeyRequirement,
+    MatchScope,
+    SourceDescriptor,
+    SourceKind,
+    SourceSetting,
+)
 from app.domain.vulnerability import Advisory, Finding
 
 
@@ -148,3 +154,66 @@ class FakeAdvisoryStore:
 
     def read(self, advisory_id: str) -> str:
         return self.saved[advisory_id]
+
+
+class FakePackageSource:
+    """Paket-Quelle für Tests; merkt sich jeden Aufruf (Name, API-Key)."""
+
+    def __init__(
+        self,
+        descriptor: SourceDescriptor,
+        vulns_by_name: dict[str, list[SourceVuln]] | None = None,
+        error: Exception | None = None,
+    ) -> None:
+        self.descriptor = descriptor
+        self._vulns_by_name = vulns_by_name or {}
+        self._error = error
+        self.calls: list[tuple[str, str | None]] = []
+
+    def query(self, component: Component, api_key: str | None) -> list[SourceVuln]:
+        self.calls.append((component.name, api_key))
+        if self._error is not None:
+            raise self._error
+        return self._vulns_by_name.get(component.name, [])
+
+
+class FakeBulkSource:
+    """Gesamtabzug-Quelle für Tests."""
+
+    def __init__(
+        self,
+        descriptor: SourceDescriptor,
+        vulns: list[SourceVuln] | None = None,
+        error: Exception | None = None,
+    ) -> None:
+        self.descriptor = descriptor
+        self._vulns = vulns or []
+        self._error = error
+        self.loads = 0
+
+    def load(self, api_key: str | None) -> list[SourceVuln]:
+        self.loads += 1
+        if self._error is not None:
+            raise self._error
+        return list(self._vulns)
+
+
+def descriptor(
+    key: str,
+    *,
+    kind: SourceKind = SourceKind.PACKAGE_QUERY,
+    scope: MatchScope = MatchScope.PACKAGE,
+    requirement: ApiKeyRequirement = ApiKeyRequirement.NONE,
+    ecosystems: frozenset[str] = frozenset(),
+) -> SourceDescriptor:
+    return SourceDescriptor(
+        key=key,
+        name=key.upper(),
+        homepage_url=f"https://{key}.example.org",
+        description=f"Quelle {key}",
+        kind=kind,
+        scope=scope,
+        api_key_requirement=requirement,
+        api_key_hint="Format <a>:<b>" if requirement == ApiKeyRequirement.REQUIRED else "",
+        ecosystems=ecosystems,
+    )
