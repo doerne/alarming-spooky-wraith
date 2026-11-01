@@ -1,14 +1,15 @@
-"""Router zum Ausloesen des Ingests.
+"""Router zum Auslösen des Ingests.
 
-Stufe 1: synchron. Spaeter legt der Endpoint nur einen Job in die Queue.
-Die OsvClient- und AdvisoryStore-Instanzen setzt der Composition Root
-(app/main.py) in app.state.
+Die Ausführung (Quellen, Abgleich, Ablage) setzt der Composition Root
+(app/main.py) als ``app.state.run_ingest``.
 """
+
+from collections.abc import Callable
 
 from fastapi import APIRouter, Request
 
-from app.application.ingest import RunIngest
-from app.domain.ports import AdvisoryStore, OsvClient
+from app.application.ingest import IngestResult
+from app.application.unit_of_work import UnitOfWork
 from app.presentation.dependencies import UnitOfWorkDep
 from app.presentation.schemas import ApiModel
 
@@ -22,9 +23,8 @@ class IngestResultResponse(ApiModel):
 
 @router.post("/ingest/run")
 def run_ingest(request: Request, uow: UnitOfWorkDep) -> IngestResultResponse:
-    osv: OsvClient = request.app.state.osv_client
-    store: AdvisoryStore = request.app.state.advisory_store
-    result = RunIngest(uow, osv, store).execute()
+    execute: Callable[[UnitOfWork], IngestResult] = request.app.state.run_ingest
+    result = execute(uow)
     return IngestResultResponse(
         components_scanned=result.components_scanned,
         findings_found=result.findings_found,

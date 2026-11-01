@@ -1,12 +1,18 @@
 from collections.abc import Iterator
 from contextlib import contextmanager
+from datetime import UTC, datetime
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from app.application.component_matching import ComponentMatcher
+from app.application.ingest import IngestResult, RunIngest
+from app.application.source_registry import SourceRegistry
+from app.application.unit_of_work import UnitOfWork
 from app.domain.ports import SourceVuln
+from app.infrastructure.univers_matcher import UniversVersionMatcher
 from app.presentation.app_factory import create_app
-from tests.fakes import FakeAdvisoryStore, FakeOsvClient, InMemoryUnitOfWork
+from tests.fakes import FakeAdvisoryStore, FakePackageSource, InMemoryUnitOfWork, descriptor
 
 
 def _build(vulns: list[SourceVuln]) -> FastAPI:
@@ -16,11 +22,14 @@ def _build(vulns: list[SourceVuln]) -> FastAPI:
     def factory() -> Iterator[InMemoryUnitOfWork]:
         yield uow
 
-    return create_app(
-        factory,
-        osv_client=FakeOsvClient({"react": vulns}),
-        advisory_store=FakeAdvisoryStore(),
-    )
+    registry = SourceRegistry([FakePackageSource(descriptor("osv"), {"react": vulns})])
+    matcher = ComponentMatcher(UniversVersionMatcher())
+    store = FakeAdvisoryStore()
+
+    def run_ingest(uow: UnitOfWork) -> IngestResult:
+        return RunIngest(uow, registry, matcher, store, lambda: datetime.now(UTC)).execute()
+
+    return create_app(factory, run_ingest=run_ingest, source_registry=registry)
 
 
 def _client(app: FastAPI) -> TestClient:

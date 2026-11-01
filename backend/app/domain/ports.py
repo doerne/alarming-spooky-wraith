@@ -114,9 +114,3 @@ class VersionMatcher(Protocol):
     def is_affected(
         self, ecosystem: str | None, version: str, package: AffectedPackage
     ) -> bool: ...
-
-
-class OsvClient(Protocol):
-    """Übergang bis Task 16: wird durch PackageQuerySource ersetzt."""
-
-    def query(self, ecosystem: str, name: str, version: str) -> list[SourceVuln]: ...

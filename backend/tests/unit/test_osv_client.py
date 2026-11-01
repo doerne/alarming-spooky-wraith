@@ -4,7 +4,15 @@ import httpx
 import pytest
 from cvss import CVSS3, CVSS4
 
+from app.domain.inventory import Category, Component, Ecosystem
 from app.infrastructure.osv_client import HttpxOsvClient
+
+
+def _component(name: str, version: str) -> Component:
+    return Component(
+        name=name, version=version, category=Category.LIBRARY, ecosystem=Ecosystem.NPM, direct=True
+    )
+
 
 _RESPONSE = {
     "vulns": [
@@ -36,7 +44,7 @@ def _client(response: dict[str, Any]) -> HttpxOsvClient:
 
 
 def test_query_maps_osv_response() -> None:
-    vulns = _client(_RESPONSE).query("npm", "react", "18.2.0")
+    vulns = _client(_RESPONSE).query(_component("react", "18.2.0"), None)
     assert len(vulns) == 1
     assert vulns[0].id == "GHSA-x"
     assert vulns[0].aliases == ["CVE-2024-1"]
@@ -47,13 +55,13 @@ def test_query_maps_osv_response() -> None:
 
 def test_query_without_severity_has_no_cvss() -> None:
     response = {"vulns": [{"id": "GHSA-y", "summary": "s"}]}
-    vulns = _client(response).query("npm", "left-pad", "1.0.0")
+    vulns = _client(response).query(_component("left-pad", "1.0.0"), None)
     assert vulns[0].cvss_base is None
     assert vulns[0].fixed_version is None
 
 
 def test_empty_response_yields_no_vulns() -> None:
-    assert _client({}).query("npm", "react", "18.2.0") == []
+    assert _client({}).query(_component("react", "18.2.0"), None) == []
 
 
 def test_prefers_cvss_v4_over_v3() -> None:
@@ -72,9 +80,9 @@ def test_prefers_cvss_v4_over_v3() -> None:
             }
         ]
     }
-    assert _client(response).query("npm", "react", "1")[0].cvss_base == expected
+    assert _client(response).query(_component("react", "1"), None)[0].cvss_base == expected
 
 
 def test_reference_without_url_is_skipped() -> None:
     response = {"vulns": [{"id": "GHSA-w", "references": [{"url": "https://a"}, {"type": "WEB"}]}]}
-    assert _client(response).query("npm", "react", "1")[0].references == ["https://a"]
+    assert _client(response).query(_component("react", "1"), None)[0].references == ["https://a"]

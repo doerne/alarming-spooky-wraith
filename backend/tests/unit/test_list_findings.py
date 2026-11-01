@@ -1,10 +1,15 @@
+from datetime import UTC, datetime
+
+from app.application.component_matching import ComponentMatcher
 from app.application.ingest import RunIngest
 from app.application.inventory_use_cases import AddComponent, CreateApplication
 from app.application.list_findings import ListFindings
+from app.application.source_registry import SourceRegistry
 from app.domain.inventory import Category, Component, Ecosystem
 from app.domain.ports import SourceVuln
 from app.domain.vulnerability import Severity
-from tests.fakes import FakeAdvisoryStore, FakeOsvClient, InMemoryUnitOfWork
+from app.infrastructure.univers_matcher import UniversVersionMatcher
+from tests.fakes import FakeAdvisoryStore, FakePackageSource, InMemoryUnitOfWork, descriptor
 
 
 def _vuln(advisory: str, base: float) -> SourceVuln:
@@ -35,8 +40,16 @@ def _ingested_uow() -> InMemoryUnitOfWork:
             direct=True,
         ),
     )
-    osv = FakeOsvClient({"react": [_vuln("CVE-2024-1", 9.8), _vuln("CVE-2024-2", 5.0)]})
-    RunIngest(uow, osv, FakeAdvisoryStore()).execute()
+    osv = FakePackageSource(
+        descriptor("osv"), {"react": [_vuln("CVE-2024-1", 9.8), _vuln("CVE-2024-2", 5.0)]}
+    )
+    RunIngest(
+        uow,
+        SourceRegistry([osv]),
+        ComponentMatcher(UniversVersionMatcher()),
+        FakeAdvisoryStore(),
+        lambda: datetime.now(UTC),
+    ).execute()
     return uow
 
 

@@ -137,21 +137,16 @@ class InMemoryUnitOfWork:
         self.commits += 1
 
 
-class FakeOsvClient:
-    def __init__(self, vulns_by_name: dict[str, list[SourceVuln]]) -> None:
-        self._vulns_by_name = vulns_by_name
-
-    def query(self, ecosystem: str, name: str, version: str) -> list[SourceVuln]:
-        return self._vulns_by_name.get(name, [])
-
-
 class FakeAdvisoryStore:
-    def __init__(self) -> None:
+    def __init__(self, reject: set[str] | None = None) -> None:
         self.saved: dict[str, str] = {}
+        self._reject = reject or set()
 
     def save(
         self, advisory: Advisory, *, tags: list[str], sources: list[SourceReference], body: str
     ) -> str:
+        if advisory.advisory_id in self._reject:
+            raise ValueError(f"Unzulaessige Advisory-ID: {advisory.advisory_id!r}")
         self.saved[advisory.advisory_id] = body
         return f"advisories/{advisory.advisory_id}.md"
 
@@ -220,3 +215,6 @@ def descriptor(
         api_key_hint="Format <a>:<b>" if requirement == ApiKeyRequirement.REQUIRED else "",
         ecosystems=ecosystems,
     )
+
+
+VulnerabilitySourceFake = FakePackageSource | FakeBulkSource

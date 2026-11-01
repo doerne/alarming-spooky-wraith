@@ -9,18 +9,32 @@ import httpx
 from cvss import CVSS3, CVSS4
 from cvss.exceptions import CVSS3Error, CVSS4Error
 
+from app.domain.inventory import Component
 from app.domain.ports import SourceVuln
+from app.domain.sources import MatchScope, SourceDescriptor, SourceKind
+
+DESCRIPTOR = SourceDescriptor(
+    key="osv",
+    name="OSV.dev",
+    homepage_url="https://osv.dev",
+    description="Open Source Vulnerabilities von Google; versionsgenau pro Paket.",
+    kind=SourceKind.PACKAGE_QUERY,
+    scope=MatchScope.PACKAGE,
+)
 
 
 class HttpxOsvClient:
+    descriptor = DESCRIPTOR
+
     def __init__(self, base_url: str, client: httpx.Client) -> None:
         self._base_url = base_url.rstrip("/")
         self._client = client
 
-    def query(self, ecosystem: str, name: str, version: str) -> list[SourceVuln]:
+    def query(self, component: Component, api_key: str | None) -> list[SourceVuln]:  # noqa: ARG002 - Port-Signatur, OSV braucht keinen Key
+        assert component.ecosystem is not None
         payload = {
-            "version": version,
-            "package": {"ecosystem": ecosystem, "name": name},
+            "version": component.version,
+            "package": {"ecosystem": component.ecosystem.value, "name": component.name},
         }
         response = self._client.post(f"{self._base_url}/v1/query", json=payload)
         response.raise_for_status()
