@@ -18,8 +18,14 @@ interface ApplicationCvesPageProps {
 /** Container des CVE-Reiters: Filterzustand + gefilterte Funde einer Anwendung. */
 export function ApplicationCvesPage({ applicationId, onSelectCve }: ApplicationCvesPageProps) {
   const [filters, setFilters] = useState<CveFilters>(EMPTY_CVE_FILTERS);
-  const query = useDebouncedValue(filters.query, SEARCH_DELAY_MS);
-  const findings = useApplicationFindings(applicationId, { ...filters, query });
+  // Suchfelder verzögert abfragen; Auswahlfilter wirken sofort.
+  const advisoryQuery = useDebouncedValue(filters.advisoryQuery, SEARCH_DELAY_MS);
+  const componentQuery = useDebouncedValue(filters.componentQuery, SEARCH_DELAY_MS);
+  const findings = useApplicationFindings(applicationId, {
+    ...filters,
+    advisoryQuery,
+    componentQuery,
+  });
 
   return (
     <div className="flex flex-col gap-4" data-testid="inventory-card-cves-panel">

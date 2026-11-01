@@ -12,6 +12,7 @@ const FINDING = {
   componentId: 1,
   componentName: "react",
   componentVersion: "18.2.0",
+  ecosystem: "npm",
   riskScore: 98,
   riskLevel: "kritisch",
   fixVersion: null,
@@ -47,18 +48,20 @@ describe("ApplicationCvesPage", () => {
     renderPage(1);
 
     expect(await screen.findByTestId("inventory-text-no-cves")).toBeInTheDocument();
-    expect(screen.queryByTestId("inventory-form-cve-filters")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("inventory-list-cves")).not.toBeInTheDocument();
   });
 
-  it("blendet die Tabelle aus, wenn Filter nichts finden", async () => {
+  it("behält Tabelle und Kopf-Filter, wenn Filter nichts finden", async () => {
     mockFindings({ "1": [FINDING] });
     renderPage(1);
 
     await screen.findByTestId("inventory-item-cve-CVE-2024-1-1");
-    await userEvent.click(screen.getByTestId("inventory-select-severity-niedrig"));
+    await userEvent.click(screen.getByTestId("inventory-select-severity"));
+    await userEvent.click(screen.getByTestId("inventory-select-severity-option-niedrig"));
 
     expect(await screen.findByTestId("inventory-text-no-results")).toBeInTheDocument();
-    expect(screen.queryByTestId("inventory-list-cves")).not.toBeInTheDocument();
+    expect(screen.getByTestId("inventory-list-cves")).toBeInTheDocument();
+    expect(screen.getByTestId("inventory-text-filter-summary")).toHaveTextContent("0 von 1");
   });
 
   it("zeigt nach Anwendungswechsel keine Funde der vorherigen Anwendung", async () => {
