@@ -68,11 +68,14 @@ def _fixed_version(advisory: Mapping[str, Any]) -> str | None:
     return None
 
 
-def _to_vuln(advisory: Mapping[str, Any], ecosystem: str) -> SourceVuln:
+def parse_github_advisory(
+    advisory: Mapping[str, Any], source_key: str, ecosystem: str
+) -> SourceVuln:
+    """GitHub-Advisory (global oder Repo) → SourceVuln; ``ecosystem`` im OSV-Namen."""
     cve = advisory.get("cve_id")
     affected = tuple(_affected(item) for item in advisory.get("vulnerabilities") or [])
     return SourceVuln(
-        source_key="ghsa",
+        source_key=source_key,
         id=str(advisory["ghsa_id"]),
         aliases=[cve] if cve else [],
         summary=advisory.get("summary") or "",
@@ -81,11 +84,11 @@ def _to_vuln(advisory: Mapping[str, Any], ecosystem: str) -> SourceVuln:
         fixed_version=_fixed_version(advisory),
         references=[str(url) for url in advisory.get("references") or []],
         url=advisory.get("html_url") or "",
-        affected=tuple(replace_ecosystem(package, ecosystem) for package in affected),
+        affected=tuple(_with_ecosystem(package, ecosystem) for package in affected),
     )
 
 
-def replace_ecosystem(package: AffectedPackage, ecosystem: str) -> AffectedPackage:
+def _with_ecosystem(package: AffectedPackage, ecosystem: str) -> AffectedPackage:
     """GitHub nennt Ökosysteme anders (pip, rust …) - auf OSV-Namen zurückführen."""
     return AffectedPackage(ecosystem, package.name, package.events, package.versions)
 
@@ -113,7 +116,8 @@ class GhsaSource:
             if url is None:
                 break
             response = send(self._client, "GET", url, params=params, headers=headers)
-            vulns += [_to_vuln(item, component.ecosystem.value) for item in response.json()]
+            ecosystem = component.ecosystem.value
+            vulns += [parse_github_advisory(item, "ghsa", ecosystem) for item in response.json()]
             url = response.links.get("next", {}).get("url")
             params = None  # die next-URL bringt ihre Query selbst mit
         return vulns
