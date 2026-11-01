@@ -11,7 +11,7 @@ from datetime import datetime
 from typing import cast
 
 from app.application.advisory_merge import MergedAdvisory, advisory_key, merge_vulns
-from app.application.component_matching import ComponentMatcher
+from app.application.component_matching import ComponentMatcher, normalize_package_name
 from app.application.risk_score import compute_risk_score
 from app.application.source_registry import SourceRegistry
 from app.application.source_use_cases import load_setting
@@ -106,6 +106,11 @@ def _tags(hits: Sequence[_Hit]) -> list[str]:
     return list(dict.fromkeys(tags))
 
 
+def _normalized_name(component: Component) -> str:
+    ecosystem = component.ecosystem.value if component.ecosystem else None
+    return normalize_package_name(ecosystem, component.name)
+
+
 class _SourceCollector:
     """Fragt eine Quelle ab und liefert die passenden Treffer."""
 
@@ -126,7 +131,8 @@ class _SourceCollector:
     ) -> list[_Hit]:
         if not targets:
             return []
-        vulns = source.load(api_key)
+        names = frozenset(_normalized_name(component) for component in targets)
+        vulns = source.load(api_key, names)
         scope = source.descriptor.scope
         return [
             _Hit(component, vuln)

@@ -189,9 +189,11 @@ class FakeBulkSource:
         self._vulns = vulns or []
         self._error = error
         self.loads = 0
+        self.names: list[frozenset[str]] = []
 
-    def load(self, api_key: str | None) -> list[SourceVuln]:
+    def load(self, api_key: str | None, names: frozenset[str]) -> list[SourceVuln]:
         self.loads += 1
+        self.names.append(names)
         if self._error is not None:
             raise self._error
         return list(self._vulns)

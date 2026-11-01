@@ -96,7 +96,9 @@ class BulkSource(Protocol):
 
     @property
     def descriptor(self) -> SourceDescriptor: ...
-    def load(self, api_key: str | None) -> list[SourceVuln]: ...
+    def load(self, api_key: str | None, names: frozenset[str]) -> list[SourceVuln]:
+        """Gesamtabzug; ``names`` (normalisierte Komponentennamen) darf früh filtern."""
+        ...
 
 
 VulnerabilitySource = PackageQuerySource | BulkSource

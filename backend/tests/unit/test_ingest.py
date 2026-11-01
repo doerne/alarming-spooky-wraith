@@ -242,3 +242,10 @@ def test_source_access_error_message_is_shown() -> None:
     stored = uow.source_settings.get("osv")
     assert stored is not None
     assert stored.last_message == "Rate-Limit erreicht"
+
+
+def test_bulk_source_gets_names_of_components_in_scope() -> None:
+    uow = _uow(_REACT, _component("MariaDB", None, version="11.4.2"))
+    bulk = FakeBulkSource(descriptor("cve-org", kind=SourceKind.BULK, scope=MatchScope.PRODUCT))
+    _run(uow, bulk)
+    assert bulk.names == [frozenset({"mariadb"})]
