@@ -67,3 +67,21 @@ describe("ApiKeyDialog", () => {
     expect(screen.queryByTestId("sources-dialog-api-key")).not.toBeInTheDocument();
   });
 });
+
+describe("ApiKeyDialog mit Fehler", () => {
+  it("zeigt einen Fehler beim Speichern", () => {
+    render(
+      <ApiKeyDialog
+        source={snyk}
+        error="API-Key darf nicht leer sein"
+        onSave={vi.fn()}
+        onRemove={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId("sources-error-save")).toHaveTextContent(
+      "API-Key darf nicht leer sein",
+    );
+  });
+});

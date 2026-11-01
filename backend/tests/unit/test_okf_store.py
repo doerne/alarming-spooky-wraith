@@ -81,3 +81,26 @@ def test_frontmatter_lists_all_sources(tmp_path: Path) -> None:
         {"id": "nvd", "resource": "https://nvd/x"},
         {"id": "osv", "resource": "https://osv/x"},
     ]
+
+
+def test_sources_of_earlier_runs_are_kept(tmp_path: Path) -> None:
+    store = FileAdvisoryStore(tmp_path)
+    store.save(
+        _advisory(), tags=["npm"], sources=[SourceReference("nvd", "https://nvd/x")], body="1"
+    )
+    store.save(
+        _advisory(), tags=["npm"], sources=[SourceReference("osv", "https://osv/x")], body="2"
+    )
+    front = yaml.safe_load(store.read("CVE-2024-1").split("---")[1])
+    assert front["sources"] == [
+        {"id": "osv", "resource": "https://osv/x"},
+        {"id": "nvd", "resource": "https://nvd/x"},
+    ]
+    assert front["resource"] == "https://osv/x"
+
+
+def test_id_longer_than_db_column_is_rejected(tmp_path: Path) -> None:
+    store = FileAdvisoryStore(tmp_path)
+    too_long = Advisory(**{**_advisory().__dict__, "advisory_id": "X" * 65})
+    with pytest.raises(ValueError, match="Unzulaessige"):
+        store.save(too_long, tags=[], sources=[], body="b")

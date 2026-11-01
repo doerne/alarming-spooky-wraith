@@ -17,6 +17,7 @@ import { type ApiKeyForm, type Source, apiKeyFormSchema } from "../model/types";
 
 interface ApiKeyDialogProps {
   source: Source | null;
+  error?: string | null;
   onSave: (apiKey: string) => void;
   onRemove: () => void;
   onClose: () => void;
@@ -74,7 +75,7 @@ function ApiKeyFormBody({
 }
 
 /** Dialog zum Hinterlegen eines API-Keys; ein gespeicherter Key wird nie angezeigt. */
-export function ApiKeyDialog({ source, onSave, onRemove, onClose }: ApiKeyDialogProps) {
+export function ApiKeyDialog({ source, error, onSave, onRemove, onClose }: ApiKeyDialogProps) {
   if (source === null) return null;
   return (
     <Dialog open onOpenChange={(open) => (open ? undefined : onClose())}>
@@ -87,6 +88,11 @@ export function ApiKeyDialog({ source, onSave, onRemove, onClose }: ApiKeyDialog
               : "Noch kein Key hinterlegt."}
           </DialogDescription>
         </DialogHeader>
+        {error ? (
+          <p role="alert" className="text-sm text-destructive" data-testid="sources-error-save">
+            {error}
+          </p>
+        ) : null}
         <ApiKeyFormBody source={source} onSave={onSave} onRemove={onRemove} />
       </DialogContent>
     </Dialog>

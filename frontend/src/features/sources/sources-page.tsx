@@ -1,24 +1,15 @@
-import { useState } from "react";
-
 import { Skeleton } from "@/shared/ui/skeleton";
 
 import { ApiKeyDialog } from "./components/api-key-dialog";
+import { SourceAlerts } from "./components/source-alerts";
 import { SourceTable } from "./components/source-table";
-import {
-  useRemoveSourceApiKey,
-  useSetSourceApiKey,
-  useSetSourceEnabled,
-  useSources,
-} from "./hooks/use-sources";
+import { useApiKeyEditing } from "./hooks/use-api-key-editing";
+import { useSetSourceEnabled, useSources } from "./hooks/use-sources";
 
 export function SourcesPage() {
   const sources = useSources();
   const setEnabled = useSetSourceEnabled();
-  const setApiKey = useSetSourceApiKey();
-  const removeApiKey = useRemoveSourceApiKey();
-  const [editingKey, setEditingKey] = useState<string | null>(null);
-  const editing = sources.data?.find((source) => source.key === editingKey) ?? null;
-  const close = () => setEditingKey(null);
+  const apiKey = useApiKeyEditing(sources.data);
 
   return (
     <section className="flex flex-col gap-4" data-testid="sources-section-overview">
@@ -30,25 +21,20 @@ export function SourcesPage() {
         </p>
       </div>
       {sources.isPending ? <Skeleton className="h-48 w-full" /> : null}
-      {sources.isError ? (
-        <p role="alert" className="text-destructive" data-testid="sources-error-load">
-          Quellen konnten nicht geladen werden: {sources.error.message}
-        </p>
-      ) : null}
+      <SourceAlerts loadError={sources.error} toggleError={setEnabled.error} />
       {sources.data ? (
         <SourceTable
           sources={sources.data}
           onToggle={(key, enabled) => setEnabled.mutate({ key, enabled })}
-          onEditApiKey={setEditingKey}
+          onEditApiKey={apiKey.open}
         />
       ) : null}
       <ApiKeyDialog
-        source={editing}
-        onSave={(apiKey) =>
-          editingKey && setApiKey.mutate({ key: editingKey, apiKey }, { onSuccess: close })
-        }
-        onRemove={() => editingKey && removeApiKey.mutate(editingKey, { onSuccess: close })}
-        onClose={close}
+        source={apiKey.editing}
+        error={apiKey.error}
+        onSave={apiKey.save}
+        onRemove={apiKey.remove}
+        onClose={apiKey.close}
       />
     </section>
   );

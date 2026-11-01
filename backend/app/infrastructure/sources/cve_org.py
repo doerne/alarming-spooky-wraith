@@ -137,13 +137,16 @@ class CveOrgSource:
     def load(self, api_key: str | None, names: frozenset[str]) -> list[SourceVuln]:  # noqa: ARG002 - kein Key nötig
         if not names:
             return []
-        outer = self._cache.fetch("cve-org", self._asset_url())
+        asset_name, asset_url = self._latest_asset()
+        # Fester Cache-Name + Asset-Name als Version: ein Abzug pro Tag, keine Altlasten.
+        outer = self._cache.fetch("cve-org", asset_url, cache_name="latest", version=asset_name)
         vulns = (_to_vuln(record, names) for record in _records(_inner_archive(outer), names))
         return [vuln for vuln in vulns if vuln is not None]
 
-    def _asset_url(self) -> str:
+    def _latest_asset(self) -> tuple[str, str]:
         release = get_json(self._client, "GET", _RELEASE_URL)
         for asset in release.get("assets") or []:
-            if str(asset.get("name", "")).endswith(_ASSET_SUFFIX):
-                return str(asset["browser_download_url"])
+            name = str(asset.get("name", ""))
+            if name.endswith(_ASSET_SUFFIX):
+                return name, str(asset["browser_download_url"])
         raise SourceAccessError("Kein CVE.org-Gesamtabzug im neuesten Release gefunden")

@@ -5,7 +5,11 @@ from datetime import UTC, datetime
 from sqlalchemy import DateTime, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.domain.vulnerability import ADVISORY_TITLE_MAX_LENGTH, FIX_VERSION_MAX_LENGTH
+from app.domain.vulnerability import (
+    ADVISORY_ID_MAX_LENGTH,
+    ADVISORY_TITLE_MAX_LENGTH,
+    FIX_VERSION_MAX_LENGTH,
+)
 from app.infrastructure.database import Base
 
 
@@ -32,7 +36,7 @@ class ComponentModel(Base):
 class AdvisoryModel(Base):
     __tablename__ = "advisory"
 
-    advisory_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    advisory_id: Mapped[str] = mapped_column(String(ADVISORY_ID_MAX_LENGTH), primary_key=True)
     cve_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
     okf_path: Mapped[str] = mapped_column(String(300))
     title: Mapped[str] = mapped_column(String(ADVISORY_TITLE_MAX_LENGTH))

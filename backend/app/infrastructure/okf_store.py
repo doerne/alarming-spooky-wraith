@@ -12,12 +12,12 @@ from typing import Any
 import yaml
 
 from app.domain.ports import SourceReference
-from app.domain.vulnerability import Advisory
+from app.domain.vulnerability import ADVISORY_ID_MAX_LENGTH, Advisory
 
 _INDEX = '---\nokf_version: "0.2"\n---\n\n# CVE-Radar Advisories\n'
 
 # Erlaubte Advisory-IDs: keine Pfad-Trenner, kein '..'. Deckt CVE-/GHSA-/OSV-IDs.
-_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{1,99}$")
+_ID_RE = re.compile(rf"^[A-Za-z0-9][A-Za-z0-9_-]{{1,{ADVISORY_ID_MAX_LENGTH - 1}}}$")
 
 
 def _safe_id(advisory_id: str) -> str:
@@ -37,10 +37,11 @@ class FileAdvisoryStore:
         safe_id = _safe_id(advisory.advisory_id)
         self._dir.mkdir(parents=True, exist_ok=True)
         self._ensure_index()
-        front = _frontmatter(advisory, tags=tags, sources=sources)
+        path = self._dir / f"{safe_id}.md"
+        front = _frontmatter(advisory, tags=tags, sources=_with_earlier(path, sources))
         yaml_block = yaml.safe_dump(front, sort_keys=False, allow_unicode=True)
         content = f"---\n{yaml_block}---\n\n{body}\n"
-        (self._dir / f"{safe_id}.md").write_text(content, encoding="utf-8")
+        path.write_text(content, encoding="utf-8")
         return f"advisories/{safe_id}.md"
 
     def read(self, advisory_id: str) -> str:
@@ -51,6 +52,24 @@ class FileAdvisoryStore:
         index = self._root / "index.md"
         if not index.exists():
             index.write_text(_INDEX, encoding="utf-8")
+
+
+def _earlier_sources(path: Path) -> list[SourceReference]:
+    if not path.exists():
+        return []
+    try:
+        front = yaml.safe_load(path.read_text(encoding="utf-8").split("---")[1]) or {}
+    except (IndexError, yaml.YAMLError):
+        return []
+    entries = front.get("sources") or []
+    return [SourceReference(str(e.get("id")), str(e.get("resource"))) for e in entries]
+
+
+def _with_earlier(path: Path, sources: list[SourceReference]) -> list[SourceReference]:
+    """Quellen früherer Läufe bleiben belegt (Spec §7); die aktuellen stehen vorn."""
+    current = {source.source_key for source in sources}
+    earlier = [s for s in _earlier_sources(path) if s.source_key not in current]
+    return [*sources, *earlier]
 
 
 def _frontmatter(

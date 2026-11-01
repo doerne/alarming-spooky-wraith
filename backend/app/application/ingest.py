@@ -16,7 +16,7 @@ from app.application.risk_score import compute_risk_score
 from app.application.source_registry import SourceRegistry
 from app.application.source_use_cases import load_setting
 from app.application.unit_of_work import UnitOfWork, UnitOfWorkFactory
-from app.domain.errors import SourceAccessError
+from app.domain.errors import EntityNotFoundError, SourceAccessError
 from app.domain.inventory import Component
 from app.domain.ports import (
     AdvisoryStore,
@@ -126,6 +126,12 @@ def _normalized_name(component: Component) -> str:
     return normalize_package_name(ecosystem, component.name)
 
 
+@dataclass(frozen=True)
+class _Collected:
+    hits: list[_Hit]
+    message: str = ""
+
+
 class _SourceCollector:
     """Fragt eine Quelle ab und liefert die passenden Treffer."""
 
@@ -134,11 +140,11 @@ class _SourceCollector:
 
     def collect(
         self, source: VulnerabilitySource, api_key: str | None, components: Sequence[Component]
-    ) -> list[_Hit]:
+    ) -> _Collected:
         descriptor = source.descriptor
         targets = [component for component in components if in_scope(descriptor, component)]
         if descriptor.kind == SourceKind.BULK:
-            return self._from_bulk(cast(BulkSource, source), api_key, targets)
+            return _Collected(self._from_bulk(cast(BulkSource, source), api_key, targets))
         return self._from_queries(cast(PackageQuerySource, source), api_key, targets)
 
     def _from_bulk(
@@ -158,15 +164,32 @@ class _SourceCollector:
 
     def _from_queries(
         self, source: PackageQuerySource, api_key: str | None, targets: Sequence[Component]
+    ) -> _Collected:
+        """Fragt jede Komponente einzeln ab; Fehler einzelner Abfragen kosten nur deren Treffer."""
+        hits: list[_Hit] = []
+        failures: list[SourceAccessError] = []
+        for component in targets:
+            try:
+                hits += self._query(source, api_key, component)
+            except SourceAccessError as error:
+                failures.append(error)
+        if failures and len(failures) == len(targets):
+            raise failures[0]
+        if not failures:
+            return _Collected(hits)
+        note = f"{len(failures)} von {len(targets)} Abfragen fehlgeschlagen: {failures[0]}"
+        return _Collected(hits, note[:_MAX_MESSAGE_LENGTH])
+
+    def _query(
+        self, source: PackageQuerySource, api_key: str | None, component: Component
     ) -> list[_Hit]:
         scope = source.descriptor.scope
-        hits: list[_Hit] = []
-        for component in targets:
-            for vuln in source.query(component, api_key):
-                # Paket-APIs gleichen die Version selbst ab; alles andere prüfen wir.
-                if scope == MatchScope.PACKAGE or self._matcher.matches(component, vuln, scope):
-                    hits.append(_Hit(component, vuln))
-        return hits
+        # Paket-APIs gleichen die Version selbst ab; alles andere prüfen wir.
+        return [
+            _Hit(component, vuln)
+            for vuln in source.query(component, api_key)
+            if scope == MatchScope.PACKAGE or self._matcher.matches(component, vuln, scope)
+        ]
 
 
 class RunIngest:
@@ -209,10 +232,11 @@ class RunIngest:
             return self._finish(setting, RunStatus.SKIPPED, _SKIP_MESSAGES[status], None), []
         self._save(setting, RunStatus.RUNNING, "", setting.last_findings)
         try:
-            hits = self._collector.collect(source, setting.api_key, components)
+            collected = self._collector.collect(source, setting.api_key, components)
         except Exception as error:
             return self._finish(setting, RunStatus.ERROR, _error_message(error), None), []
-        return self._finish(setting, RunStatus.OK, "", len(hits)), hits
+        hits = collected.hits
+        return self._finish(setting, RunStatus.OK, collected.message, len(hits)), hits
 
     def _finish(
         self, setting: SourceSetting, status: RunStatus, message: str, findings: int | None
@@ -223,11 +247,14 @@ class RunIngest:
     def _save(
         self, setting: SourceSetting, status: RunStatus, message: str, findings: int | None
     ) -> None:
-        setting.last_status = status
-        setting.last_message = message
-        setting.last_findings = findings
-        setting.last_run_at = self._clock()
-        self._uow.source_settings.save(setting)
+        # Frisch laden: Der Nutzer kann Quelle/Key während des Laufs geändert haben.
+        # Der Ingest schreibt nur die Felder des letzten Laufs.
+        current = load_setting(self._uow, setting.source_key)
+        current.last_status = status
+        current.last_message = message
+        current.last_findings = findings
+        current.last_run_at = self._clock()
+        self._uow.source_settings.save(current)
         self._uow.commit()
 
     def _persist(self, hits: Sequence[_Hit]) -> int:
@@ -237,8 +264,20 @@ class RunIngest:
         order = [*MERGE_PRECEDENCE, *(d.key for d in self._registry.descriptors())]
         return sum(self._persist_advisory(group, order) for group in groups.values())
 
+    def _keep_known_values(self, merged: MergedAdvisory) -> MergedAdvisory:
+        """Fällt eine Quelle in diesem Lauf aus, bleiben bekannte Werte stehen (Spec §5.2)."""
+        try:
+            previous = self._uow.advisories.get(merged.advisory_id)
+        except EntityNotFoundError:
+            return merged
+        return replace(
+            merged,
+            cvss_base=merged.cvss_base if merged.cvss_base is not None else previous.cvss_base,
+            fixed_version=merged.fixed_version or previous.fixed_version,
+        )
+
     def _persist_advisory(self, hits: Sequence[_Hit], order: Sequence[str]) -> int:
-        merged = merge_vulns([hit.vuln for hit in hits], order)
+        merged = self._keep_known_values(merge_vulns([hit.vuln for hit in hits], order))
         risk = compute_risk_score(merged.cvss_base)
         advisory = Advisory(
             advisory_id=merged.advisory_id,

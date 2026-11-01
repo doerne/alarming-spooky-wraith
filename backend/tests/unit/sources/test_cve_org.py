@@ -101,3 +101,28 @@ def test_cve_org_http_error_raises_source_access_error(tmp_path: Path) -> None:
     client = mock_client(lambda _: httpx.Response(503))
     with pytest.raises(SourceAccessError, match="nicht erreichbar"):
         CveOrgSource(client, HttpCache(tmp_path, client)).load(None, frozenset({"redis"}))
+
+
+def test_cve_org_does_not_grow_cache_across_releases(tmp_path: Path) -> None:
+    payload = _nested_zip([_record("CVE-2024-1", "redis")])
+    releases = iter(["1300Z", "1400Z"])
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "api.github.com":
+            tag = next(releases)
+            asset = {
+                "name": f"2026-11-0{1 if tag == '1300Z' else 2}_all_CVEs_at_midnight.zip.zip",
+                "browser_download_url": f"https://dl/{tag}",
+            }
+            return httpx.Response(200, json={"assets": [asset]})
+        return httpx.Response(200, content=payload)
+
+    client = mock_client(handler)
+    source = CveOrgSource(client, HttpCache(tmp_path, client))
+    source.load(None, frozenset({"redis"}))
+    source.load(None, frozenset({"redis"}))
+    files = sorted(path.name for path in (tmp_path / "cve-org").iterdir())
+    assert [name for name in files if not name.endswith(".meta.json")] == [
+        "latest.cves.zip",
+        "latest.data",
+    ]

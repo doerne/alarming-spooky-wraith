@@ -268,3 +268,68 @@ def test_long_fix_version_is_dropped() -> None:
     source = FakePackageSource(descriptor("osv"), {"react": [_vuln(fixed_version="9" * 300)]})
     _run(uow, source)
     assert uow.advisories.get("CVE-2024-123").fixed_version is None
+
+
+class _UserChangesDuringQuery(FakePackageSource):
+    """Simuliert: Nutzer deaktiviert die Quelle und hinterlegt einen Key, während sie läuft."""
+
+    def __init__(self, uow: InMemoryUnitOfWork) -> None:
+        super().__init__(descriptor("osv"))
+        self._uow = uow
+
+    def query(self, component: Component, api_key: str | None) -> list[SourceVuln]:
+        self._uow.source_settings.save(
+            SourceSetting(source_key="osv", enabled=False, api_key="new-key")
+        )
+        return super().query(component, api_key)
+
+
+def test_user_changes_during_run_are_kept() -> None:
+    uow = _uow(_REACT)
+    _run(uow, _UserChangesDuringQuery(uow))
+    stored = uow.source_settings.get("osv")
+    assert stored is not None
+    assert stored.enabled is False
+    assert stored.api_key == "new-key"
+    assert stored.last_status == RunStatus.OK
+
+
+def test_known_values_survive_a_run_without_them() -> None:
+    uow = _uow(_REACT)
+    with_score = FakePackageSource(descriptor("osv"), {"react": [_vuln(cvss_base=9.8)]})
+    _run(uow, with_score)
+    without_score = FakePackageSource(
+        descriptor("osv"), {"react": [_vuln(cvss_base=None, fixed_version=None)]}
+    )
+    _run(uow, without_score)
+    advisory = uow.advisories.get("CVE-2024-123")
+    assert advisory.cvss_base == 9.8
+    assert advisory.fixed_version == "18.2.1"
+    assert uow.findings.list()[0].risk.value == 98
+
+
+class _FailsFor(FakePackageSource):
+    def __init__(self, failing: str, vulns_by_name: dict[str, list[SourceVuln]]) -> None:
+        super().__init__(descriptor("osv"), vulns_by_name)
+        self._failing = failing
+
+    def query(self, component: Component, api_key: str | None) -> list[SourceVuln]:
+        if component.name == self._failing:
+            raise SourceAccessError("Rate-Limit erreicht")
+        return super().query(component, api_key)
+
+
+def test_one_failing_component_keeps_other_hits() -> None:
+    uow = _uow(_REACT, _component("vue", Ecosystem.NPM))
+    result = _run(uow, _FailsFor("vue", {"react": [_vuln()]}))
+    assert result.findings_found == 1
+    stored = uow.source_settings.get("osv")
+    assert stored is not None
+    assert stored.last_status == RunStatus.OK
+    assert stored.last_message == "1 von 2 Abfragen fehlgeschlagen: Rate-Limit erreicht"
+
+
+def test_all_components_failing_is_an_error() -> None:
+    uow = _uow(_REACT)
+    result = _run(uow, _FailsFor("react", {}))
+    assert _result_of(result, "osv") == RunStatus.ERROR

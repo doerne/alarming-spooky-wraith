@@ -75,3 +75,29 @@ def test_get_json_rejects_non_json() -> None:
     )
     with pytest.raises(SourceAccessError, match="kein gültiges JSON"):
         get_json(client, "GET", _URL)
+
+
+def test_same_version_is_not_downloaded_again(tmp_path: Path) -> None:
+    calls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(str(request.url))
+        return httpx.Response(200, content=b"dump")
+
+    cache = HttpCache(tmp_path, httpx.Client(transport=httpx.MockTransport(handler)))
+    first = cache.fetch("cve-org", "https://dl/a", cache_name="latest", version="2026-11-01")
+    second = cache.fetch("cve-org", "https://dl/b", cache_name="latest", version="2026-11-01")
+    assert first == second
+    assert calls == ["https://dl/a"]
+
+
+def test_new_version_replaces_file_instead_of_adding(tmp_path: Path) -> None:
+    bodies = iter([b"day1", b"day2"])
+    client = httpx.Client(
+        transport=httpx.MockTransport(lambda _: httpx.Response(200, content=next(bodies)))
+    )
+    cache = HttpCache(tmp_path, client)
+    cache.fetch("cve-org", "https://dl/1", cache_name="latest", version="2026-11-01")
+    path = cache.fetch("cve-org", "https://dl/2", cache_name="latest", version="2026-11-02")
+    assert path.read_bytes() == b"day2"
+    assert sorted(p.name for p in (tmp_path / "cve-org").glob("*.data")) == ["latest.data"]
