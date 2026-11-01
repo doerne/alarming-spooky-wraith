@@ -5,12 +5,14 @@ from sqlalchemy.orm import Session
 
 from app.domain.errors import EntityNotFoundError
 from app.domain.inventory import Application, Category, Component, Ecosystem
+from app.domain.sources import RunStatus, SourceSetting
 from app.domain.vulnerability import Advisory, Finding, FindingStatus, RiskScore, Severity
 from app.infrastructure.models import (
     AdvisoryModel,
     ApplicationModel,
     ComponentModel,
     FindingModel,
+    SourceSettingModel,
 )
 
 
@@ -162,21 +164,62 @@ class SqlAlchemyFindingRepository:
             )
         ).one_or_none()
         if model is None:
+            # Triage-Felder nur beim Anlegen setzen; ein erneuter Fund behält sie.
             model = FindingModel(
                 advisory_id=finding.advisory_id,
                 component_id=finding.component_id,
                 application_id=finding.application_id,
+                status=finding.status.value,
+                comment=finding.comment,
             )
             self._session.add(model)
         model.found_version = finding.found_version
         model.risk_score = finding.risk.value
         model.risk_level = finding.risk.level.value
-        model.status = finding.status.value
-        model.comment = finding.comment
         self._session.flush()
         finding.id = model.id
+        finding.status = FindingStatus(model.status)
+        finding.comment = model.comment
         return finding
 
     def list(self) -> list[Finding]:
         models = self._session.scalars(select(FindingModel)).all()
         return [_to_finding(model) for model in models]
+
+
+def _to_source_setting(model: SourceSettingModel) -> SourceSetting:
+    return SourceSetting(
+        source_key=model.source_key,
+        enabled=model.enabled,
+        api_key=model.api_key,
+        last_run_at=model.last_run_at,
+        last_status=RunStatus(model.last_status) if model.last_status else None,
+        last_message=model.last_message,
+        last_findings=model.last_findings,
+    )
+
+
+class SqlAlchemySourceSettingRepository:
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def get_all(self) -> list[SourceSetting]:
+        models = self._session.scalars(select(SourceSettingModel)).all()
+        return [_to_source_setting(model) for model in models]
+
+    def get(self, source_key: str) -> SourceSetting | None:
+        model = self._session.get(SourceSettingModel, source_key)
+        return _to_source_setting(model) if model else None
+
+    def save(self, setting: SourceSetting) -> None:
+        model = self._session.get(SourceSettingModel, setting.source_key)
+        if model is None:
+            model = SourceSettingModel(source_key=setting.source_key)
+            self._session.add(model)
+        model.enabled = setting.enabled
+        model.api_key = setting.api_key
+        model.last_run_at = setting.last_run_at
+        model.last_status = setting.last_status.value if setting.last_status else None
+        model.last_message = setting.last_message
+        model.last_findings = setting.last_findings
+        self._session.flush()

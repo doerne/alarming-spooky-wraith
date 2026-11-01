@@ -7,6 +7,7 @@ from app.domain.ports import (
     ApplicationRepository,
     ComponentRepository,
     FindingRepository,
+    SourceSettingRepository,
 )
 
 
@@ -21,6 +22,8 @@ class UnitOfWork(Protocol):
     def findings(self) -> FindingRepository: ...
     @property
     def advisories(self) -> AdvisoryRepository: ...
+    @property
+    def source_settings(self) -> SourceSettingRepository: ...
     def commit(self) -> None: ...
 
 

@@ -67,9 +67,10 @@ services:
     environment:
       <<: *backend-env
       ENABLE_DOCS: "false"
-    # Beschreibbares Volume für die OKF-Files (read_only bleibt sonst aktiv).
+    # Beschreibbare Volumes für OKF-Files und Quellen-Cache (read_only bleibt sonst aktiv).
     volumes:
       - okfdata:/data/okf
+      - sourcecache:/data/sources
     depends_on:
       migrate: { condition: service_completed_successfully }
     deploy:
@@ -101,3 +102,4 @@ secrets:
 volumes:
   dbdata: {}
   okfdata: {}
+  sourcecache: {}

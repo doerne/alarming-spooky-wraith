@@ -1,13 +1,14 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/ui/tabs";
 
 import type { ComponentInput } from "../model/schema";
-import type { ApplicationFinding, Component } from "../model/types";
-import { ApplicationCves } from "./application-cves";
+import type { ReactNode } from "react";
+
+import type { Component } from "../model/types";
 import { ComponentsTab } from "./components-tab";
 
 interface DetailTabsProps {
   components: Component[];
-  findings: ApplicationFinding[];
+  cvesPanel: ReactNode;
   editing: Component | null;
   isSubmitting: boolean;
   onEdit: (component: Component) => void;
@@ -17,7 +18,7 @@ interface DetailTabsProps {
 
 export function DetailTabs({
   components,
-  findings,
+  cvesPanel,
   editing,
   isSubmitting,
   onEdit,
@@ -45,7 +46,7 @@ export function DetailTabs({
         />
       </TabsContent>
       <TabsContent value="cves" className="pt-4">
-        <ApplicationCves findings={findings} />
+        {cvesPanel}
       </TabsContent>
     </Tabs>
   );

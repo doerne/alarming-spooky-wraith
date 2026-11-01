@@ -101,6 +101,7 @@ docker run -d --name asw-devdb \
 cd backend
 export DATABASE_URL="mariadb+pymysql://app:devtest@127.0.0.1:3307/appdb?charset=utf8mb4"
 export OKF_ROOT="$PWD/../.okf-dev"     # beschreibbares Verzeichnis für die OKF-Files
+export SOURCE_CACHE_ROOT="$PWD/../.sources-dev"  # Cache für Quellen-Abzüge
 uv run alembic upgrade head
 
 # 3) Backend starten (eigenes Terminal)
@@ -119,3 +120,27 @@ docker rm -f asw-devdb     # Wegwerf-DB entfernen
 Gegenüber dem normalen Weg entfällt hier die Container-Härtung; `DATABASE_URL`
 und `OKF_ROOT` werden per Umgebungsvariable gesetzt statt über Docker-Secrets
 und Volumes. Sobald `buildx` verfügbar ist, ist `make dev` der richtige Weg.
+
+## Quellen und API-Keys
+
+Die Seite **Quellen** listet alle CVE-Quellen, die im Code eingebaut sind
+(`backend/app/infrastructure/sources/catalog.py`). Jede Quelle lässt sich dort
+aktivieren oder deaktivieren; der Scan fragt nur aktive Quellen ab.
+
+- **Ohne Key:** OSV.dev, EUVD, CVE.org, alle Sprach-Datenbanken (PyPA, Go, RustSec,
+  Ruby Advisory DB, Packagist, Haskell, R, opam) und die Framework-Quellen.
+- **Optionaler Key** (hebt nur das Rate-Limit): GitHub Advisory Database, Symfony,
+  Laravel (GitHub-Token) und NVD (NVD-API-Key).
+- **Pflicht-Key:** Snyk (`<org-id>:<token>`), Sonatype OSS Index
+  (`<benutzer>:<token>`) und CVEdetails (API-Token). Ohne Key werden sie beim Scan
+  übersprungen.
+
+Keys werden auf der Quellen-Seite hinterlegt und **unverschlüsselt in der Datenbank**
+gespeichert (bewusste Ausnahme vom Secret-Standard, siehe
+`docs/superpowers/specs/2026-11-01-cve-sources-design.md` §4). Die API gibt einen
+gespeicherten Key nie zurück.
+
+Der Scan läuft im Hintergrund; „Scan starten“ kehrt sofort zurück, die Quellen-Seite
+zeigt pro Quelle den Fortschritt. Große Abzüge (CVE.org rund 650 MB, OSV-Dumps)
+werden im Volume `sourcecache` (`/data/sources`) zwischengespeichert. Im Notweg ohne
+`buildx` dafür `SOURCE_CACHE_ROOT` auf ein beschreibbares Verzeichnis setzen.

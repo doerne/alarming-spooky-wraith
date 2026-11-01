@@ -5,6 +5,16 @@ import { describe, expect, it, vi } from "vitest";
 import { InventoryForm } from "./inventory-form";
 
 describe("InventoryForm", () => {
+  it("bietet alle Ökosysteme an", () => {
+    render(<InventoryForm onSubmit={vi.fn()} />);
+
+    const select = screen.getByTestId("inventory-select-ecosystem");
+    const values = Array.from(select.querySelectorAll("option")).map((option) => option.value);
+
+    expect(values).toContain("crates.io");
+    expect(values).toContain("PyPI");
+  });
+
   it("ruft onSubmit mit den eingegebenen Werten", async () => {
     const onSubmit = vi.fn();
     render(<InventoryForm onSubmit={onSubmit} />);

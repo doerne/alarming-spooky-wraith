@@ -5,6 +5,11 @@ from datetime import UTC, datetime
 from sqlalchemy import DateTime, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.domain.vulnerability import (
+    ADVISORY_ID_MAX_LENGTH,
+    ADVISORY_TITLE_MAX_LENGTH,
+    FIX_VERSION_MAX_LENGTH,
+)
 from app.infrastructure.database import Base
 
 
@@ -31,15 +36,15 @@ class ComponentModel(Base):
 class AdvisoryModel(Base):
     __tablename__ = "advisory"
 
-    advisory_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    advisory_id: Mapped[str] = mapped_column(String(ADVISORY_ID_MAX_LENGTH), primary_key=True)
     cve_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
     okf_path: Mapped[str] = mapped_column(String(300))
-    title: Mapped[str] = mapped_column(String(500))
+    title: Mapped[str] = mapped_column(String(ADVISORY_TITLE_MAX_LENGTH))
     description: Mapped[str] = mapped_column(Text)
     cvss_score: Mapped[float | None] = mapped_column(nullable=True)
     epss_score: Mapped[float | None] = mapped_column(nullable=True)
     in_kev: Mapped[bool] = mapped_column(default=False)
-    fix_version: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    fix_version: Mapped[str | None] = mapped_column(String(FIX_VERSION_MAX_LENGTH), nullable=True)
 
 
 class FindingModel(Base):
@@ -62,3 +67,15 @@ class FindingModel(Base):
         default=lambda: datetime.now(UTC),
         onupdate=lambda: datetime.now(UTC),
     )
+
+
+class SourceSettingModel(Base):
+    __tablename__ = "source_setting"
+
+    source_key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    enabled: Mapped[bool] = mapped_column(default=True)
+    api_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    last_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_status: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    last_message: Mapped[str] = mapped_column(Text, default="")
+    last_findings: Mapped[int | None] = mapped_column(nullable=True)

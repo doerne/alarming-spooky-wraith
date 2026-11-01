@@ -7,3 +7,11 @@ class EntityNotFoundError(DomainError):
         super().__init__(f"{entity} {entity_id} wurde nicht gefunden")
         self.entity = entity
         self.entity_id = entity_id
+
+
+class SourceAccessError(DomainError):
+    """Eine Quelle ist nicht erreichbar oder lehnt die Anfrage ab."""
+
+
+class InvalidValueError(DomainError, ValueError):
+    """Eine fachlich ungültige Eingabe (z. B. leerer API-Key)."""

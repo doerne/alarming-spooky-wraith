@@ -4,10 +4,10 @@ import { ArrowLeft } from "lucide-react";
 import { Button } from "@/shared/ui/button";
 import { Skeleton } from "@/shared/ui/skeleton";
 
+import { ApplicationCvesPage } from "./application-cves-page";
 import { DetailTabs } from "./components/detail-tabs";
 import { useAddComponent } from "./hooks/use-add-component";
 import { useApplication } from "./hooks/use-application";
-import { useApplicationFindings } from "./hooks/use-application-findings";
 import { useUpdateComponent } from "./hooks/use-update-component";
 import type { ComponentInput } from "./model/schema";
 import type { Component } from "./model/types";
@@ -15,11 +15,15 @@ import type { Component } from "./model/types";
 interface ApplicationDetailPageProps {
   applicationId: number;
   onBack: () => void;
+  onSelectCve: (advisoryId: string) => void;
 }
 
-export function ApplicationDetailPage({ applicationId, onBack }: ApplicationDetailPageProps) {
+export function ApplicationDetailPage({
+  applicationId,
+  onBack,
+  onSelectCve,
+}: ApplicationDetailPageProps) {
   const detail = useApplication(applicationId);
-  const findings = useApplicationFindings(applicationId);
   const addComponent = useAddComponent();
   const updateComponent = useUpdateComponent();
   const [editing, setEditing] = useState<Component | null>(null);
@@ -56,7 +60,9 @@ export function ApplicationDetailPage({ applicationId, onBack }: ApplicationDeta
       ) : (
         <DetailTabs
           components={detail.data?.components ?? []}
-          findings={findings.data ?? []}
+          cvesPanel={
+            <ApplicationCvesPage applicationId={applicationId} onSelectCve={onSelectCve} />
+          }
           editing={editing}
           isSubmitting={addComponent.isPending || updateComponent.isPending}
           onEdit={setEditing}

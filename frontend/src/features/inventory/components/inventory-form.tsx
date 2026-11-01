@@ -5,7 +5,7 @@ import { Button } from "@/shared/ui/button";
 import { Field, FieldError, FieldLabel } from "@/shared/ui/field";
 import { Input } from "@/shared/ui/input";
 
-import { type ComponentInput, componentSchema } from "../model/schema";
+import { type ComponentInput, componentSchema, ecosystemSchema } from "../model/schema";
 
 const SELECT_CLASS =
   "border-input bg-transparent h-9 w-full rounded-md border px-3 py-1 text-sm shadow-xs";
@@ -59,7 +59,11 @@ function EcosystemSelect({ registration }: { registration: UseFormRegisterReturn
         {...registration}
       >
         <option value="">(keines)</option>
-        <option value="npm">npm</option>
+        {ecosystemSchema.options.map((ecosystem) => (
+          <option key={ecosystem} value={ecosystem}>
+            {ecosystem}
+          </option>
+        ))}
       </select>
     </Field>
   );
