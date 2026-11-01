@@ -164,19 +164,22 @@ class SqlAlchemyFindingRepository:
             )
         ).one_or_none()
         if model is None:
+            # Triage-Felder nur beim Anlegen setzen; ein erneuter Fund behält sie.
             model = FindingModel(
                 advisory_id=finding.advisory_id,
                 component_id=finding.component_id,
                 application_id=finding.application_id,
+                status=finding.status.value,
+                comment=finding.comment,
             )
             self._session.add(model)
         model.found_version = finding.found_version
         model.risk_score = finding.risk.value
         model.risk_level = finding.risk.level.value
-        model.status = finding.status.value
-        model.comment = finding.comment
         self._session.flush()
         finding.id = model.id
+        finding.status = FindingStatus(model.status)
+        finding.comment = model.comment
         return finding
 
     def list(self) -> list[Finding]:

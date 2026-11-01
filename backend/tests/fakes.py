@@ -81,7 +81,10 @@ class InMemoryFindingRepository:
     def upsert(self, finding: Finding) -> Finding:
         key = (finding.advisory_id, finding.component_id)
         if key in self._items:
-            finding.id = self._items[key].id
+            existing = self._items[key]
+            finding.id = existing.id
+            finding.status = existing.status
+            finding.comment = existing.comment
         else:
             finding.id = self._next_id
             self._next_id += 1
