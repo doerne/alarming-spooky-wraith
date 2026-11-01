@@ -5,7 +5,7 @@ from dataclasses import replace
 from app.application.ingest_runner import IngestRunState
 from app.domain.errors import EntityNotFoundError
 from app.domain.inventory import Application, Component
-from app.domain.ports import SourceReference, SourceVuln
+from app.domain.ports import AdvisoryDocument, SourceReference, SourceVuln
 from app.domain.sources import (
     ApiKeyRequirement,
     MatchScope,
@@ -141,6 +141,7 @@ class InMemoryUnitOfWork:
 class FakeAdvisoryStore:
     def __init__(self, reject: set[str] | None = None) -> None:
         self.saved: dict[str, str] = {}
+        self.documents: dict[str, AdvisoryDocument] = {}
         self._reject = reject or set()
 
     def save(
@@ -149,10 +150,14 @@ class FakeAdvisoryStore:
         if advisory.advisory_id in self._reject:
             raise ValueError(f"Unzulaessige Advisory-ID: {advisory.advisory_id!r}")
         self.saved[advisory.advisory_id] = body
+        self.documents[advisory.advisory_id] = AdvisoryDocument(body, "", [], list(sources))
         return f"advisories/{advisory.advisory_id}.md"
 
     def read(self, advisory_id: str) -> str:
         return self.saved[advisory_id]
+
+    def read_document(self, advisory_id: str) -> AdvisoryDocument | None:
+        return self.documents.get(advisory_id)
 
 
 class FakePackageSource:

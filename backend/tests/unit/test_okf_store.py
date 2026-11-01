@@ -104,3 +104,43 @@ def test_id_longer_than_db_column_is_rejected(tmp_path: Path) -> None:
     too_long = Advisory(**{**_advisory().__dict__, "advisory_id": "X" * 65})
     with pytest.raises(ValueError, match="Unzulaessige"):
         store.save(too_long, tags=[], sources=[], body="b")
+
+
+_BODY = "Text A\n\n# Computation\nCVSS 9.8 -> 98/100\n\n# References\n- https://a\n- https://b"
+
+
+def test_read_document_splits_sections(tmp_path: Path) -> None:
+    store = FileAdvisoryStore(tmp_path)
+    sources = [SourceReference("nvd", "https://nvd/x"), SourceReference("osv", "https://osv/x")]
+    store.save(_advisory(), tags=["npm"], sources=sources, body=_BODY)
+    document = store.read_document("CVE-2024-1")
+    assert document is not None
+    assert document.description == "Text A"
+    assert document.rationale == "CVSS 9.8 -> 98/100"
+    assert document.references == ["https://a", "https://b"]
+    assert document.sources == sources
+
+
+def test_missing_document_returns_none(tmp_path: Path) -> None:
+    assert FileAdvisoryStore(tmp_path).read_document("CVE-2024-404") is None
+
+
+def test_unsafe_id_document_returns_none(tmp_path: Path) -> None:
+    assert FileAdvisoryStore(tmp_path).read_document("../x") is None
+
+
+def test_document_without_sections(tmp_path: Path) -> None:
+    store = FileAdvisoryStore(tmp_path)
+    store.save(_advisory(), tags=[], sources=[], body="Nur Text\nzweite Zeile")
+    document = store.read_document("CVE-2024-1")
+    assert document is not None
+    assert document.description == "Nur Text\nzweite Zeile"
+    assert document.rationale == ""
+    assert document.references == []
+
+
+def test_broken_frontmatter_returns_none(tmp_path: Path) -> None:
+    store = FileAdvisoryStore(tmp_path)
+    (tmp_path / "advisories").mkdir(parents=True)
+    (tmp_path / "advisories" / "CVE-2024-1.md").write_text("kein frontmatter", encoding="utf-8")
+    assert store.read_document("CVE-2024-1") is None

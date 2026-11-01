@@ -40,6 +40,16 @@ class SourceReference:
     url: str
 
 
+@dataclass(frozen=True)
+class AdvisoryDocument:
+    """Inhalt eines OKF-Files, in Abschnitte zerlegt."""
+
+    description: str
+    rationale: str
+    references: list[str]
+    sources: list[SourceReference]
+
+
 class AdvisoryStore(Protocol):
     """Legt Advisories als OKF-Files ab und liest sie wieder."""
 
@@ -47,6 +57,9 @@ class AdvisoryStore(Protocol):
         self, advisory: Advisory, *, tags: list[str], sources: list[SourceReference], body: str
     ) -> str: ...
     def read(self, advisory_id: str) -> str: ...
+    def read_document(self, advisory_id: str) -> AdvisoryDocument | None:
+        """Zerlegtes Dokument; None, wenn es fehlt oder unlesbar ist."""
+        ...
 
 
 @dataclass(frozen=True)

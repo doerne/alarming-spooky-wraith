@@ -11,9 +11,13 @@ from typing import Any
 
 import yaml
 
-from app.domain.ports import SourceReference
+from app.domain.ports import AdvisoryDocument, SourceReference
 from app.domain.vulnerability import ADVISORY_ID_MAX_LENGTH, Advisory
 
+_FRONTMATTER_FENCE = "---\n"
+_FRONTMATTER_PARTS = 3
+_COMPUTATION_HEADING = "# Computation"
+_REFERENCES_HEADING = "# References"
 _INDEX = '---\nokf_version: "0.2"\n---\n\n# CVE-Radar Advisories\n'
 
 # Erlaubte Advisory-IDs: keine Pfad-Trenner, kein '..'. Deckt CVE-/GHSA-/OSV-IDs.
@@ -48,21 +52,58 @@ class FileAdvisoryStore:
         safe_id = _safe_id(advisory_id)
         return (self._dir / f"{safe_id}.md").read_text(encoding="utf-8")
 
+    def read_document(self, advisory_id: str) -> AdvisoryDocument | None:
+        try:
+            path = self._dir / f"{_safe_id(advisory_id)}.md"
+        except ValueError:
+            return None
+        if not path.exists():
+            return None
+        parts = path.read_text(encoding="utf-8").split(_FRONTMATTER_FENCE, 2)
+        if len(parts) < _FRONTMATTER_PARTS or parts[0]:
+            return None
+        sources = _sources_from(parts[1])
+        if sources is None:
+            return None
+        description, rationale, references = parse_okf_body(parts[2])
+        return AdvisoryDocument(description, rationale, references, sources)
+
     def _ensure_index(self) -> None:
         index = self._root / "index.md"
         if not index.exists():
             index.write_text(_INDEX, encoding="utf-8")
 
 
+def _sources_from(frontmatter: str) -> list[SourceReference] | None:
+    try:
+        front = yaml.safe_load(frontmatter) or {}
+    except yaml.YAMLError:
+        return None
+    if not isinstance(front, dict):
+        return None
+    entries = front.get("sources") or []
+    return [SourceReference(str(e.get("id")), str(e.get("resource"))) for e in entries]
+
+
 def _earlier_sources(path: Path) -> list[SourceReference]:
     if not path.exists():
         return []
-    try:
-        front = yaml.safe_load(path.read_text(encoding="utf-8").split("---")[1]) or {}
-    except (IndexError, yaml.YAMLError):
+    parts = path.read_text(encoding="utf-8").split(_FRONTMATTER_FENCE, 2)
+    if len(parts) < _FRONTMATTER_PARTS:
         return []
-    entries = front.get("sources") or []
-    return [SourceReference(str(e.get("id")), str(e.get("resource"))) for e in entries]
+    return _sources_from(parts[1]) or []
+
+
+def parse_okf_body(body: str) -> tuple[str, str, list[str]]:
+    """Body wie ``RunIngest`` ihn schreibt → (Beschreibung, Herleitung, Referenzen)."""
+    text, _, references_part = body.partition(_REFERENCES_HEADING)
+    description, _, rationale = text.partition(_COMPUTATION_HEADING)
+    references = [
+        line.strip()[2:].strip()
+        for line in references_part.splitlines()
+        if line.strip().startswith("- ")
+    ]
+    return description.strip(), rationale.strip(), references
 
 
 def _with_earlier(path: Path, sources: list[SourceReference]) -> list[SourceReference]:
