@@ -4,12 +4,12 @@ from contextlib import contextmanager
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from app.domain.ports import OsvVuln
+from app.domain.ports import SourceVuln
 from app.presentation.app_factory import create_app
 from tests.fakes import FakeAdvisoryStore, FakeOsvClient, InMemoryUnitOfWork
 
 
-def _build(vulns: list[OsvVuln]) -> FastAPI:
+def _build(vulns: list[SourceVuln]) -> FastAPI:
     uow = InMemoryUnitOfWork()
 
     @contextmanager
@@ -41,7 +41,9 @@ def _add_react(client: TestClient) -> None:
     )
 
 
-_VULN = OsvVuln(
+_VULN = SourceVuln(
+    source_key="osv",
+    url="https://osv.dev/vulnerability",
     id="GHSA-x",
     aliases=["CVE-2024-123"],
     summary="XSS in react",

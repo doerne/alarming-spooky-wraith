@@ -2,13 +2,15 @@ from app.application.ingest import RunIngest
 from app.application.inventory_use_cases import AddComponent, CreateApplication
 from app.application.list_findings import ListFindings
 from app.domain.inventory import Category, Component, Ecosystem
-from app.domain.ports import OsvVuln
+from app.domain.ports import SourceVuln
 from app.domain.vulnerability import Severity
 from tests.fakes import FakeAdvisoryStore, FakeOsvClient, InMemoryUnitOfWork
 
 
-def _vuln(advisory: str, base: float) -> OsvVuln:
-    return OsvVuln(
+def _vuln(advisory: str, base: float) -> SourceVuln:
+    return SourceVuln(
+        source_key="osv",
+        url="https://osv.dev/vulnerability",
         id=advisory,
         aliases=[advisory],
         summary=f"summary {advisory}",

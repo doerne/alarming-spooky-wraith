@@ -8,7 +8,7 @@ from dataclasses import dataclass, replace
 from app.application.risk_score import compute_risk_score
 from app.application.unit_of_work import UnitOfWork
 from app.domain.inventory import Component
-from app.domain.ports import AdvisoryStore, OsvClient, OsvVuln
+from app.domain.ports import AdvisoryStore, OsvClient, SourceReference, SourceVuln
 from app.domain.vulnerability import Advisory, Finding
 
 
@@ -29,20 +29,20 @@ class _Target:
     version: str
 
 
-def _advisory_id_and_cve(vuln: OsvVuln) -> tuple[str, str | None]:
+def _advisory_id_and_cve(vuln: SourceVuln) -> tuple[str, str | None]:
     for alias in vuln.aliases:
         if alias.startswith("CVE-"):
             return alias, alias
     return vuln.id, None
 
 
-def _source_url(vuln: OsvVuln) -> str:
+def _source_url(vuln: SourceVuln) -> str:
     if vuln.references:
         return vuln.references[0]
     return f"https://osv.dev/vulnerability/{vuln.id}"
 
 
-def _render_body(vuln: OsvVuln, rationale: str) -> str:
+def _render_body(vuln: SourceVuln, rationale: str) -> str:
     lines = [vuln.details or vuln.summary, "", "# Computation", rationale]
     if vuln.references:
         lines += ["", "# References", *[f"- {url}" for url in vuln.references]]
@@ -84,7 +84,7 @@ class RunIngest:
             self._store_vuln(vuln, target)
         return len(vulns)
 
-    def _store_vuln(self, vuln: OsvVuln, target: _Target) -> None:
+    def _store_vuln(self, vuln: SourceVuln, target: _Target) -> None:
         advisory_id, cve_id = _advisory_id_and_cve(vuln)
         risk = compute_risk_score(vuln.cvss_base)
         advisory = Advisory(
@@ -100,7 +100,7 @@ class RunIngest:
         okf_path = self._store.save(
             advisory,
             tags=[target.ecosystem, target.package],
-            source_url=_source_url(vuln),
+            sources=[SourceReference("osv", _source_url(vuln))],
             body=_render_body(vuln, risk.rationale),
         )
         self._uow.advisories.upsert(replace(advisory, okf_path=okf_path))

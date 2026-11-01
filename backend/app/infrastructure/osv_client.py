@@ -1,4 +1,4 @@
-"""OSV.dev-Client (httpx). Mappt die API-Antwort auf OsvVuln.
+"""OSV.dev-Client (httpx). Mappt die API-Antwort auf SourceVuln.
 
 Der CVSS-Basisscore wird aus dem Vektor der ``severity``-Eintraege berechnet.
 """
@@ -9,7 +9,7 @@ import httpx
 from cvss import CVSS3, CVSS4
 from cvss.exceptions import CVSS3Error, CVSS4Error
 
-from app.domain.ports import OsvVuln
+from app.domain.ports import SourceVuln
 
 
 class HttpxOsvClient:
@@ -17,7 +17,7 @@ class HttpxOsvClient:
         self._base_url = base_url.rstrip("/")
         self._client = client
 
-    def query(self, ecosystem: str, name: str, version: str) -> list[OsvVuln]:
+    def query(self, ecosystem: str, name: str, version: str) -> list[SourceVuln]:
         payload = {
             "version": version,
             "package": {"ecosystem": ecosystem, "name": name},
@@ -28,8 +28,10 @@ class HttpxOsvClient:
         return [_to_vuln(raw) for raw in data.get("vulns", [])]
 
 
-def _to_vuln(raw: dict[str, Any]) -> OsvVuln:
-    return OsvVuln(
+def _to_vuln(raw: dict[str, Any]) -> SourceVuln:
+    return SourceVuln(
+        source_key="osv",
+        url=f"https://osv.dev/vulnerability/{raw['id']}",
         id=raw["id"],
         aliases=list(raw.get("aliases", [])),
         summary=raw.get("summary", ""),

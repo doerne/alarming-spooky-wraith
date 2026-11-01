@@ -1,11 +1,11 @@
 from app.application.ingest import RunIngest
 from app.application.inventory_use_cases import AddComponent, CreateApplication
 from app.domain.inventory import Category, Component, Ecosystem
-from app.domain.ports import OsvVuln
+from app.domain.ports import SourceVuln
 from tests.fakes import FakeAdvisoryStore, FakeOsvClient, InMemoryUnitOfWork
 
 
-def _setup(vulns: list[OsvVuln]) -> tuple[InMemoryUnitOfWork, FakeOsvClient, FakeAdvisoryStore]:
+def _setup(vulns: list[SourceVuln]) -> tuple[InMemoryUnitOfWork, FakeOsvClient, FakeAdvisoryStore]:
     uow = InMemoryUnitOfWork()
     application = CreateApplication(uow).execute(name="Shop")
     assert application.id is not None
@@ -23,7 +23,9 @@ def _setup(vulns: list[OsvVuln]) -> tuple[InMemoryUnitOfWork, FakeOsvClient, Fak
 
 
 def test_cve_alias_becomes_advisory_id() -> None:
-    vuln = OsvVuln(
+    vuln = SourceVuln(
+        source_key="osv",
+        url="https://osv.dev/vulnerability",
         id="GHSA-xxxx",
         aliases=["CVE-2024-123"],
         summary="s",
@@ -42,7 +44,9 @@ def test_cve_alias_becomes_advisory_id() -> None:
 
 
 def test_ghsa_only_keeps_ghsa_id() -> None:
-    vuln = OsvVuln(
+    vuln = SourceVuln(
+        source_key="osv",
+        url="https://osv.dev/vulnerability",
         id="GHSA-abcd",
         aliases=[],
         summary="s",
@@ -65,7 +69,9 @@ def test_no_vulns_yields_zero_findings() -> None:
 
 
 def test_rerun_is_idempotent() -> None:
-    vuln = OsvVuln(
+    vuln = SourceVuln(
+        source_key="osv",
+        url="https://osv.dev/vulnerability",
         id="GHSA-x",
         aliases=["CVE-2024-1"],
         summary="s",
