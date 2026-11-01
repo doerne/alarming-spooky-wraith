@@ -1,30 +1,29 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/ui/tabs";
 
 import type { ComponentInput } from "../model/schema";
-import type { ApplicationFinding, Component } from "../model/types";
-import { ApplicationCves } from "./application-cves";
+import type { ReactNode } from "react";
+
+import type { Component } from "../model/types";
 import { ComponentsTab } from "./components-tab";
 
 interface DetailTabsProps {
   components: Component[];
-  findings: ApplicationFinding[];
+  cvesPanel: ReactNode;
   editing: Component | null;
   isSubmitting: boolean;
   onEdit: (component: Component) => void;
   onSubmitComponent: (values: ComponentInput) => void;
   onCancelEdit: () => void;
-  onSelectCve: (advisoryId: string) => void;
 }
 
 export function DetailTabs({
   components,
-  findings,
+  cvesPanel,
   editing,
   isSubmitting,
   onEdit,
   onSubmitComponent,
   onCancelEdit,
-  onSelectCve,
 }: DetailTabsProps) {
   return (
     <Tabs defaultValue="components" data-testid="inventory-tab-detail">
@@ -47,7 +46,7 @@ export function DetailTabs({
         />
       </TabsContent>
       <TabsContent value="cves" className="pt-4">
-        <ApplicationCves findings={findings} onSelect={onSelectCve} />
+        {cvesPanel}
       </TabsContent>
     </Tabs>
   );

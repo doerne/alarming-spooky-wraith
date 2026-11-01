@@ -1,13 +1,15 @@
 import { request } from "@/shared/api/http-client";
 
+import type { CveFilters } from "../model/cve-filters";
 import type { ApplicationInput, ComponentInput } from "../model/schema";
 import type { Application, ApplicationDetail, ApplicationFinding } from "../model/types";
 
 export type { Application, ApplicationDetail, Component } from "../model/types";
 
-interface FindingsPage {
+export interface ApplicationFindingsPage {
   items: ApplicationFinding[];
   total: number;
+  unfilteredTotal: number;
 }
 
 export async function listApplications(): Promise<Application[]> {
@@ -18,11 +20,21 @@ export async function getApplication(applicationId: number): Promise<Application
   return request<ApplicationDetail>(`/api/applications/${applicationId}`);
 }
 
+export function applicationFindingsPath(applicationId: number, filters: CveFilters): string {
+  const params = new URLSearchParams({ application_id: String(applicationId) });
+  for (const severity of filters.severities) params.append("severity", severity);
+  for (const status of filters.statuses) params.append("status", status);
+  for (const ecosystem of filters.ecosystems) params.append("ecosystem", ecosystem);
+  const query = filters.query.trim();
+  if (query) params.set("q", query);
+  return `/api/cves?${params.toString()}`;
+}
+
 export async function listApplicationFindings(
   applicationId: number,
-): Promise<ApplicationFinding[]> {
-  const page = await request<FindingsPage>(`/api/cves?application_id=${applicationId}`);
-  return page.items;
+  filters: CveFilters,
+): Promise<ApplicationFindingsPage> {
+  return request<ApplicationFindingsPage>(applicationFindingsPath(applicationId, filters));
 }
 
 export async function createApplication(input: ApplicationInput): Promise<Application> {
