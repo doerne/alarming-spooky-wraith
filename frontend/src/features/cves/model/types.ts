@@ -23,3 +23,13 @@ export const findingsPageSchema = z.object({
   total: z.number(),
 });
 export type FindingsPage = z.infer<typeof findingsPageSchema>;
+
+export const ingestStateSchema = z.object({
+  running: z.boolean(),
+  startedAt: z.string().nullable(),
+  finishedAt: z.string().nullable(),
+  componentsScanned: z.number().nullable(),
+  findingsFound: z.number().nullable(),
+  error: z.string().nullable(),
+});
+export type IngestState = z.infer<typeof ingestStateSchema>;
