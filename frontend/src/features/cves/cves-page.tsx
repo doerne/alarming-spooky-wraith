@@ -1,18 +1,20 @@
 import { useState } from "react";
 
+import { FilterSummaryBar } from "@/shared/components/filter-summary-bar";
 import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
 
 import { CvesTable } from "./components/cves-table";
-import { FilterSummary } from "./components/filter-summary";
 import { IngestControl } from "./components/ingest-control";
 import { SectionCards } from "./components/section-cards";
 import { SeverityChart } from "./components/severity-chart";
 import { useFilteredFindings, useFindings } from "./hooks/use-findings";
 import { isAlreadyRunning, useIngestStatus, useStartIngest } from "./hooks/use-run-ingest";
 import {
+  type ApplicationOption,
   EMPTY_FILTERS,
   type FindingFilters,
   applicationsOf,
+  emptyStateOf,
   hasActiveFilters,
 } from "./model/filters";
 import { computeKpis, countBySeverity } from "./model/stats";
@@ -24,7 +26,7 @@ interface FilteredResultProps {
   page: FindingsPage | undefined;
   error: Error | null;
   filters: FindingFilters;
-  applications: ReadonlyArray<{ id: number; name: string }>;
+  applications: ReadonlyArray<ApplicationOption>;
   onFiltersChange: (filters: FindingFilters) => void;
   onSelectCve: (advisoryId: string) => void;
 }
@@ -43,10 +45,11 @@ function FilteredResult(props: FilteredResultProps) {
   return (
     <div className="flex flex-col gap-2">
       {page ? (
-        <FilterSummary
+        <FilterSummaryBar
           shown={page.total}
           total={page.unfilteredTotal}
           active={hasActiveFilters(filters)}
+          feature="cves"
           onReset={reset}
         />
       ) : null}
@@ -54,6 +57,7 @@ function FilteredResult(props: FilteredResultProps) {
         findings={page?.items ?? []}
         filters={filters}
         applications={props.applications}
+        emptyState={emptyStateOf(page)}
         onFiltersChange={onFiltersChange}
         onReset={reset}
         onSelect={props.onSelectCve}

@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { EMPTY_FILTERS, type FindingFilters } from "../model/filters";
+import { EMPTY_FILTERS, type EmptyState, type FindingFilters } from "../model/filters";
 import type { Finding } from "../model/types";
 import { CvesTable } from "./cves-table";
 
@@ -31,6 +31,7 @@ function finding(
 
 interface RenderOptions {
   filters?: FindingFilters;
+  emptyState?: EmptyState;
   onSelect?: (advisoryId: string) => void;
 }
 
@@ -42,6 +43,7 @@ function renderTable(rows: Finding[], options: RenderOptions = {}) {
       findings={rows}
       filters={options.filters ?? EMPTY_FILTERS}
       applications={[{ id: 1, name: "Shop" }]}
+      emptyState={options.emptyState ?? "none"}
       onFiltersChange={onFiltersChange}
       onReset={onReset}
       onSelect={options.onSelect ?? vi.fn()}
@@ -109,7 +111,7 @@ describe("CvesTable", () => {
     const { onFiltersChange } = renderTable(findings);
 
     await userEvent.click(screen.getByTestId("cves-select-severity"));
-    await userEvent.click(screen.getByTestId("cves-select-severity-option-kritisch"));
+    await userEvent.click(screen.getByTestId("cves-checkbox-severity-kritisch"));
 
     expect(onFiltersChange).toHaveBeenCalledWith({ ...EMPTY_FILTERS, severities: ["kritisch"] });
   });
@@ -133,7 +135,10 @@ describe("CvesTable", () => {
   });
 
   it("zeigt bei 0 Treffern eine Zeile mit Zurücksetzen, Kopf bleibt", async () => {
-    const { onReset } = renderTable([], { filters: { ...EMPTY_FILTERS, severities: ["niedrig"] } });
+    const { onReset } = renderTable([], {
+      filters: { ...EMPTY_FILTERS, severities: ["niedrig"] },
+      emptyState: "no-results",
+    });
 
     expect(screen.getByTestId("cves-select-severity")).toBeInTheDocument();
     expect(screen.getByTestId("cves-text-no-results")).toHaveTextContent(

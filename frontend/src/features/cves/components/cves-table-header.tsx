@@ -3,6 +3,7 @@ import { ColumnFilter, ColumnSearch } from "@/shared/components/column-filter";
 import { TableHead, TableHeader, TableRow } from "@/shared/ui/table";
 
 import {
+  type ApplicationOption,
   ECOSYSTEM_OPTIONS,
   type FindingFilters,
   SEVERITY_OPTIONS,
@@ -21,10 +22,10 @@ interface ChoiceHeadProps extends HeadProps {
   label: string;
   field: ChoiceKey;
   options: ReadonlyArray<ColumnFilterOption<string>>;
-  testIdPrefix: string;
+  name: string;
 }
 
-function ChoiceHead({ filters, onChange, label, field, options, testIdPrefix }: ChoiceHeadProps) {
+function ChoiceHead({ filters, onChange, label, field, options, name }: ChoiceHeadProps) {
   return (
     <TableHead>
       <ColumnFilter
@@ -32,7 +33,8 @@ function ChoiceHead({ filters, onChange, label, field, options, testIdPrefix }: 
         options={options}
         selected={filters[field]}
         onChange={(values) => onChange({ ...filters, [field]: values })}
-        testIdPrefix={testIdPrefix}
+        feature="cves"
+        name={name}
       />
     </TableHead>
   );
@@ -58,8 +60,10 @@ function SearchHead({ filters, onChange, label, field, testId }: SearchHeadProps
 }
 
 interface ApplicationHeadProps extends HeadProps {
-  applications: ReadonlyArray<{ id: number; name: string }>;
+  applications: ReadonlyArray<ApplicationOption>;
 }
+
+type CvesTableHeaderProps = ApplicationHeadProps;
 
 function ApplicationHead({ filters, onChange, applications }: ApplicationHeadProps) {
   const options = applications.map((app) => ({ value: String(app.id), label: app.name }));
@@ -71,14 +75,15 @@ function ApplicationHead({ filters, onChange, applications }: ApplicationHeadPro
         selected={filters.applicationIds.map(String)}
         onChange={(ids) => onChange({ ...filters, applicationIds: ids.map(Number) })}
         searchable
-        testIdPrefix="cves-select-application"
+        feature="cves"
+        name="application"
       />
     </TableHead>
   );
 }
 
 /** Kopfzeile, deren Spaltenüberschriften zugleich die Filter sind. */
-export function CvesTableHeader({ filters, onChange, applications }: ApplicationHeadProps) {
+export function CvesTableHeader({ filters, onChange, applications }: CvesTableHeaderProps) {
   const head = { filters, onChange };
   return (
     <TableHeader>
@@ -88,7 +93,7 @@ export function CvesTableHeader({ filters, onChange, applications }: Application
           label="Risiko"
           field="severities"
           options={SEVERITY_OPTIONS}
-          testIdPrefix="cves-select-severity"
+          name="severity"
         />
         <SearchHead
           {...head}
@@ -108,7 +113,7 @@ export function CvesTableHeader({ filters, onChange, applications }: Application
           label="Ökosystem"
           field="ecosystems"
           options={ECOSYSTEM_OPTIONS}
-          testIdPrefix="cves-select-ecosystem"
+          name="ecosystem"
         />
         <TableHead>Fix</TableHead>
         <ChoiceHead
@@ -116,7 +121,7 @@ export function CvesTableHeader({ filters, onChange, applications }: Application
           label="Status"
           field="statuses"
           options={STATUS_OPTIONS}
-          testIdPrefix="cves-select-status"
+          name="status"
         />
       </TableRow>
     </TableHeader>

@@ -2,17 +2,25 @@ import { RotateCcw } from "lucide-react";
 
 import { Button } from "@/shared/ui/button";
 
-interface FilterSummaryProps {
+interface FilterSummaryBarProps {
   shown: number;
   total: number;
   active: boolean;
+  feature: string;
   onReset: () => void;
 }
 
-export function FilterSummary({ shown, total, active, onReset }: FilterSummaryProps) {
+/** „N von M Funden“ + Zurücksetzen über einer gefilterten Tabelle. */
+export function FilterSummaryBar({
+  shown,
+  total,
+  active,
+  feature,
+  onReset,
+}: FilterSummaryBarProps) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <p className="text-sm text-muted-foreground" data-testid="cves-text-filter-summary">
+      <p className="text-sm text-muted-foreground" data-testid={`${feature}-text-filter-summary`}>
         {shown} von {total} Funden
       </p>
       <Button
@@ -20,7 +28,7 @@ export function FilterSummary({ shown, total, active, onReset }: FilterSummaryPr
         size="sm"
         onClick={onReset}
         disabled={!active}
-        data-testid="cves-btn-reset-filters"
+        data-testid={`${feature}-btn-reset-filters`}
       >
         <RotateCcw aria-hidden />
         Filter zurücksetzen

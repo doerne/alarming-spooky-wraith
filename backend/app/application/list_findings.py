@@ -67,20 +67,25 @@ def _all_texts(view: FindingView) -> tuple[str, ...]:
     return (*_advisory_texts(view), view.component_name)
 
 
-def _predicates(finding_filter: FindingFilter) -> list[Predicate]:
-    f = finding_filter
-    query = f.query.strip().lower()
-    advisory = f.advisory_query.strip().lower()
-    component = f.component_query.strip().lower()
+def _predicates(criteria: FindingFilter) -> list[Predicate]:
+    query = criteria.query.strip().lower()
+    advisory = criteria.advisory_query.strip().lower()
+    component = criteria.component_query.strip().lower()
     # (aktiv?, Prüfung) - inaktive Filter fallen weg.
-    checks: list[tuple[object, Predicate]] = [
-        (f.application_ids, lambda view: view.application_id in f.application_ids),
-        (f.severities, lambda view: view.risk_level in f.severities),
-        (f.statuses, lambda view: view.status in f.statuses),
-        (f.ecosystems, lambda view: (view.ecosystem or NO_ECOSYSTEM) in f.ecosystems),
-        (query, _contains(query, _all_texts)),
-        (advisory, _contains(advisory, _advisory_texts)),
-        (component, _contains(component, lambda view: (view.component_name,))),
+    checks: list[tuple[bool, Predicate]] = [
+        (
+            bool(criteria.application_ids),
+            lambda view: view.application_id in criteria.application_ids,
+        ),
+        (bool(criteria.severities), lambda view: view.risk_level in criteria.severities),
+        (bool(criteria.statuses), lambda view: view.status in criteria.statuses),
+        (
+            bool(criteria.ecosystems),
+            lambda view: (view.ecosystem or NO_ECOSYSTEM) in criteria.ecosystems,
+        ),
+        (bool(query), _contains(query, _all_texts)),
+        (bool(advisory), _contains(advisory, _advisory_texts)),
+        (bool(component), _contains(component, lambda view: (view.component_name,))),
     ]
     return [check for active, check in checks if active]
 

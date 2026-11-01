@@ -1,9 +1,7 @@
-import { RotateCcw } from "lucide-react";
-
 import { ClickableRow } from "@/shared/components/clickable-row";
+import { NoResultsRow } from "@/shared/components/table-message-row";
 import { Badge } from "@/shared/ui/badge";
-import { Button } from "@/shared/ui/button";
-import { Table, TableBody, TableCell, TableRow } from "@/shared/ui/table";
+import { Table, TableBody, TableCell } from "@/shared/ui/table";
 
 import type { CveFilters } from "../model/cve-filters";
 import type { ApplicationFinding } from "../model/types";
@@ -24,29 +22,6 @@ interface ApplicationCvesProps {
   onFiltersChange: (filters: CveFilters) => void;
   onReset: () => void;
   onSelect: (advisoryId: string) => void;
-}
-
-function NoResultsRow({ onReset }: { onReset: () => void }) {
-  return (
-    <TableRow>
-      <TableCell colSpan={COLUMN_COUNT} className="py-6 text-center">
-        <div className="flex flex-wrap items-center justify-center gap-3">
-          <span className="text-muted-foreground" data-testid="inventory-text-no-results">
-            Keine Funde für diese Filter.
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onReset}
-            data-testid="inventory-btn-reset-no-results"
-          >
-            <RotateCcw aria-hidden />
-            Filter zurücksetzen
-          </Button>
-        </div>
-      </TableCell>
-    </TableRow>
-  );
 }
 
 function FindingRow({
@@ -92,7 +67,9 @@ export function ApplicationCves({
     <Table data-testid="inventory-list-cves">
       <ApplicationCvesHeader filters={filters} onChange={onFiltersChange} />
       <TableBody>
-        {findings.length === 0 ? <NoResultsRow onReset={onReset} /> : null}
+        {findings.length === 0 ? (
+          <NoResultsRow colSpan={COLUMN_COUNT} feature="inventory" onReset={onReset} />
+        ) : null}
         {findings.map((finding) => (
           <FindingRow
             key={`${finding.advisoryId}-${finding.componentId}`}

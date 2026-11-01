@@ -2,13 +2,11 @@ import { useState } from "react";
 
 import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
 
-import type { ApplicationFindingsPage } from "./api/inventory-api";
 import { ApplicationCvesPanel } from "./components/application-cves-panel";
 import { useApplicationFindings } from "./hooks/use-application-findings";
 import { type CveFilters, EMPTY_CVE_FILTERS } from "./model/cve-filters";
 
 const SEARCH_DELAY_MS = 300;
-const EMPTY_PAGE: ApplicationFindingsPage = { items: [], total: 0, unfilteredTotal: 0 };
 
 interface ApplicationCvesPageProps {
   applicationId: number;
@@ -30,7 +28,7 @@ export function ApplicationCvesPage({ applicationId, onSelectCve }: ApplicationC
   return (
     <div className="flex flex-col gap-4" data-testid="inventory-card-cves-panel">
       <ApplicationCvesPanel
-        page={findings.data ?? EMPTY_PAGE}
+        page={findings.data}
         filters={filters}
         onFiltersChange={setFilters}
         onSelectCve={onSelectCve}

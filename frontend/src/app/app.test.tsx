@@ -4,10 +4,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "./app";
 import { Providers } from "./providers";
+import { createQueryClient } from "./query-client";
 
 function renderApp() {
   return render(
-    <Providers>
+    <Providers client={createQueryClient()}>
       <App />
     </Providers>,
   );
@@ -55,10 +56,12 @@ const IDLE_INGEST = {
 
 const SECOND = { ...FINDING, advisoryId: "CVE-2024-2", cveId: "CVE-2024-2", riskLevel: "mittel" };
 
+let allFindings: unknown[] = [];
+
 function bodyFor(url: URL): unknown {
   if (url.pathname === "/api/cves/CVE-2024-1") return DETAIL;
   if (url.pathname !== "/api/cves") return IDLE_INGEST;
-  const all = [FINDING, SECOND];
+  const all = allFindings as (typeof FINDING)[];
   const severities = url.searchParams.getAll("severity");
   const items = severities.length ? all.filter((f) => severities.includes(f.riskLevel)) : all;
   return { items, total: items.length, unfilteredTotal: all.length };
@@ -67,7 +70,8 @@ function bodyFor(url: URL): unknown {
 const requests: string[] = [];
 let failFilteredRequests = false;
 
-function mockApi() {
+function mockApi(findings: unknown[] = [FINDING, SECOND]) {
+  allFindings = findings;
   requests.length = 0;
   failFilteredRequests = false;
   vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
@@ -85,13 +89,31 @@ afterEach(() => {
 });
 
 describe("App", () => {
+  it("zeigt ohne Funde den Hinweis auf einen Scan statt eines Filter-Hinweises", async () => {
+    mockApi([]);
+    renderApp();
+
+    expect(await screen.findByTestId("cves-text-no-findings")).toHaveTextContent(
+      "Noch keine Funde",
+    );
+    expect(screen.queryByTestId("cves-text-no-results")).not.toBeInTheDocument();
+  });
+
+  it("blendet beim Laden keinen Leer-Hinweis ein", () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(() => new Promise<Response>(() => {}));
+    renderApp();
+
+    expect(screen.queryByTestId("cves-text-no-results")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("cves-text-no-findings")).not.toBeInTheDocument();
+  });
+
   it("zeigt bei 0 Treffern nur den Hinweis mit Zurücksetzen", async () => {
     mockApi();
     renderApp();
 
     await screen.findByTestId("cves-item-CVE-2024-2-1");
     await userEvent.click(screen.getByTestId("cves-select-severity"));
-    await userEvent.click(screen.getByTestId("cves-select-severity-option-niedrig"));
+    await userEvent.click(screen.getByTestId("cves-checkbox-severity-niedrig"));
     await userEvent.keyboard("{Escape}");
 
     expect(await screen.findByTestId("cves-text-no-results")).toBeInTheDocument();
@@ -107,7 +129,7 @@ describe("App", () => {
     failFilteredRequests = true;
 
     await userEvent.click(screen.getByTestId("cves-select-severity"));
-    await userEvent.click(screen.getByTestId("cves-select-severity-option-hoch"));
+    await userEvent.click(screen.getByTestId("cves-checkbox-severity-hoch"));
 
     expect(
       await screen.findByTestId("cves-error-findings", {}, { timeout: 4000 }),
@@ -120,7 +142,7 @@ describe("App", () => {
 
     await screen.findByTestId("cves-item-CVE-2024-2-1");
     await userEvent.click(screen.getByTestId("cves-select-severity"));
-    await userEvent.click(screen.getByTestId("cves-select-severity-option-kritisch"));
+    await userEvent.click(screen.getByTestId("cves-checkbox-severity-kritisch"));
 
     expect(await screen.findByTestId("cves-text-filter-summary")).toHaveTextContent("1 von 2");
     expect(screen.queryByTestId("cves-item-CVE-2024-2-1")).not.toBeInTheDocument();

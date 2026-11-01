@@ -52,10 +52,25 @@ export function hasActiveFilters(filters: FindingFilters): boolean {
   return selected > 0 || `${filters.advisoryQuery}${filters.componentQuery}`.trim() !== "";
 }
 
+export interface ApplicationOption {
+  id: number;
+  name: string;
+}
+
+/** Was die Tabelle ohne Zeilen zeigt: nichts (lädt), Filter-Hinweis oder Scan-Hinweis. */
+export type EmptyState = "none" | "no-results" | "no-findings";
+
+export function emptyStateOf(
+  page: { total: number; unfilteredTotal: number } | undefined,
+): EmptyState {
+  if (!page || page.total > 0) return "none";
+  return page.unfilteredTotal === 0 ? "no-findings" : "no-results";
+}
+
 /** Anwendungen aus den Funden, je einmal, alphabetisch (für den Anwendungsfilter). */
 export function applicationsOf(
   findings: ReadonlyArray<{ applicationId: number; applicationName: string }>,
-): { id: number; name: string }[] {
+): ApplicationOption[] {
   const byId = new Map(findings.map((finding) => [finding.applicationId, finding.applicationName]));
   return [...byId].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
 }

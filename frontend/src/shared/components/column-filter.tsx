@@ -6,6 +6,7 @@ import { cn } from "@/shared/lib/utils";
 import { Button } from "@/shared/ui/button";
 import { Checkbox } from "@/shared/ui/checkbox";
 import { Input } from "@/shared/ui/input";
+import { Label } from "@/shared/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/shared/ui/popover";
 
 export interface ColumnFilterOption<T extends string> {
@@ -19,7 +20,9 @@ interface ColumnFilterProps<T extends string> {
   selected: T[];
   onChange: (values: T[]) => void;
   searchable?: boolean;
-  testIdPrefix: string;
+  /** Test-IDs: `<feature>-select-<name>`, `<feature>-checkbox-<name>-<wert>` … */
+  feature: string;
+  name: string;
 }
 
 function toggle<T>(values: T[], value: T): T[] {
@@ -30,18 +33,23 @@ interface OptionListProps<T extends string> {
   options: ReadonlyArray<ColumnFilterOption<T>>;
   selected: T[];
   onChange: (values: T[]) => void;
-  testIdPrefix: string;
+  feature: string;
+  name: string;
 }
 
 function OptionList<T extends string>({
   options,
   selected,
   onChange,
-  testIdPrefix,
+  feature,
+  name,
 }: OptionListProps<T>) {
   if (options.length === 0) {
     return (
-      <p className="px-1 py-2 text-sm text-muted-foreground" data-testid={`${testIdPrefix}-empty`}>
+      <p
+        className="px-1 py-2 text-sm text-muted-foreground"
+        data-testid={`${feature}-text-${name}-empty`}
+      >
         Keine Treffer
       </p>
     );
@@ -49,10 +57,10 @@ function OptionList<T extends string>({
   return (
     <ul
       className="flex max-h-64 flex-col gap-1 overflow-y-auto"
-      data-testid={`${testIdPrefix}-list`}
+      data-testid={`${feature}-list-${name}-options`}
     >
       {options.map((option) => {
-        const id = `${testIdPrefix}-${slug(option.value)}`;
+        const id = `${feature}-checkbox-${name}-${slug(option.value)}`;
         return (
           <li
             key={option.value}
@@ -62,11 +70,11 @@ function OptionList<T extends string>({
               id={id}
               checked={selected.includes(option.value)}
               onCheckedChange={() => onChange(toggle(selected, option.value))}
-              data-testid={`${testIdPrefix}-option-${slug(option.value)}`}
+              data-testid={id}
             />
-            <label htmlFor={id} className="flex-1 cursor-pointer text-sm">
+            <Label htmlFor={id} className="flex-1 cursor-pointer font-normal">
               {option.label}
-            </label>
+            </Label>
           </li>
         );
       })}
@@ -81,7 +89,8 @@ export function ColumnFilter<T extends string>({
   selected,
   onChange,
   searchable = false,
-  testIdPrefix,
+  feature,
+  name,
 }: ColumnFilterProps<T>) {
   const [search, setSearch] = useState("");
   const needle = search.trim().toLowerCase();
@@ -95,8 +104,8 @@ export function ColumnFilter<T extends string>({
           variant="ghost"
           size="sm"
           className={cn("-ml-2 h-8 gap-1 font-medium", active && "text-primary")}
-          aria-label={`${label} filtern`}
-          data-testid={testIdPrefix}
+          aria-label={`${label} filtern${active ? `, ${selected.length} gewählt` : ""}`}
+          data-testid={`${feature}-select-${name}`}
         >
           {label}
           <Filter className={cn("size-3.5", !active && "text-muted-foreground")} aria-hidden />
@@ -111,21 +120,22 @@ export function ColumnFilter<T extends string>({
             placeholder={`${label} suchen`}
             aria-label={`${label} suchen`}
             className="h-8"
-            data-testid={`${testIdPrefix}-search`}
+            data-testid={`${feature}-input-${name}-search`}
           />
         ) : null}
         <OptionList
           options={visible}
           selected={selected}
           onChange={onChange}
-          testIdPrefix={testIdPrefix}
+          feature={feature}
+          name={name}
         />
         <Button
           variant="ghost"
           size="sm"
           onClick={() => onChange([])}
           disabled={!active}
-          data-testid={`${testIdPrefix}-clear`}
+          data-testid={`${feature}-btn-${name}-clear`}
         >
           Auswahl löschen
         </Button>

@@ -43,6 +43,21 @@ function renderPage(applicationId: number) {
 afterEach(() => vi.restoreAllMocks());
 
 describe("ApplicationCvesPage", () => {
+  it("blendet beim Laden keinen Hinweis ein", () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(() => new Promise<Response>(() => {}));
+    renderPage(1);
+
+    expect(screen.queryByTestId("inventory-text-no-cves")).not.toBeInTheDocument();
+  });
+
+  it("zeigt N von M und setzt zurück", async () => {
+    mockFindings({ "1": [FINDING] });
+    renderPage(1);
+
+    expect(await screen.findByTestId("inventory-text-filter-summary")).toHaveTextContent("1 von 1");
+    expect(screen.getByTestId("inventory-btn-reset-filters")).toBeDisabled();
+  });
+
   it("zeigt ohne Funde nur den Hinweis, keine Filter", async () => {
     mockFindings({});
     renderPage(1);
@@ -57,7 +72,7 @@ describe("ApplicationCvesPage", () => {
 
     await screen.findByTestId("inventory-item-cve-CVE-2024-1-1");
     await userEvent.click(screen.getByTestId("inventory-select-severity"));
-    await userEvent.click(screen.getByTestId("inventory-select-severity-option-niedrig"));
+    await userEvent.click(screen.getByTestId("inventory-checkbox-severity-niedrig"));
 
     expect(await screen.findByTestId("inventory-text-no-results")).toBeInTheDocument();
     expect(screen.getByTestId("inventory-list-cves")).toBeInTheDocument();

@@ -18,10 +18,10 @@ interface ChoiceHeadProps extends HeadProps {
   label: string;
   field: "severities" | "statuses" | "ecosystems";
   options: ReadonlyArray<ColumnFilterOption<string>>;
-  testIdPrefix: string;
+  name: string;
 }
 
-function ChoiceHead({ filters, onChange, label, field, options, testIdPrefix }: ChoiceHeadProps) {
+function ChoiceHead({ filters, onChange, label, field, options, name }: ChoiceHeadProps) {
   return (
     <TableHead>
       <ColumnFilter
@@ -29,7 +29,8 @@ function ChoiceHead({ filters, onChange, label, field, options, testIdPrefix }: 
         options={options}
         selected={filters[field]}
         onChange={(values) => onChange({ ...filters, [field]: values })}
-        testIdPrefix={testIdPrefix}
+        feature="inventory"
+        name={name}
       />
     </TableHead>
   );
@@ -65,7 +66,7 @@ export function ApplicationCvesHeader({ filters, onChange }: HeadProps) {
           label="Risiko"
           field="severities"
           options={CVE_SEVERITY_OPTIONS}
-          testIdPrefix="inventory-select-severity"
+          name="severity"
         />
         <SearchHead
           {...head}
@@ -84,7 +85,7 @@ export function ApplicationCvesHeader({ filters, onChange }: HeadProps) {
           label="Ökosystem"
           field="ecosystems"
           options={CVE_ECOSYSTEM_OPTIONS}
-          testIdPrefix="inventory-select-ecosystem"
+          name="ecosystem"
         />
         <TableHead>Fix</TableHead>
         <ChoiceHead
@@ -92,7 +93,7 @@ export function ApplicationCvesHeader({ filters, onChange }: HeadProps) {
           label="Status"
           field="statuses"
           options={CVE_STATUS_OPTIONS}
-          testIdPrefix="inventory-select-status"
+          name="status"
         />
       </TableRow>
     </TableHeader>

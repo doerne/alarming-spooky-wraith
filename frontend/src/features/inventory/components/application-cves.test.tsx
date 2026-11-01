@@ -50,7 +50,7 @@ describe("ApplicationCves", () => {
     const { onFiltersChange } = renderTable();
 
     await userEvent.click(screen.getByTestId("inventory-select-status"));
-    await userEvent.click(screen.getByTestId("inventory-select-status-option-offen"));
+    await userEvent.click(screen.getByTestId("inventory-checkbox-status-offen"));
     await userEvent.keyboard("{Escape}");
     await userEvent.type(screen.getByTestId("inventory-input-filter-component"), "r");
 
