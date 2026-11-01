@@ -52,14 +52,14 @@ def test_second_start_is_rejected() -> None:
 
 def test_job_error_is_reported() -> None:
     def job() -> IngestResult:
-        raise RuntimeError("DB weg")
+        raise RuntimeError("password=geheim@db")
 
     runner = ThreadIngestRunner(job, lambda: _NOW)
     runner.start()
     assert runner.wait(_WAIT_SECONDS)
     state = runner.state()
     assert state.running is False
-    assert state.error == "DB weg"
+    assert state.error == "Lauf fehlgeschlagen (RuntimeError)"
     assert state.findings_found is None
 
 

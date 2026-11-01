@@ -3,6 +3,7 @@
 Der Zustand liegt im Speicher des Prozesses (ein uvicorn-Worker).
 """
 
+import logging
 import threading
 from collections.abc import Callable
 from dataclasses import replace
@@ -10,6 +11,8 @@ from datetime import datetime
 
 from app.application.ingest import IngestResult
 from app.application.ingest_runner import IngestRunState
+
+_logger = logging.getLogger(__name__)
 
 
 class ThreadIngestRunner:
@@ -44,7 +47,9 @@ class ThreadIngestRunner:
         try:
             result = self._job()
         except Exception as error:
-            self._finish(error=str(error) or type(error).__name__)
+            # Details nur ins Log: Ausnahmen (z. B. der DB) können Interna enthalten.
+            _logger.exception("Ingest-Lauf fehlgeschlagen")
+            self._finish(error=f"Lauf fehlgeschlagen ({type(error).__name__})")
             return
         self._finish(
             components_scanned=result.components_scanned, findings_found=result.findings_found

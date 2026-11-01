@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     enable_docs: bool = False
     okf_root: Path = Path("/data/okf")
     osv_base_url: str = "https://api.osv.dev"
+    source_cache_root: Path = Path("/data/sources")
 
     def sqlalchemy_url(self) -> str:
         if self.database_url:

@@ -5,7 +5,7 @@ import pytest
 from cvss import CVSS3, CVSS4
 
 from app.domain.inventory import Category, Component, Ecosystem
-from app.infrastructure.osv_client import HttpxOsvClient
+from app.infrastructure.sources.osv import OsvSource
 
 
 def _component(name: str, version: str) -> Component:
@@ -34,13 +34,13 @@ _RESPONSE = {
 }
 
 
-def _client(response: dict[str, Any]) -> HttpxOsvClient:
+def _client(response: dict[str, Any]) -> OsvSource:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/v1/query"
         return httpx.Response(200, json=response)
 
     transport = httpx.MockTransport(handler)
-    return HttpxOsvClient("https://api.osv.dev", httpx.Client(transport=transport))
+    return OsvSource("https://api.osv.dev", httpx.Client(transport=transport))
 
 
 def test_query_maps_osv_response() -> None:
@@ -86,3 +86,9 @@ def test_prefers_cvss_v4_over_v3() -> None:
 def test_reference_without_url_is_skipped() -> None:
     response = {"vulns": [{"id": "GHSA-w", "references": [{"url": "https://a"}, {"type": "WEB"}]}]}
     assert _client(response).query(_component("react", "1"), None)[0].references == ["https://a"]
+
+
+def test_query_maps_url_and_affected_events() -> None:
+    vuln = _client(_RESPONSE).query(_component("react", "18.2.0"), None)[0]
+    assert vuln.source_key == "osv"
+    assert vuln.url == "https://osv.dev/vulnerability/GHSA-x"

@@ -13,7 +13,7 @@ from app.application.source_use_cases import reset_interrupted_runs
 from app.infrastructure.config import get_settings
 from app.infrastructure.database import create_session_factory
 from app.infrastructure.okf_store import FileAdvisoryStore
-from app.infrastructure.osv_client import HttpxOsvClient
+from app.infrastructure.sources.osv import OsvSource
 from app.infrastructure.thread_ingest_runner import ThreadIngestRunner
 from app.infrastructure.unit_of_work import sqlalchemy_unit_of_work
 from app.infrastructure.univers_matcher import UniversVersionMatcher
@@ -29,7 +29,7 @@ def build_app() -> FastAPI:
     uow_factory = partial(
         sqlalchemy_unit_of_work, create_session_factory(settings.sqlalchemy_url())
     )
-    registry = SourceRegistry([HttpxOsvClient(settings.osv_base_url, httpx.Client(timeout=30.0))])
+    registry = SourceRegistry([OsvSource(settings.osv_base_url, httpx.Client(timeout=30.0))])
     matcher = ComponentMatcher(UniversVersionMatcher())
     store = FileAdvisoryStore(settings.okf_root)
     job = partial(run_ingest_job, uow_factory, registry, matcher, store, _now)

@@ -18,7 +18,9 @@ RUN python -m compileall -q app migrations
 
 # ---------- Runtime: schlank, non-root, ohne Build-Werkzeuge ----------
 FROM python:3.13-slim
-RUN useradd --uid 10001 --no-create-home --shell /usr/sbin/nologin app
+RUN useradd --uid 10001 --no-create-home --shell /usr/sbin/nologin app \
+    && mkdir -p /data/okf /data/sources \
+    && chown 10001:10001 /data/okf /data/sources
 WORKDIR /app
 COPY --from=build /app /app
 ENV PATH="/app/.venv/bin:$PATH" \

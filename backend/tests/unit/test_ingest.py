@@ -4,6 +4,7 @@ from app.application.component_matching import ComponentMatcher
 from app.application.ingest import IngestResult, RunIngest
 from app.application.inventory_use_cases import AddComponent, CreateApplication
 from app.application.source_registry import SourceRegistry
+from app.domain.errors import SourceAccessError
 from app.domain.inventory import Category, Component, Ecosystem
 from app.domain.ports import AffectedPackage, RangeEvent, SourceVuln
 from app.domain.sources import (
@@ -139,7 +140,7 @@ def test_api_key_is_passed_to_source() -> None:
 
 def test_failing_source_does_not_stop_run() -> None:
     uow = _uow(_REACT)
-    broken = FakePackageSource(descriptor("broken"), error=RuntimeError("boom"))
+    broken = FakePackageSource(descriptor("broken"), error=RuntimeError("secret=abc"))
     working = FakePackageSource(descriptor("osv"), {"react": [_vuln()]})
     result = _run(uow, broken, working)
     assert _result_of(result, "broken") == RunStatus.ERROR
@@ -147,7 +148,7 @@ def test_failing_source_does_not_stop_run() -> None:
     assert result.findings_found == 1
     stored = uow.source_settings.get("broken")
     assert stored is not None
-    assert stored.last_message == "boom"
+    assert stored.last_message == "Unerwarteter Fehler (RuntimeError)"
     assert stored.last_run_at == _NOW
 
 
@@ -232,3 +233,12 @@ def test_no_vulns_yields_zero_findings() -> None:
     uow = _uow(_REACT)
     assert _run(uow, FakePackageSource(descriptor("osv"))).findings_found == 0
     assert uow.findings.list() == []
+
+
+def test_source_access_error_message_is_shown() -> None:
+    uow = _uow(_REACT)
+    source = FakePackageSource(descriptor("osv"), error=SourceAccessError("Rate-Limit erreicht"))
+    _run(uow, source)
+    stored = uow.source_settings.get("osv")
+    assert stored is not None
+    assert stored.last_message == "Rate-Limit erreicht"

@@ -4,6 +4,7 @@ Ablauf: pro Quelle sammeln (Fehler einer Quelle brechen den Lauf nicht ab),
 dann je Advisory über alle Quellen zusammenführen und einmal schreiben.
 """
 
+import logging
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
 from datetime import datetime
@@ -15,6 +16,7 @@ from app.application.risk_score import compute_risk_score
 from app.application.source_registry import SourceRegistry
 from app.application.source_use_cases import load_setting
 from app.application.unit_of_work import UnitOfWork, UnitOfWorkFactory
+from app.domain.errors import SourceAccessError
 from app.domain.inventory import Component
 from app.domain.ports import (
     AdvisoryStore,
@@ -35,6 +37,7 @@ from app.domain.sources import (
 )
 from app.domain.vulnerability import Advisory, Finding
 
+_logger = logging.getLogger(__name__)
 _MAX_MESSAGE_LENGTH = 500
 _SKIP_MESSAGES = {
     SourceStatus.DISABLED: "deaktiviert",
@@ -80,7 +83,11 @@ def in_scope(descriptor: SourceDescriptor, component: Component) -> bool:
 
 
 def _error_message(error: Exception) -> str:
-    return (str(error) or type(error).__name__)[:_MAX_MESSAGE_LENGTH]
+    """Nur eigene Quellen-Meldungen im Wortlaut; alles andere könnte Interna enthalten."""
+    if isinstance(error, SourceAccessError):
+        return (str(error) or "Quelle nicht erreichbar")[:_MAX_MESSAGE_LENGTH]
+    _logger.exception("Unerwarteter Fehler in einer Quelle")
+    return f"Unerwarteter Fehler ({type(error).__name__})"
 
 
 def _render_body(merged: MergedAdvisory, rationale: str) -> str:
