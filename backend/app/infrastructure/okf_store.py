@@ -59,7 +59,7 @@ class FileAdvisoryStore:
             return None
         if not path.exists():
             return None
-        split = _split_document(path.read_text(encoding="utf-8"))
+        split = _split_document(_read_text(path))
         sources = _sources_from(split[0]) if split else None
         if split is None or sources is None:
             return None
@@ -80,15 +80,29 @@ def _sources_from(frontmatter: str) -> list[SourceReference] | None:
     if not isinstance(front, dict):
         return None
     entries = front.get("sources") or []
-    references = [SourceReference(str(e.get("id")), str(e.get("resource"))) for e in entries]
+    if not isinstance(entries, list):
+        return None
+    references = [
+        SourceReference(str(e.get("id")), str(e.get("resource")))
+        for e in entries
+        if isinstance(e, dict)
+    ]
     return [reference for reference in references if _HTTP_URL.match(reference.url)]
 
 
 def _earlier_sources(path: Path) -> list[SourceReference]:
     if not path.exists():
         return []
-    split = _split_document(path.read_text(encoding="utf-8"))
+    split = _split_document(_read_text(path))
     return (_sources_from(split[0]) or []) if split else []
+
+
+def _read_text(path: Path) -> str:
+    """Unlesbare Datei (falsche Kodierung) wie eine fehlende behandeln."""
+    try:
+        return path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        return ""
 
 
 def _split_document(text: str) -> tuple[str, str] | None:

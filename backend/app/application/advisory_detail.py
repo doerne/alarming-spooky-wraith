@@ -14,7 +14,7 @@ class AffectedFinding:
     application_name: str
     component_id: int
     component_name: str
-    component_version: str
+    found_version: str
     ecosystem: str | None
     risk_score: int
     risk_level: Severity
@@ -61,12 +61,12 @@ class GetAdvisoryDetail:
         return sorted(views, key=lambda view: view.risk_score, reverse=True)
 
     def _to_view(self, finding: Finding, component: Component) -> AffectedFinding:
-        assert component.id is not None
         return AffectedFinding(
             application_name=self._uow.applications.get(finding.application_id).name,
-            component_id=component.id,
+            component_id=finding.component_id,
             component_name=component.name,
-            component_version=component.version,
+            # Version zum Zeitpunkt des Fundes - die Komponente kann inzwischen aktualisiert sein.
+            found_version=finding.found_version,
             ecosystem=component.ecosystem.value if component.ecosystem else None,
             risk_score=finding.risk.value,
             risk_level=finding.risk.level,

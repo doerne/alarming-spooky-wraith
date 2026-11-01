@@ -39,7 +39,7 @@ export const affectedFindingSchema = z.object({
   applicationName: z.string(),
   componentId: z.number(),
   componentName: z.string(),
-  componentVersion: z.string(),
+  foundVersion: z.string(),
   ecosystem: z.string().nullable(),
   riskScore: z.number(),
   riskLevel: riskLevelSchema,

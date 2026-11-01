@@ -75,7 +75,7 @@ def test_detail_lists_all_findings() -> None:
     assert sorted(f.application_name for f in detail.findings) == ["Blog", "Shop"]
     finding = detail.findings[0]
     assert finding.component_name == "react"
-    assert finding.component_version == "18.2.0"
+    assert finding.found_version == "18.2.0"
     assert finding.ecosystem == "npm"
     assert finding.component_id is not None
 
@@ -94,3 +94,11 @@ def test_unknown_advisory_raises_not_found() -> None:
     uow, store = _ingested("Shop")
     with pytest.raises(EntityNotFoundError):
         GetAdvisoryDetail(uow, store).execute("CVE-1999-0001")
+
+
+def test_detail_shows_found_version_not_current() -> None:
+    uow, store = _ingested("Shop")
+    component = uow.components.list_all()[0]
+    uow.components.update(Component(**{**component.__dict__, "version": "19.0.0"}))
+    detail = GetAdvisoryDetail(uow, store).execute("CVE-2024-1")
+    assert detail.findings[0].found_version == "18.2.0"

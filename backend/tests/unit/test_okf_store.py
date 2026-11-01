@@ -184,3 +184,28 @@ def test_non_http_source_urls_are_dropped(tmp_path: Path) -> None:
     document = store.read_document("CVE-2024-1")
     assert document is not None
     assert document.sources == [SourceReference("osv", "https://o")]
+
+
+def test_sources_with_wrong_structure_return_none(tmp_path: Path) -> None:
+    (tmp_path / "advisories").mkdir(parents=True)
+    (tmp_path / "advisories" / "CVE-2024-1.md").write_text(
+        "---\nsources: foo\n---\n\nText\n", encoding="utf-8"
+    )
+    assert FileAdvisoryStore(tmp_path).read_document("CVE-2024-1") is None
+
+
+def test_non_dict_source_entries_are_skipped(tmp_path: Path) -> None:
+    (tmp_path / "advisories").mkdir(parents=True)
+    (tmp_path / "advisories" / "CVE-2024-1.md").write_text(
+        "---\nsources:\n- kaputt\n- id: osv\n  resource: https://o\n---\n\nText\n",
+        encoding="utf-8",
+    )
+    document = FileAdvisoryStore(tmp_path).read_document("CVE-2024-1")
+    assert document is not None
+    assert document.sources == [SourceReference("osv", "https://o")]
+
+
+def test_undecodable_file_returns_none(tmp_path: Path) -> None:
+    (tmp_path / "advisories").mkdir(parents=True)
+    (tmp_path / "advisories" / "CVE-2024-1.md").write_bytes(b"---\n\xff\xfe\n---\n")
+    assert FileAdvisoryStore(tmp_path).read_document("CVE-2024-1") is None

@@ -74,7 +74,7 @@ class AffectedFindingResponse(ApiModel):
     application_name: str
     component_id: int
     component_name: str
-    component_version: str
+    found_version: str
     ecosystem: str | None
     risk_score: int
     risk_level: Severity
