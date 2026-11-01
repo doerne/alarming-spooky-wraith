@@ -7,8 +7,8 @@ export interface FindingFilters {
   statuses: string[];
   ecosystems: string[];
   applicationIds: number[];
-  advisoryQuery: string;
-  componentQuery: string;
+  advisoryIds: string[];
+  componentNames: string[];
 }
 
 export const EMPTY_FILTERS: FindingFilters = {
@@ -16,8 +16,8 @@ export const EMPTY_FILTERS: FindingFilters = {
   statuses: [],
   ecosystems: [],
   applicationIds: [],
-  advisoryQuery: "",
-  componentQuery: "",
+  advisoryIds: [],
+  componentNames: [],
 };
 
 export const SEVERITY_OPTIONS: ReadonlyArray<FilterOption<RiskLevel>> = [
@@ -44,12 +44,42 @@ export const ECOSYSTEM_OPTIONS: ReadonlyArray<FilterOption<string>> = [
 ];
 
 export function hasActiveFilters(filters: FindingFilters): boolean {
-  const selected =
-    filters.severities.length +
-    filters.statuses.length +
-    filters.ecosystems.length +
-    filters.applicationIds.length;
-  return selected > 0 || `${filters.advisoryQuery}${filters.componentQuery}`.trim() !== "";
+  const lists = [
+    filters.severities,
+    filters.statuses,
+    filters.ecosystems,
+    filters.applicationIds,
+    filters.advisoryIds,
+    filters.componentNames,
+  ];
+  return lists.some((values) => values.length > 0);
+}
+
+/** Auswahlwerte der Spaltenfilter, die aus den Daten stammen. */
+export interface ColumnOptions {
+  applications: ReadonlyArray<FilterOption<string>>;
+  advisories: ReadonlyArray<FilterOption<string>>;
+  components: ReadonlyArray<FilterOption<string>>;
+}
+
+function sortedOptions(entries: Iterable<[string, string]>): FilterOption<string>[] {
+  return [...new Map(entries)]
+    .map(([value, label]) => ({ value, label }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+}
+
+export function advisoryOptionsOf(
+  findings: ReadonlyArray<{ advisoryId: string; cveId: string | null }>,
+): FilterOption<string>[] {
+  return sortedOptions(
+    findings.map((finding) => [finding.advisoryId, finding.cveId ?? finding.advisoryId]),
+  );
+}
+
+export function componentOptionsOf(
+  findings: ReadonlyArray<{ componentName: string }>,
+): FilterOption<string>[] {
+  return sortedOptions(findings.map((finding) => [finding.componentName, finding.componentName]));
 }
 
 export interface ApplicationOption {
@@ -73,4 +103,22 @@ export function applicationsOf(
 ): ApplicationOption[] {
   const byId = new Map(findings.map((finding) => [finding.applicationId, finding.applicationName]));
   return [...byId].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+type OptionSource = { applicationId: number; applicationName: string } & {
+  advisoryId: string;
+  cveId: string | null;
+  componentName: string;
+};
+
+/** Alle datengetriebenen Auswahlwerte der Spaltenfilter (aus den ungefilterten Funden). */
+export function columnOptionsOf(findings: ReadonlyArray<OptionSource>): ColumnOptions {
+  return {
+    applications: applicationsOf(findings).map((app) => ({
+      value: String(app.id),
+      label: app.name,
+    })),
+    advisories: advisoryOptionsOf(findings),
+    components: componentOptionsOf(findings),
+  };
 }

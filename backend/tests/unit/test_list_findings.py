@@ -192,9 +192,10 @@ def test_filter_by_several_applications() -> None:
     ]
 
 
-def test_column_queries_are_separate() -> None:
+def test_filter_by_advisory_ids_and_component_names() -> None:
     uow, _, _ = _seeded()
-    assert _ids(uow, FindingFilter(advisory_query="react")) == []
-    assert _ids(uow, FindingFilter(advisory_query="titel cve-2024-3")) == ["CVE-2024-3"]
-    assert _ids(uow, FindingFilter(component_query="DJANGO")) == ["CVE-2024-4"]
-    assert _ids(uow, FindingFilter(component_query="cve")) == []
+    advisory_ids = frozenset({"CVE-2024-1", "CVE-2024-4"})
+    assert _ids(uow, FindingFilter(advisory_ids=advisory_ids)) == ["CVE-2024-1", "CVE-2024-4"]
+    assert _ids(uow, FindingFilter(component_names=frozenset({"redis"}))) == ["CVE-2024-3"]
+    combined = FindingFilter(advisory_ids=advisory_ids, component_names=frozenset({"django"}))
+    assert _ids(uow, combined) == ["CVE-2024-4"]

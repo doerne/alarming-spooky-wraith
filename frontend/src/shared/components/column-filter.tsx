@@ -143,27 +143,3 @@ export function ColumnFilter<T extends string>({
     </Popover>
   );
 }
-
-interface ColumnSearchProps {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  testId: string;
-}
-
-/** Suchfeld in einer Spaltenüberschrift. */
-export function ColumnSearch({ label, value, onChange, testId }: ColumnSearchProps) {
-  return (
-    <div className="flex flex-col gap-1 py-1">
-      <span className={cn("font-medium", value && "text-primary")}>{label}</span>
-      <Input
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder="Filtern …"
-        aria-label={`${label} filtern`}
-        className="h-7 min-w-28 text-xs font-normal"
-        data-testid={testId}
-      />
-    </div>
-  );
-}

@@ -1,7 +1,6 @@
 import { useState } from "react";
 
 import { FilterSummaryBar } from "@/shared/components/filter-summary-bar";
-import { useDebouncedValue } from "@/shared/hooks/use-debounced-value";
 
 import { CvesTable } from "./components/cves-table";
 import { IngestControl } from "./components/ingest-control";
@@ -10,23 +9,21 @@ import { SeverityChart } from "./components/severity-chart";
 import { useFilteredFindings, useFindings } from "./hooks/use-findings";
 import { isAlreadyRunning, useIngestStatus, useStartIngest } from "./hooks/use-run-ingest";
 import {
-  type ApplicationOption,
+  type ColumnOptions,
   EMPTY_FILTERS,
   type FindingFilters,
-  applicationsOf,
+  columnOptionsOf,
   emptyStateOf,
   hasActiveFilters,
 } from "./model/filters";
 import { computeKpis, countBySeverity } from "./model/stats";
 import type { FindingsPage } from "./model/types";
 
-const SEARCH_DELAY_MS = 300;
-
 interface FilteredResultProps {
   page: FindingsPage | undefined;
   error: Error | null;
   filters: FindingFilters;
-  applications: ReadonlyArray<ApplicationOption>;
+  options: ColumnOptions;
   onFiltersChange: (filters: FindingFilters) => void;
   onSelectCve: (advisoryId: string) => void;
 }
@@ -56,7 +53,7 @@ function FilteredResult(props: FilteredResultProps) {
       <CvesTable
         findings={page?.items ?? []}
         filters={filters}
-        applications={props.applications}
+        options={props.options}
         emptyState={emptyStateOf(page)}
         onFiltersChange={onFiltersChange}
         onReset={reset}
@@ -70,10 +67,7 @@ export function CvesPage({ onSelectCve }: { onSelectCve: (advisoryId: string) =>
   // Kacheln und Diagramm zeigen immer den Gesamtstand; nur die Tabelle wird gefiltert.
   const { data: findings = [] } = useFindings();
   const [filters, setFilters] = useState<FindingFilters>(EMPTY_FILTERS);
-  // Suchfelder verzögert abfragen; Auswahlfilter wirken sofort.
-  const advisoryQuery = useDebouncedValue(filters.advisoryQuery, SEARCH_DELAY_MS);
-  const componentQuery = useDebouncedValue(filters.componentQuery, SEARCH_DELAY_MS);
-  const filtered = useFilteredFindings({ ...filters, advisoryQuery, componentQuery });
+  const filtered = useFilteredFindings(filters);
   const ingestStatus = useIngestStatus();
   const startIngest = useStartIngest();
 
@@ -93,7 +87,7 @@ export function CvesPage({ onSelectCve }: { onSelectCve: (advisoryId: string) =>
         page={filtered.data}
         error={filtered.error}
         filters={filters}
-        applications={applicationsOf(findings)}
+        options={columnOptionsOf(findings)}
         onFiltersChange={setFilters}
         onSelectCve={onSelectCve}
       />

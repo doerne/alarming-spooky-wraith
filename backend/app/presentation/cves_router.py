@@ -47,8 +47,8 @@ class FindingQuery(BaseModel):
     status: list[FindingStatus] = []
     ecosystem: list[Ecosystem | Literal["none"]] = []
     q: str = ""
-    advisory: str = ""
-    component: str = ""
+    advisory_id: list[str] = []
+    component_name: list[str] = []
 
 
 def get_finding_filter(params: Annotated[FindingQuery, Query()]) -> FindingFilter:
@@ -60,8 +60,8 @@ def get_finding_filter(params: Annotated[FindingQuery, Query()]) -> FindingFilte
         statuses=frozenset(params.status),
         ecosystems=frozenset(str(value) for value in params.ecosystem),
         query=params.q,
-        advisory_query=params.advisory,
-        component_query=params.component,
+        advisory_ids=frozenset(params.advisory_id),
+        component_names=frozenset(params.component_name),
     )
 
 

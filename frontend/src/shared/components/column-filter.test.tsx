@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { ColumnFilter, ColumnSearch } from "./column-filter";
+import { ColumnFilter } from "./column-filter";
 
 const OPTIONS = [
   { value: "1", label: "Shop" },
@@ -102,24 +102,5 @@ describe("ColumnFilter Test-IDs", () => {
 
     await userEvent.click(screen.getByTestId("shared-select-ecosystem"));
     expect(screen.getByTestId("shared-checkbox-ecosystem-crates-io")).toBeInTheDocument();
-  });
-});
-
-describe("ColumnSearch", () => {
-  it("meldet die Eingabe und hat ein Label", async () => {
-    const onChange = vi.fn();
-    render(
-      <ColumnSearch
-        label="Komponente"
-        value=""
-        onChange={onChange}
-        testId="shared-input-test-comp"
-      />,
-    );
-
-    await userEvent.type(screen.getByTestId("shared-input-test-comp"), "d");
-
-    expect(onChange).toHaveBeenCalledWith("d");
-    expect(screen.getByLabelText("Komponente filtern")).toBeInTheDocument();
   });
 });

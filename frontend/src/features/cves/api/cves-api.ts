@@ -23,10 +23,8 @@ export function buildFindingsQuery(filters: FindingFilters): string {
   for (const status of filters.statuses) params.append("status", status);
   for (const ecosystem of filters.ecosystems) params.append("ecosystem", ecosystem);
   for (const id of filters.applicationIds) params.append("application", String(id));
-  const advisory = filters.advisoryQuery.trim();
-  if (advisory) params.set("advisory", advisory);
-  const component = filters.componentQuery.trim();
-  if (component) params.set("component", component);
+  for (const id of filters.advisoryIds) params.append("advisory_id", id);
+  for (const name of filters.componentNames) params.append("component_name", name);
   const text = params.toString();
   return text ? `?${text}` : "";
 }

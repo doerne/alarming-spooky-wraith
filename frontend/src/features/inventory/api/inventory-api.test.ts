@@ -8,11 +8,11 @@ describe("applicationFindingsPath", () => {
     const path = applicationFindingsPath(4, {
       ...EMPTY_CVE_FILTERS,
       statuses: ["offen", "in_arbeit"],
-      advisoryQuery: " xss ",
-      componentQuery: "react",
+      advisoryIds: ["CVE-2024-1"],
+      componentNames: ["react"],
     });
     expect(path).toBe(
-      "/api/cves?application_id=4&status=offen&status=in_arbeit&advisory=xss&component=react",
+      "/api/cves?application_id=4&status=offen&status=in_arbeit&advisory_id=CVE-2024-1&component_name=react",
     );
   });
 });

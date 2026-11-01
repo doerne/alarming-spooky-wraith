@@ -1,11 +1,12 @@
 import type { ColumnFilterOption } from "@/shared/components/column-filter";
-import { ColumnFilter, ColumnSearch } from "@/shared/components/column-filter";
+import { ColumnFilter } from "@/shared/components/column-filter";
 import { TableHead, TableHeader, TableRow } from "@/shared/ui/table";
 
 import {
   CVE_ECOSYSTEM_OPTIONS,
   CVE_SEVERITY_OPTIONS,
   CVE_STATUS_OPTIONS,
+  type CveColumnOptions,
   type CveFilters,
 } from "../model/cve-filters";
 
@@ -16,12 +17,21 @@ interface HeadProps {
 
 interface ChoiceHeadProps extends HeadProps {
   label: string;
-  field: "severities" | "statuses" | "ecosystems";
+  field: "severities" | "statuses" | "ecosystems" | "advisoryIds" | "componentNames";
   options: ReadonlyArray<ColumnFilterOption<string>>;
   name: string;
+  searchable?: boolean;
 }
 
-function ChoiceHead({ filters, onChange, label, field, options, name }: ChoiceHeadProps) {
+function ChoiceHead({
+  filters,
+  onChange,
+  label,
+  field,
+  options,
+  name,
+  searchable,
+}: ChoiceHeadProps) {
   return (
     <TableHead>
       <ColumnFilter
@@ -29,6 +39,7 @@ function ChoiceHead({ filters, onChange, label, field, options, name }: ChoiceHe
         options={options}
         selected={filters[field]}
         onChange={(values) => onChange({ ...filters, [field]: values })}
+        searchable={searchable}
         feature="inventory"
         name={name}
       />
@@ -36,27 +47,12 @@ function ChoiceHead({ filters, onChange, label, field, options, name }: ChoiceHe
   );
 }
 
-interface SearchHeadProps extends HeadProps {
-  label: string;
-  field: "advisoryQuery" | "componentQuery";
-  testId: string;
-}
-
-function SearchHead({ filters, onChange, label, field, testId }: SearchHeadProps) {
-  return (
-    <TableHead>
-      <ColumnSearch
-        label={label}
-        value={filters[field]}
-        onChange={(value) => onChange({ ...filters, [field]: value })}
-        testId={testId}
-      />
-    </TableHead>
-  );
+interface ApplicationCvesHeaderProps extends HeadProps {
+  options: CveColumnOptions;
 }
 
 /** Kopfzeile des CVE-Reiters; Überschriften sind die Filter (ohne Anwendung). */
-export function ApplicationCvesHeader({ filters, onChange }: HeadProps) {
+export function ApplicationCvesHeader({ filters, onChange, options }: ApplicationCvesHeaderProps) {
   const head = { filters, onChange };
   return (
     <TableHeader>
@@ -68,17 +64,21 @@ export function ApplicationCvesHeader({ filters, onChange }: HeadProps) {
           options={CVE_SEVERITY_OPTIONS}
           name="severity"
         />
-        <SearchHead
+        <ChoiceHead
           {...head}
           label="Advisory"
-          field="advisoryQuery"
-          testId="inventory-input-filter-advisory"
+          field="advisoryIds"
+          options={options.advisories}
+          name="advisory"
+          searchable
         />
-        <SearchHead
+        <ChoiceHead
           {...head}
           label="Komponente"
-          field="componentQuery"
-          testId="inventory-input-filter-component"
+          field="componentNames"
+          options={options.components}
+          name="component"
+          searchable
         />
         <ChoiceHead
           {...head}

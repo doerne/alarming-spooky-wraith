@@ -2,7 +2,7 @@ import { ClickableRow } from "@/shared/components/clickable-row";
 import { NoResultsRow, TableMessageRow } from "@/shared/components/table-message-row";
 import { Table, TableBody, TableCell } from "@/shared/ui/table";
 
-import type { ApplicationOption, EmptyState, FindingFilters } from "../model/filters";
+import type { ColumnOptions, EmptyState, FindingFilters } from "../model/filters";
 import type { Finding } from "../model/types";
 import { CvesTableHeader } from "./cves-table-header";
 import { SeverityBadge } from "./severity-badge";
@@ -12,7 +12,7 @@ const COLUMN_COUNT = 7;
 interface CvesTableProps {
   findings: Finding[];
   filters: FindingFilters;
-  applications: ReadonlyArray<ApplicationOption>;
+  options: ColumnOptions;
   emptyState: EmptyState;
   onFiltersChange: (filters: FindingFilters) => void;
   onReset: () => void;
@@ -44,7 +44,7 @@ function FindingRow({ item, onSelect }: { item: Finding; onSelect: (advisoryId: 
 export function CvesTable({
   findings,
   filters,
-  applications,
+  options,
   emptyState,
   onFiltersChange,
   onReset,
@@ -52,7 +52,7 @@ export function CvesTable({
 }: CvesTableProps) {
   return (
     <Table data-testid="cves-list-findings">
-      <CvesTableHeader filters={filters} applications={applications} onChange={onFiltersChange} />
+      <CvesTableHeader filters={filters} options={options} onChange={onFiltersChange} />
       <TableBody>
         {emptyState === "no-results" ? (
           <NoResultsRow colSpan={COLUMN_COUNT} feature="cves" onReset={onReset} />

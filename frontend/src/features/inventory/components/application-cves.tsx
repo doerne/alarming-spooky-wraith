@@ -3,7 +3,7 @@ import { NoResultsRow } from "@/shared/components/table-message-row";
 import { Badge } from "@/shared/ui/badge";
 import { Table, TableBody, TableCell } from "@/shared/ui/table";
 
-import type { CveFilters } from "../model/cve-filters";
+import type { CveColumnOptions, CveFilters } from "../model/cve-filters";
 import type { ApplicationFinding } from "../model/types";
 import { ApplicationCvesHeader } from "./application-cves-header";
 
@@ -19,6 +19,7 @@ const RISK_VARIANT: Record<string, "default" | "secondary" | "destructive" | "ou
 interface ApplicationCvesProps {
   findings: ApplicationFinding[];
   filters: CveFilters;
+  options: CveColumnOptions;
   onFiltersChange: (filters: CveFilters) => void;
   onReset: () => void;
   onSelect: (advisoryId: string) => void;
@@ -59,13 +60,14 @@ function FindingRow({
 export function ApplicationCves({
   findings,
   filters,
+  options,
   onFiltersChange,
   onReset,
   onSelect,
 }: ApplicationCvesProps) {
   return (
     <Table data-testid="inventory-list-cves">
-      <ApplicationCvesHeader filters={filters} onChange={onFiltersChange} />
+      <ApplicationCvesHeader filters={filters} options={options} onChange={onFiltersChange} />
       <TableBody>
         {findings.length === 0 ? (
           <NoResultsRow colSpan={COLUMN_COUNT} feature="inventory" onReset={onReset} />

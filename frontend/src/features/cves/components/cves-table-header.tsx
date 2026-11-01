@@ -1,17 +1,16 @@
 import type { ColumnFilterOption } from "@/shared/components/column-filter";
-import { ColumnFilter, ColumnSearch } from "@/shared/components/column-filter";
+import { ColumnFilter } from "@/shared/components/column-filter";
 import { TableHead, TableHeader, TableRow } from "@/shared/ui/table";
 
 import {
-  type ApplicationOption,
+  type ColumnOptions,
   ECOSYSTEM_OPTIONS,
   type FindingFilters,
   SEVERITY_OPTIONS,
   STATUS_OPTIONS,
 } from "../model/filters";
 
-type ChoiceKey = "severities" | "statuses" | "ecosystems";
-type QueryKey = "advisoryQuery" | "componentQuery";
+type ChoiceKey = "severities" | "statuses" | "ecosystems" | "advisoryIds" | "componentNames";
 
 interface HeadProps {
   filters: FindingFilters;
@@ -23,9 +22,18 @@ interface ChoiceHeadProps extends HeadProps {
   field: ChoiceKey;
   options: ReadonlyArray<ColumnFilterOption<string>>;
   name: string;
+  searchable?: boolean;
 }
 
-function ChoiceHead({ filters, onChange, label, field, options, name }: ChoiceHeadProps) {
+function ChoiceHead({
+  filters,
+  onChange,
+  label,
+  field,
+  options,
+  name,
+  searchable,
+}: ChoiceHeadProps) {
   return (
     <TableHead>
       <ColumnFilter
@@ -33,6 +41,7 @@ function ChoiceHead({ filters, onChange, label, field, options, name }: ChoiceHe
         options={options}
         selected={filters[field]}
         onChange={(values) => onChange({ ...filters, [field]: values })}
+        searchable={searchable}
         feature="cves"
         name={name}
       />
@@ -40,38 +49,12 @@ function ChoiceHead({ filters, onChange, label, field, options, name }: ChoiceHe
   );
 }
 
-interface SearchHeadProps extends HeadProps {
-  label: string;
-  field: QueryKey;
-  testId: string;
-}
-
-function SearchHead({ filters, onChange, label, field, testId }: SearchHeadProps) {
-  return (
-    <TableHead>
-      <ColumnSearch
-        label={label}
-        value={filters[field]}
-        onChange={(value) => onChange({ ...filters, [field]: value })}
-        testId={testId}
-      />
-    </TableHead>
-  );
-}
-
-interface ApplicationHeadProps extends HeadProps {
-  applications: ReadonlyArray<ApplicationOption>;
-}
-
-type CvesTableHeaderProps = ApplicationHeadProps;
-
-function ApplicationHead({ filters, onChange, applications }: ApplicationHeadProps) {
-  const options = applications.map((app) => ({ value: String(app.id), label: app.name }));
+function ApplicationHead({ filters, onChange, options }: HeadProps & { options: ColumnOptions }) {
   return (
     <TableHead>
       <ColumnFilter
         label="Anwendung"
-        options={options}
+        options={options.applications}
         selected={filters.applicationIds.map(String)}
         onChange={(ids) => onChange({ ...filters, applicationIds: ids.map(Number) })}
         searchable
@@ -82,8 +65,12 @@ function ApplicationHead({ filters, onChange, applications }: ApplicationHeadPro
   );
 }
 
+interface CvesTableHeaderProps extends HeadProps {
+  options: ColumnOptions;
+}
+
 /** Kopfzeile, deren Spaltenüberschriften zugleich die Filter sind. */
-export function CvesTableHeader({ filters, onChange, applications }: CvesTableHeaderProps) {
+export function CvesTableHeader({ filters, onChange, options }: CvesTableHeaderProps) {
   const head = { filters, onChange };
   return (
     <TableHeader>
@@ -95,18 +82,22 @@ export function CvesTableHeader({ filters, onChange, applications }: CvesTableHe
           options={SEVERITY_OPTIONS}
           name="severity"
         />
-        <SearchHead
+        <ChoiceHead
           {...head}
           label="Advisory"
-          field="advisoryQuery"
-          testId="cves-input-filter-advisory"
+          field="advisoryIds"
+          options={options.advisories}
+          name="advisory"
+          searchable
         />
-        <ApplicationHead {...head} applications={applications} />
-        <SearchHead
+        <ApplicationHead {...head} options={options} />
+        <ChoiceHead
           {...head}
           label="Komponente"
-          field="componentQuery"
-          testId="cves-input-filter-component"
+          field="componentNames"
+          options={options.components}
+          name="component"
+          searchable
         />
         <ChoiceHead
           {...head}

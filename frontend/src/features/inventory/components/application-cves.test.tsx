@@ -24,7 +24,11 @@ const findings: ApplicationFinding[] = [
 
 function renderTable(rows = findings, filters: CveFilters = EMPTY_CVE_FILTERS) {
   const props = { onFiltersChange: vi.fn(), onReset: vi.fn(), onSelect: vi.fn() };
-  render(<ApplicationCves findings={rows} filters={filters} {...props} />);
+  const options = {
+    advisories: [{ value: "CVE-2024-123", label: "CVE-2024-123" }],
+    components: [{ value: "react", label: "react" }],
+  };
+  render(<ApplicationCves findings={rows} filters={filters} options={options} {...props} />);
   return props;
 }
 
@@ -52,10 +56,14 @@ describe("ApplicationCves", () => {
     await userEvent.click(screen.getByTestId("inventory-select-status"));
     await userEvent.click(screen.getByTestId("inventory-checkbox-status-offen"));
     await userEvent.keyboard("{Escape}");
-    await userEvent.type(screen.getByTestId("inventory-input-filter-component"), "r");
+    await userEvent.click(screen.getByTestId("inventory-select-component"));
+    await userEvent.click(screen.getByTestId("inventory-checkbox-component-react"));
 
     expect(onFiltersChange).toHaveBeenCalledWith({ ...EMPTY_CVE_FILTERS, statuses: ["offen"] });
-    expect(onFiltersChange).toHaveBeenCalledWith({ ...EMPTY_CVE_FILTERS, componentQuery: "r" });
+    expect(onFiltersChange).toHaveBeenCalledWith({
+      ...EMPTY_CVE_FILTERS,
+      componentNames: ["react"],
+    });
     expect(screen.queryByTestId("inventory-select-application")).not.toBeInTheDocument();
   });
 

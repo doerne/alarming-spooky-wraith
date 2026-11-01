@@ -42,7 +42,17 @@ function renderTable(rows: Finding[], options: RenderOptions = {}) {
     <CvesTable
       findings={rows}
       filters={options.filters ?? EMPTY_FILTERS}
-      applications={[{ id: 1, name: "Shop" }]}
+      options={{
+        applications: [{ value: "1", label: "Shop" }],
+        advisories: [
+          { value: "CVE-2024-1", label: "CVE-2024-1" },
+          { value: "GHSA-x", label: "GHSA-x" },
+        ],
+        components: [
+          { value: "django", label: "django" },
+          { value: "react", label: "react" },
+        ],
+      }}
       emptyState={options.emptyState ?? "none"}
       onFiltersChange={onFiltersChange}
       onReset={onReset}
@@ -116,14 +126,20 @@ describe("CvesTable", () => {
     expect(onFiltersChange).toHaveBeenCalledWith({ ...EMPTY_FILTERS, severities: ["kritisch"] });
   });
 
-  it("filtert über die Suchfelder im Kopf", async () => {
+  it("filtert Advisory und Komponente über durchsuchbare Listen im Kopf", async () => {
     const { onFiltersChange } = renderTable(findings);
 
-    await userEvent.type(screen.getByTestId("cves-input-filter-component"), "d");
-    await userEvent.type(screen.getByTestId("cves-input-filter-advisory"), "x");
+    await userEvent.click(screen.getByTestId("cves-select-component"));
+    await userEvent.type(screen.getByTestId("cves-input-component-search"), "dja");
+    expect(screen.queryByTestId("cves-checkbox-component-react")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByTestId("cves-checkbox-component-django"));
+    await userEvent.keyboard("{Escape}");
 
-    expect(onFiltersChange).toHaveBeenCalledWith({ ...EMPTY_FILTERS, componentQuery: "d" });
-    expect(onFiltersChange).toHaveBeenCalledWith({ ...EMPTY_FILTERS, advisoryQuery: "x" });
+    await userEvent.click(screen.getByTestId("cves-select-advisory"));
+    await userEvent.click(screen.getByTestId("cves-checkbox-advisory-ghsa-x"));
+
+    expect(onFiltersChange).toHaveBeenCalledWith({ ...EMPTY_FILTERS, componentNames: ["django"] });
+    expect(onFiltersChange).toHaveBeenCalledWith({ ...EMPTY_FILTERS, advisoryIds: ["GHSA-x"] });
   });
 
   it("bietet Anwendung, Ökosystem und Status als Kopf-Filter", () => {

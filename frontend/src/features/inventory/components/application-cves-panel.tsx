@@ -1,12 +1,18 @@
 import { FilterSummaryBar } from "@/shared/components/filter-summary-bar";
 
 import type { ApplicationFindingsPage } from "../api/inventory-api";
-import { type CveFilters, EMPTY_CVE_FILTERS, hasActiveCveFilters } from "../model/cve-filters";
+import {
+  type CveColumnOptions,
+  type CveFilters,
+  EMPTY_CVE_FILTERS,
+  hasActiveCveFilters,
+} from "../model/cve-filters";
 import { ApplicationCves } from "./application-cves";
 
 interface ApplicationCvesPanelProps {
   page: ApplicationFindingsPage | undefined;
   filters: CveFilters;
+  options: CveColumnOptions;
   onFiltersChange: (filters: CveFilters) => void;
   onSelectCve: (advisoryId: string) => void;
 }
@@ -15,6 +21,7 @@ interface ApplicationCvesPanelProps {
 export function ApplicationCvesPanel({
   page,
   filters,
+  options,
   onFiltersChange,
   onSelectCve,
 }: ApplicationCvesPanelProps) {
@@ -39,6 +46,7 @@ export function ApplicationCvesPanel({
       <ApplicationCves
         findings={page.items}
         filters={filters}
+        options={options}
         onFiltersChange={onFiltersChange}
         onReset={reset}
         onSelect={onSelectCve}

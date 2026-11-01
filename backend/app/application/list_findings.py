@@ -38,9 +38,9 @@ class FindingFilter:
     severities: frozenset[Severity] = frozenset()
     statuses: frozenset[FindingStatus] = frozenset()
     ecosystems: frozenset[str] = frozenset()
-    query: str = ""  # Advisory-ID, CVE-ID, Titel oder Komponente
-    advisory_query: str = ""  # Advisory-ID, CVE-ID oder Titel
-    component_query: str = ""  # Komponentenname
+    query: str = ""  # Freitext: Advisory-ID, CVE-ID, Titel oder Komponente
+    advisory_ids: frozenset[str] = frozenset()
+    component_names: frozenset[str] = frozenset()
 
 
 @dataclass(frozen=True)
@@ -69,8 +69,6 @@ def _all_texts(view: FindingView) -> tuple[str, ...]:
 
 def _predicates(criteria: FindingFilter) -> list[Predicate]:
     query = criteria.query.strip().lower()
-    advisory = criteria.advisory_query.strip().lower()
-    component = criteria.component_query.strip().lower()
     # (aktiv?, Prüfung) - inaktive Filter fallen weg.
     checks: list[tuple[bool, Predicate]] = [
         (
@@ -83,9 +81,12 @@ def _predicates(criteria: FindingFilter) -> list[Predicate]:
             bool(criteria.ecosystems),
             lambda view: (view.ecosystem or NO_ECOSYSTEM) in criteria.ecosystems,
         ),
+        (bool(criteria.advisory_ids), lambda view: view.advisory_id in criteria.advisory_ids),
+        (
+            bool(criteria.component_names),
+            lambda view: view.component_name in criteria.component_names,
+        ),
         (bool(query), _contains(query, _all_texts)),
-        (bool(advisory), _contains(advisory, _advisory_texts)),
-        (bool(component), _contains(component, lambda view: (view.component_name,))),
     ]
     return [check for active, check in checks if active]
 

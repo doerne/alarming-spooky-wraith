@@ -25,10 +25,8 @@ export function applicationFindingsPath(applicationId: number, filters: CveFilte
   for (const severity of filters.severities) params.append("severity", severity);
   for (const status of filters.statuses) params.append("status", status);
   for (const ecosystem of filters.ecosystems) params.append("ecosystem", ecosystem);
-  const advisory = filters.advisoryQuery.trim();
-  if (advisory) params.set("advisory", advisory);
-  const component = filters.componentQuery.trim();
-  if (component) params.set("component", component);
+  for (const id of filters.advisoryIds) params.append("advisory_id", id);
+  for (const name of filters.componentNames) params.append("component_name", name);
   return `/api/cves?${params.toString()}`;
 }
 
