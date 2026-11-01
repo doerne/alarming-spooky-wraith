@@ -90,10 +90,12 @@ describe("App", () => {
     renderApp();
 
     await screen.findByTestId("cves-item-CVE-2024-2-1");
-    await userEvent.click(screen.getByTestId("cves-select-severity-niedrig"));
+    await userEvent.click(screen.getByTestId("cves-select-severity"));
+    await userEvent.click(screen.getByTestId("cves-select-severity-option-niedrig"));
+    await userEvent.keyboard("{Escape}");
 
     expect(await screen.findByTestId("cves-text-no-results")).toBeInTheDocument();
-    expect(screen.queryByTestId("cves-list-findings")).not.toBeInTheDocument();
+    expect(screen.getByTestId("cves-list-findings")).toBeInTheDocument();
     await userEvent.click(screen.getByTestId("cves-btn-reset-no-results"));
     expect(await screen.findByTestId("cves-item-CVE-2024-2-1")).toBeInTheDocument();
   });
@@ -104,7 +106,8 @@ describe("App", () => {
     await screen.findByTestId("cves-item-CVE-2024-2-1");
     failFilteredRequests = true;
 
-    await userEvent.click(screen.getByTestId("cves-select-severity-hoch"));
+    await userEvent.click(screen.getByTestId("cves-select-severity"));
+    await userEvent.click(screen.getByTestId("cves-select-severity-option-hoch"));
 
     expect(
       await screen.findByTestId("cves-error-findings", {}, { timeout: 4000 }),
@@ -116,7 +119,8 @@ describe("App", () => {
     renderApp();
 
     await screen.findByTestId("cves-item-CVE-2024-2-1");
-    await userEvent.click(screen.getByTestId("cves-select-severity-kritisch"));
+    await userEvent.click(screen.getByTestId("cves-select-severity"));
+    await userEvent.click(screen.getByTestId("cves-select-severity-option-kritisch"));
 
     expect(await screen.findByTestId("cves-text-filter-summary")).toHaveTextContent("1 von 2");
     expect(screen.queryByTestId("cves-item-CVE-2024-2-1")).not.toBeInTheDocument();

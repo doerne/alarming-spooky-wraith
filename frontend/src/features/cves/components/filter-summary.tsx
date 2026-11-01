@@ -5,31 +5,26 @@ import { Button } from "@/shared/ui/button";
 interface FilterSummaryProps {
   shown: number;
   total: number;
+  active: boolean;
   onReset: () => void;
 }
 
-export function FilterSummary({ shown, total, onReset }: FilterSummaryProps) {
-  if (shown === 0 && total > 0) {
-    return (
-      <div className="flex flex-wrap items-center gap-3" data-testid="cves-card-no-results">
-        <p className="text-sm text-muted-foreground" data-testid="cves-text-no-results">
-          Keine Funde für diese Filter.
-        </p>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={onReset}
-          data-testid="cves-btn-reset-no-results"
-        >
-          <RotateCcw aria-hidden />
-          Filter zurücksetzen
-        </Button>
-      </div>
-    );
-  }
+export function FilterSummary({ shown, total, active, onReset }: FilterSummaryProps) {
   return (
-    <p className="text-sm text-muted-foreground" data-testid="cves-text-filter-summary">
-      {shown} von {total} Funden
-    </p>
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <p className="text-sm text-muted-foreground" data-testid="cves-text-filter-summary">
+        {shown} von {total} Funden
+      </p>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={onReset}
+        disabled={!active}
+        data-testid="cves-btn-reset-filters"
+      >
+        <RotateCcw aria-hidden />
+        Filter zurücksetzen
+      </Button>
+    </div>
   );
 }

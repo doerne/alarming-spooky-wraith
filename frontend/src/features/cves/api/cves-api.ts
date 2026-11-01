@@ -22,9 +22,11 @@ export function buildFindingsQuery(filters: FindingFilters): string {
   for (const severity of filters.severities) params.append("severity", severity);
   for (const status of filters.statuses) params.append("status", status);
   for (const ecosystem of filters.ecosystems) params.append("ecosystem", ecosystem);
-  if (filters.applicationId !== null) params.set("application_id", String(filters.applicationId));
-  const query = filters.query.trim();
-  if (query) params.set("q", query);
+  for (const id of filters.applicationIds) params.append("application", String(id));
+  const advisory = filters.advisoryQuery.trim();
+  if (advisory) params.set("advisory", advisory);
+  const component = filters.componentQuery.trim();
+  if (component) params.set("component", component);
   const text = params.toString();
   return text ? `?${text}` : "";
 }

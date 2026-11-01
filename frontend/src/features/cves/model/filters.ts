@@ -1,4 +1,4 @@
-import type { FilterOption } from "@/shared/components/multi-toggle-filter";
+import type { ColumnFilterOption as FilterOption } from "@/shared/components/column-filter";
 
 import type { RiskLevel } from "./types";
 
@@ -6,16 +6,18 @@ export interface FindingFilters {
   severities: RiskLevel[];
   statuses: string[];
   ecosystems: string[];
-  applicationId: number | null;
-  query: string;
+  applicationIds: number[];
+  advisoryQuery: string;
+  componentQuery: string;
 }
 
 export const EMPTY_FILTERS: FindingFilters = {
   severities: [],
   statuses: [],
   ecosystems: [],
-  applicationId: null,
-  query: "",
+  applicationIds: [],
+  advisoryQuery: "",
+  componentQuery: "",
 };
 
 export const SEVERITY_OPTIONS: ReadonlyArray<FilterOption<RiskLevel>> = [
@@ -42,11 +44,12 @@ export const ECOSYSTEM_OPTIONS: ReadonlyArray<FilterOption<string>> = [
 ];
 
 export function hasActiveFilters(filters: FindingFilters): boolean {
-  return (
-    filters.severities.length + filters.statuses.length + filters.ecosystems.length > 0 ||
-    filters.applicationId !== null ||
-    filters.query.trim() !== ""
-  );
+  const selected =
+    filters.severities.length +
+    filters.statuses.length +
+    filters.ecosystems.length +
+    filters.applicationIds.length;
+  return selected > 0 || `${filters.advisoryQuery}${filters.componentQuery}`.trim() !== "";
 }
 
 /** Anwendungen aus den Funden, je einmal, alphabetisch (für den Anwendungsfilter). */

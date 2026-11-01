@@ -8,14 +8,17 @@ describe("buildFindingsQuery", () => {
     expect(buildFindingsQuery(EMPTY_FILTERS)).toBe("");
   });
 
-  it("wiederholt Parameter für Mehrfachwerte und trimmt die Suche", () => {
+  it("wiederholt Parameter für Mehrfachwerte und trimmt die Suchfelder", () => {
     const query = buildFindingsQuery({
       ...EMPTY_FILTERS,
       severities: ["kritisch", "hoch"],
       ecosystems: ["none"],
-      applicationId: 3,
-      query: "  react ",
+      applicationIds: [3, 4],
+      advisoryQuery: " xss ",
+      componentQuery: "react",
     });
-    expect(query).toBe("?severity=kritisch&severity=hoch&ecosystem=none&application_id=3&q=react");
+    expect(query).toBe(
+      "?severity=kritisch&severity=hoch&ecosystem=none&application=3&application=4&advisory=xss&component=react",
+    );
   });
 });
