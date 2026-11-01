@@ -5,7 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Request
 
 from app.application.advisory_detail import AdvisoryDetail, GetAdvisoryDetail
-from app.application.list_findings import ListFindings
+from app.application.list_findings import FindingFilter, ListFindings
 from app.domain.ports import AdvisoryStore
 from app.domain.vulnerability import FindingStatus, Severity
 from app.presentation.dependencies import UnitOfWorkDep
@@ -36,7 +36,7 @@ class FindingsPage(ApiModel):
 
 @router.get("/cves")
 def list_cves(uow: UnitOfWorkDep, application_id: int | None = None) -> FindingsPage:
-    views = ListFindings(uow).execute(application_id)
+    views = ListFindings(uow).execute(FindingFilter(application_id=application_id)).items
     items = [
         FindingResponse(
             advisory_id=view.advisory_id,
