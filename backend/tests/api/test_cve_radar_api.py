@@ -13,7 +13,7 @@ from app.application.source_registry import SourceRegistry
 from app.domain.ports import SourceVuln
 from app.infrastructure.thread_ingest_runner import ThreadIngestRunner
 from app.infrastructure.univers_matcher import UniversVersionMatcher
-from app.presentation.app_factory import create_app
+from app.presentation.app_factory import AppServices, create_app
 from tests.fakes import (
     FakeAdvisoryStore,
     FakeIngestRunner,
@@ -39,7 +39,10 @@ def _build(vulns: list[SourceVuln]) -> FastAPI:
     runner = ThreadIngestRunner(
         partial(run_ingest_job, factory, registry, matcher, store, _now), _now
     )
-    return create_app(factory, ingest_runner=runner, source_registry=registry)
+    return create_app(
+        factory,
+        services=AppServices(ingest_runner=runner, source_registry=registry, advisory_store=store),
+    )
 
 
 def _now() -> datetime:
@@ -256,7 +259,9 @@ def _app_with_runner(runner: FakeIngestRunner) -> FastAPI:
     def factory() -> Iterator[InMemoryUnitOfWork]:
         yield uow
 
-    return create_app(factory, ingest_runner=runner, source_registry=SourceRegistry([]))
+    return create_app(
+        factory, services=AppServices(ingest_runner=runner, source_registry=SourceRegistry([]))
+    )
 
 
 def test_second_start_is_rejected() -> None:
@@ -288,3 +293,34 @@ def test_status_endpoint() -> None:
     assert body["componentsScanned"] == 4
     assert body["findingsFound"] == 2
     assert body["finishedAt"].startswith("2026-11-01T12:00:00")
+
+
+def test_cve_detail_returns_document_and_findings() -> None:
+    client = _client(_build([_VULN]))
+    _add_react(client)
+    _ingest(client)
+    response = client.get("/api/cves/CVE-2024-123")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["advisoryId"] == "CVE-2024-123"
+    assert body["cvssBase"] == 9.8
+    assert body["fixVersion"] == "18.2.1"
+    assert body["riskLevel"] == "kritisch"
+    assert body["sources"][0]["sourceKey"] == "osv"
+    assert body["findings"][0]["applicationName"] == "Shop"
+    assert body["findings"][0]["componentName"] == "react"
+    assert isinstance(body["findings"][0]["componentId"], int)
+    assert isinstance(body["references"], list)
+
+
+def test_unknown_advisory_is_404() -> None:
+    client = _client(_build([]))
+    assert client.get("/api/cves/CVE-1999-0001").status_code == 404
+
+
+def test_list_items_carry_component_id() -> None:
+    client = _client(_build([_VULN]))
+    _add_react(client)
+    _ingest(client)
+    item = client.get("/api/cves").json()["items"][0]
+    assert isinstance(item["componentId"], int)

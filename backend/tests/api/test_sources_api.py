@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 
 from app.application.source_registry import SourceRegistry
 from app.domain.sources import ApiKeyRequirement
-from app.presentation.app_factory import create_app
+from app.presentation.app_factory import AppServices, create_app
 from tests.fakes import FakeBulkSource, FakePackageSource, InMemoryUnitOfWork, descriptor
 
 _SECRET = "org-123:tok-very-secret"
@@ -25,7 +25,7 @@ def _client() -> TestClient:
             FakeBulkSource(descriptor("rustsec")),
         ]
     )
-    return TestClient(create_app(factory, source_registry=registry))
+    return TestClient(create_app(factory, services=AppServices(source_registry=registry)))
 
 
 def test_list_sources_returns_registry_entries() -> None:

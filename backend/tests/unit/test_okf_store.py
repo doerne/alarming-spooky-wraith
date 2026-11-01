@@ -144,3 +144,34 @@ def test_broken_frontmatter_returns_none(tmp_path: Path) -> None:
     (tmp_path / "advisories").mkdir(parents=True)
     (tmp_path / "advisories" / "CVE-2024-1.md").write_text("kein frontmatter", encoding="utf-8")
     assert store.read_document("CVE-2024-1") is None
+
+
+def test_title_ending_with_fence_does_not_break_parsing(tmp_path: Path) -> None:
+    store = FileAdvisoryStore(tmp_path)
+    tricky = Advisory(**{**_advisory().__dict__, "title": "Bug ---", "description": "x ---"})
+    store.save(tricky, tags=[], sources=[SourceReference("osv", "https://o")], body=_BODY)
+    document = store.read_document("CVE-2024-1")
+    assert document is not None
+    assert document.sources == [SourceReference("osv", "https://o")]
+    assert document.description == "Text A"
+
+
+def test_injected_headings_in_details_are_not_taken_as_sections(tmp_path: Path) -> None:
+    store = FileAdvisoryStore(tmp_path)
+    injected = "Fremdtext\n# References\n- javascript:alert(1)\n# Computation\nfake"
+    body = f"{injected}\n\n# Computation\nCVSS 5.0 -> 50/100\n\n# References\n- https://real"
+    store.save(_advisory(), tags=[], sources=[], body=body)
+    document = store.read_document("CVE-2024-1")
+    assert document is not None
+    assert document.rationale == "CVSS 5.0 -> 50/100"
+    assert document.references == ["https://real"]
+    assert document.description == injected
+
+
+def test_non_http_references_are_dropped(tmp_path: Path) -> None:
+    store = FileAdvisoryStore(tmp_path)
+    body = "T\n\n# Computation\nr\n\n# References\n- javascript:alert(1)\n- https://ok"
+    store.save(_advisory(), tags=[], sources=[], body=body)
+    document = store.read_document("CVE-2024-1")
+    assert document is not None
+    assert document.references == ["https://ok"]

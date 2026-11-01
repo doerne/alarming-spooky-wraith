@@ -14,10 +14,10 @@ import yaml
 from app.domain.ports import AdvisoryDocument, SourceReference
 from app.domain.vulnerability import ADVISORY_ID_MAX_LENGTH, Advisory
 
-_FRONTMATTER_FENCE = "---\n"
-_FRONTMATTER_PARTS = 3
-_COMPUTATION_HEADING = "# Computation"
-_REFERENCES_HEADING = "# References"
+_DOCUMENT = re.compile(r"\A---\n(.*?\n)---\n(.*)\Z", re.DOTALL)
+_COMPUTATION_HEADING = "\n# Computation\n"
+_REFERENCES_HEADING = "\n# References\n"
+_HTTP_URL = re.compile(r"^https?://", re.IGNORECASE)
 _INDEX = '---\nokf_version: "0.2"\n---\n\n# CVE-Radar Advisories\n'
 
 # Erlaubte Advisory-IDs: keine Pfad-Trenner, kein '..'. Deckt CVE-/GHSA-/OSV-IDs.
@@ -59,13 +59,11 @@ class FileAdvisoryStore:
             return None
         if not path.exists():
             return None
-        parts = path.read_text(encoding="utf-8").split(_FRONTMATTER_FENCE, 2)
-        if len(parts) < _FRONTMATTER_PARTS or parts[0]:
+        split = _split_document(path.read_text(encoding="utf-8"))
+        sources = _sources_from(split[0]) if split else None
+        if split is None or sources is None:
             return None
-        sources = _sources_from(parts[1])
-        if sources is None:
-            return None
-        description, rationale, references = parse_okf_body(parts[2])
+        description, rationale, references = parse_okf_body(split[1])
         return AdvisoryDocument(description, rationale, references, sources)
 
     def _ensure_index(self) -> None:
@@ -88,22 +86,36 @@ def _sources_from(frontmatter: str) -> list[SourceReference] | None:
 def _earlier_sources(path: Path) -> list[SourceReference]:
     if not path.exists():
         return []
-    parts = path.read_text(encoding="utf-8").split(_FRONTMATTER_FENCE, 2)
-    if len(parts) < _FRONTMATTER_PARTS:
-        return []
-    return _sources_from(parts[1]) or []
+    split = _split_document(path.read_text(encoding="utf-8"))
+    return (_sources_from(split[0]) or []) if split else []
+
+
+def _split_document(text: str) -> tuple[str, str] | None:
+    """(Frontmatter, Body); die Fence muss eine eigene Zeile ``---`` sein."""
+    match = _DOCUMENT.match(text)
+    return (match.group(1), match.group(2)) if match else None
 
 
 def parse_okf_body(body: str) -> tuple[str, str, list[str]]:
-    """Body wie ``RunIngest`` ihn schreibt → (Beschreibung, Herleitung, Referenzen)."""
-    text, _, references_part = body.partition(_REFERENCES_HEADING)
-    description, _, rationale = text.partition(_COMPUTATION_HEADING)
+    """Body wie ``RunIngest`` ihn schreibt → (Beschreibung, Herleitung, Referenzen).
+
+    Unsere Abschnitte stehen immer am Ende: deshalb an der *letzten* Überschrift
+    teilen - Überschriften in Fremdtexten landen so in der Beschreibung.
+    """
+    text = f"\n{body}"
+    head, found_references, references_part = text.rpartition(_REFERENCES_HEADING)
+    if not found_references:
+        head, references_part = text, ""
+    description, found_computation, rationale = head.rpartition(_COMPUTATION_HEADING)
+    if not found_computation:
+        description, rationale = head, ""
     references = [
         line.strip()[2:].strip()
         for line in references_part.splitlines()
         if line.strip().startswith("- ")
     ]
-    return description.strip(), rationale.strip(), references
+    safe = [url for url in references if _HTTP_URL.match(url)]
+    return description.strip(), rationale.strip(), safe
 
 
 def _with_earlier(path: Path, sources: list[SourceReference]) -> list[SourceReference]:

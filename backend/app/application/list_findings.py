@@ -13,6 +13,7 @@ class FindingView:
     cve_id: str | None
     title: str
     application_name: str
+    component_id: int
     component_name: str
     component_version: str
     ecosystem: str | None
@@ -49,6 +50,7 @@ class ListFindings:
             cve_id=advisory.cve_id,
             title=advisory.title,
             application_name=application.name,
+            component_id=finding.component_id,
             component_name=component.name,
             component_version=component.version,
             ecosystem=component.ecosystem.value if component.ecosystem else None,
