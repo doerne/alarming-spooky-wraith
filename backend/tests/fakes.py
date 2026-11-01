@@ -2,6 +2,7 @@
 
 from dataclasses import replace
 
+from app.application.ingest_runner import IngestRunState
 from app.domain.errors import EntityNotFoundError
 from app.domain.inventory import Application, Component
 from app.domain.ports import SourceReference, SourceVuln
@@ -218,3 +219,21 @@ def descriptor(
 
 
 VulnerabilitySourceFake = FakePackageSource | FakeBulkSource
+
+
+class FakeIngestRunner:
+    """Runner ohne Thread: merkt sich Starts und meldet einen festen Zustand."""
+
+    def __init__(self, state: IngestRunState | None = None) -> None:
+        self._state = state or IngestRunState(running=False)
+        self.starts = 0
+
+    def start(self) -> bool:
+        if self._state.running:
+            return False
+        self.starts += 1
+        self._state = IngestRunState(running=True, started_at=self._state.started_at)
+        return True
+
+    def state(self) -> IngestRunState:
+        return self._state

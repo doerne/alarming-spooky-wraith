@@ -1,18 +1,28 @@
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime
+from functools import partial
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.application.component_matching import ComponentMatcher
-from app.application.ingest import IngestResult, RunIngest
+from app.application.ingest import run_ingest_job
+from app.application.ingest_runner import IngestRunState
 from app.application.source_registry import SourceRegistry
-from app.application.unit_of_work import UnitOfWork
 from app.domain.ports import SourceVuln
+from app.infrastructure.thread_ingest_runner import ThreadIngestRunner
 from app.infrastructure.univers_matcher import UniversVersionMatcher
 from app.presentation.app_factory import create_app
-from tests.fakes import FakeAdvisoryStore, FakePackageSource, InMemoryUnitOfWork, descriptor
+from tests.fakes import (
+    FakeAdvisoryStore,
+    FakeIngestRunner,
+    FakePackageSource,
+    InMemoryUnitOfWork,
+    descriptor,
+)
+
+_WAIT_SECONDS = 5
 
 
 def _build(vulns: list[SourceVuln]) -> FastAPI:
@@ -26,10 +36,24 @@ def _build(vulns: list[SourceVuln]) -> FastAPI:
     matcher = ComponentMatcher(UniversVersionMatcher())
     store = FakeAdvisoryStore()
 
-    def run_ingest(uow: UnitOfWork) -> IngestResult:
-        return RunIngest(uow, registry, matcher, store, lambda: datetime.now(UTC)).execute()
+    runner = ThreadIngestRunner(
+        partial(run_ingest_job, factory, registry, matcher, store, _now), _now
+    )
+    return create_app(factory, ingest_runner=runner, source_registry=registry)
 
-    return create_app(factory, run_ingest=run_ingest, source_registry=registry)
+
+def _now() -> datetime:
+    return datetime.now(UTC)
+
+
+def _ingest(client: TestClient) -> dict[str, object]:
+    """Startet den Lauf, wartet auf den Hintergrund-Thread und liefert den Status."""
+    response = client.post("/api/ingest/run")
+    assert response.status_code == 202
+    runner: ThreadIngestRunner = client.app.state.ingest_runner  # type: ignore[attr-defined]
+    assert runner.wait(_WAIT_SECONDS)
+    status: dict[str, object] = client.get("/api/ingest/status").json()
+    return status
 
 
 def _client(app: FastAPI) -> TestClient:
@@ -67,8 +91,11 @@ def test_ingest_then_list_returns_finding() -> None:
     client = _client(_build([_VULN]))
     _add_react(client)
 
-    ingest = client.post("/api/ingest/run").json()
-    assert ingest == {"componentsScanned": 1, "findingsFound": 1}
+    status = _ingest(client)
+    assert status["running"] is False
+    assert status["componentsScanned"] == 1
+    assert status["findingsFound"] == 1
+    assert status["error"] is None
 
     page = client.get("/api/cves").json()
     assert page["total"] == 1
@@ -83,7 +110,7 @@ def test_ingest_without_vulns_is_empty() -> None:
     client = _client(_build([]))
     _add_react(client)
 
-    assert client.post("/api/ingest/run").json()["findingsFound"] == 0
+    assert _ingest(client)["findingsFound"] == 0
     page = client.get("/api/cves").json()
     assert page == {"items": [], "total": 0}
 
@@ -197,7 +224,7 @@ def test_list_cves_filtered_by_application() -> None:
             "direct": True,
         },
     )
-    client.post("/api/ingest/run")
+    _ingest(client)
 
     shop_id = client.get("/api/applications").json()[0]["id"]
     page = client.get(f"/api/cves?application_id={shop_id}").json()
@@ -220,3 +247,44 @@ def test_component_with_pypi_ecosystem_is_accepted() -> None:
     )
     assert response.status_code == 201
     assert response.json()["ecosystem"] == "PyPI"
+
+
+def _app_with_runner(runner: FakeIngestRunner) -> FastAPI:
+    uow = InMemoryUnitOfWork()
+
+    @contextmanager
+    def factory() -> Iterator[InMemoryUnitOfWork]:
+        yield uow
+
+    return create_app(factory, ingest_runner=runner, source_registry=SourceRegistry([]))
+
+
+def test_second_start_is_rejected() -> None:
+    client = _client(_app_with_runner(FakeIngestRunner(IngestRunState(running=True))))
+    response = client.post("/api/ingest/run")
+    assert response.status_code == 409
+    assert response.json()["detail"] == "Ein Scan läuft bereits"
+
+
+def test_start_returns_running_state() -> None:
+    runner = FakeIngestRunner()
+    response = _client(_app_with_runner(runner)).post("/api/ingest/run")
+    assert response.status_code == 202
+    assert response.json()["running"] is True
+    assert runner.starts == 1
+
+
+def test_status_endpoint() -> None:
+    finished = datetime(2026, 11, 1, 12, 0, tzinfo=UTC)
+    state = IngestRunState(
+        running=False,
+        started_at=finished,
+        finished_at=finished,
+        components_scanned=4,
+        findings_found=2,
+    )
+    body = _client(_app_with_runner(FakeIngestRunner(state))).get("/api/ingest/status").json()
+    assert body["running"] is False
+    assert body["componentsScanned"] == 4
+    assert body["findingsFound"] == 2
+    assert body["finishedAt"].startswith("2026-11-01T12:00:00")

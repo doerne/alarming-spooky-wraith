@@ -4,9 +4,15 @@ from collections.abc import Callable
 from dataclasses import dataclass, replace
 
 from app.application.source_registry import SourceRegistry
-from app.application.unit_of_work import UnitOfWork
+from app.application.unit_of_work import UnitOfWork, UnitOfWorkFactory
 from app.domain.errors import InvalidValueError
-from app.domain.sources import SourceDescriptor, SourceSetting, SourceStatus, source_status
+from app.domain.sources import (
+    RunStatus,
+    SourceDescriptor,
+    SourceSetting,
+    SourceStatus,
+    source_status,
+)
 
 
 @dataclass(frozen=True)
@@ -75,3 +81,31 @@ class SetSourceApiKey(_ChangeSetting):
 class RemoveSourceApiKey(_ChangeSetting):
     def execute(self, key: str) -> SourceView:
         return self._apply(key, lambda setting: replace(setting, api_key=None))
+
+
+INTERRUPTED_MESSAGE = "Lauf abgebrochen"
+
+
+class ResetInterruptedRuns:
+    """Beim Start: Quellen, die noch als 'läuft' markiert sind, gelten als abgebrochen."""
+
+    def __init__(self, uow: UnitOfWork) -> None:
+        self._uow = uow
+
+    def execute(self) -> int:
+        interrupted = [
+            setting
+            for setting in self._uow.source_settings.get_all()
+            if setting.last_status == RunStatus.RUNNING
+        ]
+        for setting in interrupted:
+            self._uow.source_settings.save(
+                replace(setting, last_status=RunStatus.ERROR, last_message=INTERRUPTED_MESSAGE)
+            )
+        self._uow.commit()
+        return len(interrupted)
+
+
+def reset_interrupted_runs(uow_factory: UnitOfWorkFactory) -> None:
+    with uow_factory() as uow:
+        ResetInterruptedRuns(uow).execute()

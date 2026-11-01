@@ -4,11 +4,12 @@ from app.application.source_registry import SourceRegistry
 from app.application.source_use_cases import (
     ListSources,
     RemoveSourceApiKey,
+    ResetInterruptedRuns,
     SetSourceApiKey,
     SetSourceEnabled,
 )
 from app.domain.errors import EntityNotFoundError
-from app.domain.sources import ApiKeyRequirement, SourceSetting, SourceStatus
+from app.domain.sources import ApiKeyRequirement, RunStatus, SourceSetting, SourceStatus
 from tests.fakes import FakeBulkSource, FakePackageSource, InMemoryUnitOfWork, descriptor
 
 
@@ -75,3 +76,17 @@ def test_unknown_source_raises_not_found(uow: InMemoryUnitOfWork) -> None:
 def test_registry_rejects_duplicate_keys() -> None:
     with pytest.raises(ValueError, match="osv"):
         SourceRegistry([FakePackageSource(descriptor("osv")), FakeBulkSource(descriptor("osv"))])
+
+
+def test_reset_interrupted_runs(uow: InMemoryUnitOfWork) -> None:
+    uow.source_settings.save(SourceSetting(source_key="osv", last_status=RunStatus.RUNNING))
+    uow.source_settings.save(SourceSetting(source_key="ghsa", last_status=RunStatus.OK))
+    assert ResetInterruptedRuns(uow).execute() == 1
+    osv = uow.source_settings.get("osv")
+    ghsa = uow.source_settings.get("ghsa")
+    assert osv is not None
+    assert osv.last_status == RunStatus.ERROR
+    assert osv.last_message == "Lauf abgebrochen"
+    assert ghsa is not None
+    assert ghsa.last_status == RunStatus.OK
+    assert uow.commits == 1
