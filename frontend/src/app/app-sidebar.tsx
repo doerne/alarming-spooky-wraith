@@ -1,4 +1,4 @@
-import { Boxes, LayoutDashboard, ShieldAlert } from "lucide-react";
+import { Boxes, Database, LayoutDashboard, ShieldAlert } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import {
@@ -12,11 +12,12 @@ import {
   SidebarMenuItem,
 } from "@/shared/ui/sidebar";
 
-export type AppView = "dashboard" | "inventory";
+export type AppView = "dashboard" | "inventory" | "sources";
 
 const ITEMS: ReadonlyArray<{ key: AppView; label: string; icon: LucideIcon }> = [
   { key: "dashboard", label: "Schwachstellen", icon: LayoutDashboard },
   { key: "inventory", label: "Inventar", icon: Boxes },
+  { key: "sources", label: "Quellen", icon: Database },
 ];
 
 interface AppSidebarProps {

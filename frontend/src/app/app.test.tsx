@@ -29,6 +29,15 @@ describe("App", () => {
     expect(screen.getByTestId("inventory-section-manage")).toBeInTheDocument();
   });
 
+  it("wechselt ueber die Navigation zu den Quellen", async () => {
+    renderApp();
+
+    await userEvent.click(screen.getByTestId("app-btn-nav-sources"));
+
+    expect(screen.getByTestId("app-text-title")).toHaveTextContent("Quellen");
+    expect(screen.getByTestId("sources-section-overview")).toBeInTheDocument();
+  });
+
   it("schaltet das dunkle Design um", async () => {
     renderApp();
 
