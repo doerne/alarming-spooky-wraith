@@ -11,3 +11,7 @@ class EntityNotFoundError(DomainError):
 
 class SourceAccessError(DomainError):
     """Eine Quelle ist nicht erreichbar oder lehnt die Anfrage ab."""
+
+
+class InvalidValueError(DomainError, ValueError):
+    """Eine fachlich ungültige Eingabe (z. B. leerer API-Key)."""

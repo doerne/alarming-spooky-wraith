@@ -5,6 +5,7 @@ from dataclasses import dataclass, replace
 
 from app.application.source_registry import SourceRegistry
 from app.application.unit_of_work import UnitOfWork
+from app.domain.errors import InvalidValueError
 from app.domain.sources import SourceDescriptor, SourceSetting, SourceStatus, source_status
 
 
@@ -67,7 +68,7 @@ class SetSourceApiKey(_ChangeSetting):
     def execute(self, key: str, api_key: str) -> SourceView:
         trimmed = api_key.strip()
         if not trimmed:
-            raise ValueError("API-Key darf nicht leer sein")
+            raise InvalidValueError("API-Key darf nicht leer sein")
         return self._apply(key, lambda setting: replace(setting, api_key=trimmed))
 
 
