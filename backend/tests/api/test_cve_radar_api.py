@@ -115,7 +115,7 @@ def test_ingest_without_vulns_is_empty() -> None:
 
     assert _ingest(client)["findingsFound"] == 0
     page = client.get("/api/cves").json()
-    assert page == {"items": [], "total": 0}
+    assert page == {"items": [], "total": 0, "unfilteredTotal": 0}
 
 
 def test_create_application_returns_id() -> None:
@@ -324,3 +324,46 @@ def test_list_items_carry_component_id() -> None:
     _ingest(client)
     item = client.get("/api/cves").json()["items"][0]
     assert isinstance(item["componentId"], int)
+
+
+_MEDIUM = SourceVuln(
+    source_key="osv",
+    url="https://osv.dev/vulnerability",
+    id="GHSA-m",
+    aliases=["CVE-2024-500"],
+    summary="Medium issue",
+    details="d",
+    cvss_base=5.0,
+    fixed_version=None,
+    references=[],
+)
+
+
+def _filtered_client() -> TestClient:
+    client = _client(_build([_VULN, _MEDIUM]))
+    _add_react(client)
+    _ingest(client)
+    return client
+
+
+def test_filter_query_params() -> None:
+    body = _filtered_client().get("/api/cves?severity=kritisch").json()
+    assert [item["advisoryId"] for item in body["items"]] == ["CVE-2024-123"]
+    assert body["total"] == 1
+    assert body["unfilteredTotal"] == 2
+    assert isinstance(body["items"][0]["applicationId"], int)
+
+
+def test_multiple_values_are_or() -> None:
+    body = _filtered_client().get("/api/cves?severity=kritisch&severity=mittel").json()
+    assert body["total"] == 2
+
+
+def test_unknown_severity_is_422() -> None:
+    assert _filtered_client().get("/api/cves?severity=egal").status_code == 422
+
+
+def test_ecosystem_none_and_query() -> None:
+    client = _filtered_client()
+    assert client.get("/api/cves?ecosystem=none").json()["total"] == 0
+    assert client.get("/api/cves?ecosystem=npm&q=medium").json()["total"] == 1

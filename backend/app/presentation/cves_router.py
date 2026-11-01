@@ -1,11 +1,12 @@
 """Router fuer die Funde-Uebersicht. Enthaelt keine Logik."""
 
-from typing import Annotated
+from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 
 from app.application.advisory_detail import AdvisoryDetail, GetAdvisoryDetail
 from app.application.list_findings import FindingFilter, ListFindings
+from app.domain.inventory import Ecosystem
 from app.domain.ports import AdvisoryStore
 from app.domain.vulnerability import FindingStatus, Severity
 from app.presentation.dependencies import UnitOfWorkDep
@@ -18,6 +19,7 @@ class FindingResponse(ApiModel):
     advisory_id: str
     cve_id: str | None
     title: str
+    application_id: int
     application_name: str
     component_id: int
     component_name: str
@@ -32,16 +34,38 @@ class FindingResponse(ApiModel):
 class FindingsPage(ApiModel):
     items: list[FindingResponse]
     total: int
+    unfiltered_total: int
+
+
+def get_finding_filter(
+    application_id: int | None = None,
+    severity: Annotated[list[Severity] | None, Query()] = None,
+    status: Annotated[list[FindingStatus] | None, Query()] = None,
+    ecosystem: Annotated[list[Ecosystem | Literal["none"]] | None, Query()] = None,
+    q: str = "",
+) -> FindingFilter:
+    """Query-Parameter → FindingFilter; unbekannte Werte lehnt FastAPI mit 422 ab."""
+    return FindingFilter(
+        application_id=application_id,
+        severities=frozenset(severity or []),
+        statuses=frozenset(status or []),
+        ecosystems=frozenset(str(value) for value in ecosystem or []),
+        query=q,
+    )
+
+
+FindingFilterDep = Annotated[FindingFilter, Depends(get_finding_filter)]
 
 
 @router.get("/cves")
-def list_cves(uow: UnitOfWorkDep, application_id: int | None = None) -> FindingsPage:
-    views = ListFindings(uow).execute(FindingFilter(application_id=application_id)).items
+def list_cves(uow: UnitOfWorkDep, finding_filter: FindingFilterDep) -> FindingsPage:
+    result = ListFindings(uow).execute(finding_filter)
     items = [
         FindingResponse(
             advisory_id=view.advisory_id,
             cve_id=view.cve_id,
             title=view.title,
+            application_id=view.application_id,
             application_name=view.application_name,
             component_id=view.component_id,
             component_name=view.component_name,
@@ -52,9 +76,9 @@ def list_cves(uow: UnitOfWorkDep, application_id: int | None = None) -> Findings
             fix_version=view.fix_version,
             status=view.status,
         )
-        for view in views
+        for view in result.items
     ]
-    return FindingsPage(items=items, total=len(items))
+    return FindingsPage(items=items, total=len(items), unfiltered_total=result.unfiltered_total)
 
 
 def get_advisory_store(request: Request) -> AdvisoryStore:
