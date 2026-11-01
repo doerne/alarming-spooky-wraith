@@ -35,8 +35,22 @@ def send(client: httpx.Client, method: str, url: str, **kwargs: Any) -> httpx.Re
     return response
 
 
-def get_json(client: httpx.Client, method: str, url: str, **kwargs: Any) -> Any:
-    response = send(client, method, url, **kwargs)
+def get_json(
+    client: httpx.Client,
+    method: str,
+    url: str,
+    *,
+    not_found_is_empty: bool = False,
+    **kwargs: Any,
+) -> Any:
+    """JSON-Antwort; mit ``not_found_is_empty`` ergibt HTTP 404 ``None``."""
+    try:
+        response = client.request(method, url, **kwargs)
+    except httpx.HTTPError as error:
+        raise SourceAccessError(f"{_UNREACHABLE}: {error}") from error
+    if not_found_is_empty and response.status_code == httpx.codes.NOT_FOUND:
+        return None
+    ensure_ok(response)
     try:
         return response.json()
     except ValueError as error:
