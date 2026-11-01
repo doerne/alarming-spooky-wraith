@@ -65,3 +65,19 @@ def test_read_rejects_path_traversal_id(tmp_path: Path) -> None:
     store = FileAdvisoryStore(tmp_path)
     with pytest.raises(ValueError, match="Advisory-ID"):
         store.read("../../etc/passwd")
+
+
+def test_frontmatter_lists_all_sources(tmp_path: Path) -> None:
+    store = FileAdvisoryStore(tmp_path)
+    store.save(
+        _advisory(),
+        tags=["npm"],
+        sources=[SourceReference("nvd", "https://nvd/x"), SourceReference("osv", "https://osv/x")],
+        body="b",
+    )
+    front = yaml.safe_load(store.read("CVE-2024-1").split("---")[1])
+    assert front["resource"] == "https://nvd/x"
+    assert front["sources"] == [
+        {"id": "nvd", "resource": "https://nvd/x"},
+        {"id": "osv", "resource": "https://osv/x"},
+    ]
