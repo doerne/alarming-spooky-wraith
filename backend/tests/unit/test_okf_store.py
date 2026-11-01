@@ -175,3 +175,12 @@ def test_non_http_references_are_dropped(tmp_path: Path) -> None:
     document = store.read_document("CVE-2024-1")
     assert document is not None
     assert document.references == ["https://ok"]
+
+
+def test_non_http_source_urls_are_dropped(tmp_path: Path) -> None:
+    store = FileAdvisoryStore(tmp_path)
+    sources = [SourceReference("evil", "javascript:alert(1)"), SourceReference("osv", "https://o")]
+    store.save(_advisory(), tags=[], sources=sources, body="T")
+    document = store.read_document("CVE-2024-1")
+    assert document is not None
+    assert document.sources == [SourceReference("osv", "https://o")]

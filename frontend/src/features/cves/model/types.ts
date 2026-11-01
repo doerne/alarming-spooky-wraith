@@ -8,6 +8,7 @@ export const findingSchema = z.object({
   cveId: z.string().nullable(),
   title: z.string(),
   applicationName: z.string(),
+  componentId: z.number(),
   componentName: z.string(),
   componentVersion: z.string(),
   ecosystem: z.string().nullable(),
@@ -33,3 +34,30 @@ export const ingestStateSchema = z.object({
   error: z.string().nullable(),
 });
 export type IngestState = z.infer<typeof ingestStateSchema>;
+
+export const affectedFindingSchema = z.object({
+  applicationName: z.string(),
+  componentId: z.number(),
+  componentName: z.string(),
+  componentVersion: z.string(),
+  ecosystem: z.string().nullable(),
+  riskScore: z.number(),
+  riskLevel: riskLevelSchema,
+  status: z.string(),
+});
+
+export const cveDetailSchema = z.object({
+  advisoryId: z.string(),
+  cveId: z.string().nullable(),
+  title: z.string(),
+  cvssBase: z.number().nullable(),
+  fixVersion: z.string().nullable(),
+  riskScore: z.number(),
+  riskLevel: riskLevelSchema,
+  description: z.string(),
+  rationale: z.string(),
+  references: z.array(z.string()),
+  sources: z.array(z.object({ sourceKey: z.string(), url: z.string() })),
+  findings: z.array(affectedFindingSchema),
+});
+export type CveDetail = z.infer<typeof cveDetailSchema>;

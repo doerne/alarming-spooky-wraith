@@ -1,7 +1,9 @@
 import { request } from "@/shared/api/http-client";
 
 import {
+  type CveDetail,
   type Finding,
+  cveDetailSchema,
   type IngestState,
   findingsPageSchema,
   ingestStateSchema,
@@ -18,4 +20,8 @@ export async function startIngest(): Promise<IngestState> {
 
 export async function fetchIngestStatus(): Promise<IngestState> {
   return ingestStateSchema.parse(await request("/api/ingest/status"));
+}
+
+export async function fetchCveDetail(advisoryId: string): Promise<CveDetail> {
+  return cveDetailSchema.parse(await request(`/api/cves/${encodeURIComponent(advisoryId)}`));
 }

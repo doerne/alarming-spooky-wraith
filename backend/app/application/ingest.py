@@ -106,9 +106,10 @@ def _fitting(value: str | None, limit: int) -> str | None:
 
 
 def _render_body(merged: MergedAdvisory, rationale: str) -> str:
-    lines = [merged.details, "", "# Computation", rationale]
-    if merged.references:
-        lines += ["", "# References", *[f"- {url}" for url in merged.references]]
+    # Eigene Abschnitte immer am Ende - auch leer -, damit Überschriften in Fremdtexten
+    # beim Lesen nicht als unsere gelten.
+    lines = [merged.details, "", "# Computation", rationale, "", "# References"]
+    lines += [f"- {url}" for url in merged.references]
     return "\n".join(lines)
 
 

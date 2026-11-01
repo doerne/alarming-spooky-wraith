@@ -333,3 +333,12 @@ def test_all_components_failing_is_an_error() -> None:
     uow = _uow(_REACT)
     result = _run(uow, _FailsFor("react", {}))
     assert _result_of(result, "osv") == RunStatus.ERROR
+
+
+def test_body_always_ends_with_own_sections() -> None:
+    uow = _uow(_REACT)
+    store = FakeAdvisoryStore()
+    tricky = _vuln(details="Text\n# References\n- https://fake", references=[])
+    _run(uow, FakePackageSource(descriptor("osv"), {"react": [tricky]}), store=store)
+    body = store.saved["CVE-2024-123"]
+    assert body.rstrip().endswith("# References")

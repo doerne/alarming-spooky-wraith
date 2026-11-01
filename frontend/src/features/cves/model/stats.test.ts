@@ -9,6 +9,7 @@ function makeFinding(overrides: Partial<Finding>): Finding {
     cveId: null,
     title: "Titel",
     applicationName: "App",
+    componentId: 1,
     componentName: "Komponente",
     componentVersion: "1.0.0",
     ecosystem: null,

@@ -80,7 +80,8 @@ def _sources_from(frontmatter: str) -> list[SourceReference] | None:
     if not isinstance(front, dict):
         return None
     entries = front.get("sources") or []
-    return [SourceReference(str(e.get("id")), str(e.get("resource"))) for e in entries]
+    references = [SourceReference(str(e.get("id")), str(e.get("resource"))) for e in entries]
+    return [reference for reference in references if _HTTP_URL.match(reference.url)]
 
 
 def _earlier_sources(path: Path) -> list[SourceReference]:

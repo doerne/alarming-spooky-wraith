@@ -10,6 +10,7 @@ function finding(advisoryId: string, riskScore: number, riskLevel: Finding["risk
     cveId: advisoryId,
     title: `t ${advisoryId}`,
     applicationName: "Shop",
+    componentId: 1,
     componentName: "react",
     componentVersion: "18.2.0",
     ecosystem: "npm",
