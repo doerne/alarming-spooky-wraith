@@ -367,3 +367,13 @@ def test_ecosystem_none_and_query() -> None:
     client = _filtered_client()
     assert client.get("/api/cves?ecosystem=none").json()["total"] == 0
     assert client.get("/api/cves?ecosystem=npm&q=medium").json()["total"] == 1
+
+
+def test_column_filter_params() -> None:
+    client = _filtered_client()
+    app_id = client.get("/api/applications").json()[0]["id"]
+    assert client.get(f"/api/cves?application={app_id}").json()["total"] == 2
+    assert client.get("/api/cves?application=999").json()["total"] == 0
+    assert client.get("/api/cves?advisory=medium").json()["total"] == 1
+    assert client.get("/api/cves?component=react").json()["total"] == 2
+    assert client.get("/api/cves?component=medium").json()["total"] == 0

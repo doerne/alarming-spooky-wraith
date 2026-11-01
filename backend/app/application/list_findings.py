@@ -33,11 +33,14 @@ NO_ECOSYSTEM = "none"
 class FindingFilter:
     """Werte eines Filters sind ODER-verknüpft, verschiedene Filter UND."""
 
-    application_id: int | None = None
+    application_id: int | None = None  # Scope (Inventar); bestimmt unfiltered_total
+    application_ids: frozenset[int] = frozenset()  # Filter (Dashboard), mehrfach
     severities: frozenset[Severity] = frozenset()
     statuses: frozenset[FindingStatus] = frozenset()
     ecosystems: frozenset[str] = frozenset()
-    query: str = ""
+    query: str = ""  # Advisory-ID, CVE-ID, Titel oder Komponente
+    advisory_query: str = ""  # Advisory-ID, CVE-ID oder Titel
+    component_query: str = ""  # Komponentenname
 
 
 @dataclass(frozen=True)
@@ -46,28 +49,40 @@ class FindingList:
     unfiltered_total: int  # im Anwendungs-Scope, vor den übrigen Filtern
 
 
-def _query_matches(needle: str) -> Callable[[FindingView], bool]:
+Predicate = Callable[[FindingView], bool]
+
+
+def _contains(needle: str, texts: Callable[[FindingView], tuple[str, ...]]) -> Predicate:
     def matches(view: FindingView) -> bool:
-        haystack = (view.advisory_id, view.cve_id or "", view.title, view.component_name)
-        return any(needle in text.lower() for text in haystack)
+        return any(needle in text.lower() for text in texts(view))
 
     return matches
 
 
-def _predicates(finding_filter: FindingFilter) -> list[Callable[[FindingView], bool]]:
-    predicates: list[Callable[[FindingView], bool]] = []
-    if finding_filter.severities:
-        predicates.append(lambda view: view.risk_level in finding_filter.severities)
-    if finding_filter.statuses:
-        predicates.append(lambda view: view.status in finding_filter.statuses)
-    if finding_filter.ecosystems:
-        predicates.append(
-            lambda view: (view.ecosystem or NO_ECOSYSTEM) in finding_filter.ecosystems
-        )
-    needle = finding_filter.query.strip().lower()
-    if needle:
-        predicates.append(_query_matches(needle))
-    return predicates
+def _advisory_texts(view: FindingView) -> tuple[str, ...]:
+    return (view.advisory_id, view.cve_id or "", view.title)
+
+
+def _all_texts(view: FindingView) -> tuple[str, ...]:
+    return (*_advisory_texts(view), view.component_name)
+
+
+def _predicates(finding_filter: FindingFilter) -> list[Predicate]:
+    f = finding_filter
+    query = f.query.strip().lower()
+    advisory = f.advisory_query.strip().lower()
+    component = f.component_query.strip().lower()
+    # (aktiv?, Prüfung) - inaktive Filter fallen weg.
+    checks: list[tuple[object, Predicate]] = [
+        (f.application_ids, lambda view: view.application_id in f.application_ids),
+        (f.severities, lambda view: view.risk_level in f.severities),
+        (f.statuses, lambda view: view.status in f.statuses),
+        (f.ecosystems, lambda view: (view.ecosystem or NO_ECOSYSTEM) in f.ecosystems),
+        (query, _contains(query, _all_texts)),
+        (advisory, _contains(advisory, _advisory_texts)),
+        (component, _contains(component, lambda view: (view.component_name,))),
+    ]
+    return [check for active, check in checks if active]
 
 
 class ListFindings:

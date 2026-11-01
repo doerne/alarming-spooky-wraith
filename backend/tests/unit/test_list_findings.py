@@ -180,3 +180,21 @@ def test_empty_scope() -> None:
     result = ListFindings(uow).execute(FindingFilter(query="x"))
     assert result.items == []
     assert result.unfiltered_total == 0
+
+
+def test_filter_by_several_applications() -> None:
+    uow, shop_id, blog_id = _seeded()
+    finding_filter = FindingFilter(application_ids=frozenset({shop_id, blog_id}))
+    assert len(_ids(uow, finding_filter)) == 4
+    assert _ids(uow, FindingFilter(application_ids=frozenset({blog_id}))) == [
+        "CVE-2024-3",
+        "CVE-2024-4",
+    ]
+
+
+def test_column_queries_are_separate() -> None:
+    uow, _, _ = _seeded()
+    assert _ids(uow, FindingFilter(advisory_query="react")) == []
+    assert _ids(uow, FindingFilter(advisory_query="titel cve-2024-3")) == ["CVE-2024-3"]
+    assert _ids(uow, FindingFilter(component_query="DJANGO")) == ["CVE-2024-4"]
+    assert _ids(uow, FindingFilter(component_query="cve")) == []

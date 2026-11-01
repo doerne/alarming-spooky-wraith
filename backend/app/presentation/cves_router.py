@@ -3,6 +3,7 @@
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Query, Request
+from pydantic import BaseModel
 
 from app.application.advisory_detail import AdvisoryDetail, GetAdvisoryDetail
 from app.application.list_findings import FindingFilter, ListFindings
@@ -37,20 +38,30 @@ class FindingsPage(ApiModel):
     unfiltered_total: int
 
 
-def get_finding_filter(
-    application_id: int | None = None,
-    severity: Annotated[list[Severity] | None, Query()] = None,
-    status: Annotated[list[FindingStatus] | None, Query()] = None,
-    ecosystem: Annotated[list[Ecosystem | Literal["none"]] | None, Query()] = None,
-    q: str = "",
-) -> FindingFilter:
+class FindingQuery(BaseModel):
+    """Query-Parameter von GET /api/cves (snake_case, Listen wiederholt angeben)."""
+
+    application_id: int | None = None
+    application: list[int] = []
+    severity: list[Severity] = []
+    status: list[FindingStatus] = []
+    ecosystem: list[Ecosystem | Literal["none"]] = []
+    q: str = ""
+    advisory: str = ""
+    component: str = ""
+
+
+def get_finding_filter(params: Annotated[FindingQuery, Query()]) -> FindingFilter:
     """Query-Parameter → FindingFilter; unbekannte Werte lehnt FastAPI mit 422 ab."""
     return FindingFilter(
-        application_id=application_id,
-        severities=frozenset(severity or []),
-        statuses=frozenset(status or []),
-        ecosystems=frozenset(str(value) for value in ecosystem or []),
-        query=q,
+        application_id=params.application_id,
+        application_ids=frozenset(params.application),
+        severities=frozenset(params.severity),
+        statuses=frozenset(params.status),
+        ecosystems=frozenset(str(value) for value in params.ecosystem),
+        query=params.q,
+        advisory_query=params.advisory,
+        component_query=params.component,
     )
 
 
