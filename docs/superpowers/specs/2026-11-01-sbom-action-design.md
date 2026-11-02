@@ -1,5 +1,12 @@
 # SBOM per GitHub Action – Design (kurz)
 
+> **Änderung 2026-11-02 (Nutzer):** SBOMs werden **nicht** im Repo gespeichert. Sie hängen an jedem
+> Lauf als Artefakt (90 Tage) und an jedem veröffentlichten Release als Anhang. Der Commit-Job und
+> die Vergleichs-/Normalisierungs-Skripte entfallen; Schreibrecht nur noch für Release-Anhänge.
+> Hauptzweck: Import in CVE-Radar per Upload im Inventar (eigenes Folgevorhaben).
+> Signierte Attestierung vorerst nicht (Images liegen in keiner Registry).
+> Abschnitte unten, die `sbom/` im Repo oder den Commit beschreiben, sind damit überholt.
+
 Stand: 2026-11-01
 
 ## Absicht

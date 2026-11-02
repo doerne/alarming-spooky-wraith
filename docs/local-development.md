@@ -148,10 +148,21 @@ werden im Volume `sourcecache` (`/data/sources`) zwischengespeichert. Im Notweg 
 ## Software-Stückliste (SBOM)
 
 Der Workflow `.github/workflows/sbom.yml` erzeugt mit Trivy CycloneDX-SBOMs für Backend und
-Frontend – aus den Lockfiles und aus den gebauten Docker-Images – und speichert sie unter
-`sbom/` (Details in `sbom/README.md`). Manuell starten: *Actions → SBOM → Run workflow*.
-Lokal geht dasselbe ohne Installation per Container (`aquasec/trivy` in der Version, die in
-`sbom.yml` unter `TRIVY_VERSION` steht):
+Frontend – aus den Lockfiles und aus den gebauten Docker-Images. Die Dateien liegen nicht im
+Repo, sondern:
+
+- an jedem Workflow-Lauf als Artefakt `sbom` (*Actions → SBOM → Lauf → Artifacts*, 90 Tage),
+- an jedem veröffentlichten GitHub-Release als Anhang (dauerhaft, pro Version).
+
+| Datei | Inhalt |
+|---|---|
+| `backend-source.cdx.json` | Python-Pakete aus `backend/uv.lock` |
+| `frontend-source.cdx.json` | npm-Pakete aus `frontend/package-lock.json` |
+| `backend-image.cdx.json` | Backend-Image: Basis-Image, Debian-Pakete, Python-Umgebung |
+| `frontend-image.cdx.json` | Frontend-Image: nginx-Basis-Image und dessen Pakete |
+
+Manuell starten: *Actions → SBOM → Run workflow*. Lokal geht dasselbe ohne Installation per
+Container (`aquasec/trivy` in der Version aus `TRIVY_VERSION` in `sbom.yml`):
 
 ```bash
 docker run --rm -v "$PWD/backend:/src:ro" aquasec/trivy:<TRIVY_VERSION ohne v> fs --format cyclonedx /src
