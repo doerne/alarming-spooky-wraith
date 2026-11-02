@@ -9,7 +9,7 @@ name: SBOM
 
 on:
   push:
-    branches: [main, sbom-action] # TEMP: sbom-action nur für den ersten Testlauf
+    branches: [main]
     paths:
       - backend/uv.lock
       - backend/pyproject.toml
@@ -82,7 +82,7 @@ jobs:
   commit:
     name: SBOMs im Repo speichern
     needs: generate
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/sbom-action' || github.event_name == 'workflow_dispatch'
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
