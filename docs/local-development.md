@@ -144,3 +144,15 @@ Der Scan läuft im Hintergrund; „Scan starten“ kehrt sofort zurück, die Que
 zeigt pro Quelle den Fortschritt. Große Abzüge (CVE.org rund 650 MB, OSV-Dumps)
 werden im Volume `sourcecache` (`/data/sources`) zwischengespeichert. Im Notweg ohne
 `buildx` dafür `SOURCE_CACHE_ROOT` auf ein beschreibbares Verzeichnis setzen.
+
+## Software-Stückliste (SBOM)
+
+Der Workflow `.github/workflows/sbom.yml` erzeugt mit Trivy CycloneDX-SBOMs für Backend und
+Frontend – aus den Lockfiles und aus den gebauten Docker-Images – und speichert sie unter
+`sbom/` (Details in `sbom/README.md`). Manuell starten: *Actions → SBOM → Run workflow*.
+Lokal geht dasselbe ohne Installation per Container (`aquasec/trivy` in der Version, die in
+`sbom.yml` unter `TRIVY_VERSION` steht):
+
+```bash
+docker run --rm -v "$PWD/backend:/src:ro" aquasec/trivy:<TRIVY_VERSION ohne v> fs --format cyclonedx /src
+```

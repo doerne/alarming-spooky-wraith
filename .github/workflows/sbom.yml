@@ -1,0 +1,118 @@
+# Erzeugt Software-Stücklisten (SBOM) nach CycloneDX mit Trivy und legt sie unter sbom/ ab.
+# Quelle: Lockfiles (uv.lock, package-lock.json) und die in diesem Lauf gebauten Docker-Images.
+#
+# Zwei Jobs, damit Schreibrechte nur dort existieren, wo sie gebraucht werden:
+# - generate: baut Images und erzeugt die SBOMs – nur Leserechte, kein gespeichertes Token.
+# - commit:   übernimmt inhaltliche Änderungen nach sbom/ und pusht. Läuft auf main und bei
+#             manuellem Start (dann auf den gewählten Branch).
+name: SBOM
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - backend/uv.lock
+      - backend/pyproject.toml
+      - backend/Dockerfile
+      - backend/.dockerignore
+      - frontend/package-lock.json
+      - frontend/Dockerfile
+      - frontend/.dockerignore
+      - compose.yaml
+      - .github/workflows/sbom.yml
+      - .github/scripts/sbom-*
+  workflow_dispatch:
+  schedule:
+    # Montags 05:17 UTC – neue Pakete in den Basis-Images fallen so wöchentlich auf.
+    - cron: "17 5 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sbom-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  TRIVY_VERSION: v0.76.1
+  SBOM_DIR: sbom
+  ARTIFACT_NAME: sbom
+
+jobs:
+  generate:
+    name: SBOMs erzeugen
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Docker Buildx einrichten
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Trivy installieren
+        uses: aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567 # v0.3.1
+        with:
+          version: ${{ env.TRIVY_VERSION }}
+          cache: true
+
+      - name: Images bauen (nur lokal, kein Push)
+        run: |
+          docker buildx build --load --tag cve-radar-backend:sbom backend
+          docker buildx build --load --tag cve-radar-frontend:sbom frontend
+
+      - name: SBOMs erzeugen
+        run: |
+          mkdir -p out
+          trivy fs --quiet --format cyclonedx --output out/backend-source.cdx.json backend
+          trivy fs --quiet --format cyclonedx --output out/frontend-source.cdx.json frontend
+          trivy image --quiet --format cyclonedx --output out/backend-image.cdx.json cve-radar-backend:sbom
+          trivy image --quiet --format cyclonedx --output out/frontend-image.cdx.json cve-radar-frontend:sbom
+
+      - name: SBOMs als Artefakt ablegen
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: out/*.cdx.json
+          if-no-files-found: error
+          retention-days: 14
+
+  commit:
+    name: SBOMs im Repo speichern
+    needs: generate
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write # einziger Schritt mit Schreibrecht: Commit der SBOM-Dateien
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: SBOMs holen
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: ${{ runner.temp }}/sbom
+
+      - name: Nur inhaltliche Änderungen übernehmen
+        run: |
+          for file in "$RUNNER_TEMP"/sbom/*.cdx.json; do
+            .github/scripts/sbom-update.sh "$file" "$SBOM_DIR/$(basename "$file")"
+          done
+
+      - name: Änderungen committen und pushen
+        run: |
+          git add "$SBOM_DIR"
+          if git diff --cached --quiet; then
+            echo "SBOM unverändert – kein Commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore: update SBOM"
+          # Hat sich der Branch während des Laufs bewegt: neu aufsetzen statt Force-Push.
+          git pull --rebase origin "$GITHUB_REF_NAME"
+          git push origin "HEAD:$GITHUB_REF_NAME"
