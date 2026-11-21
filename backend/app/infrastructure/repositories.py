@@ -1,9 +1,10 @@
 """SQLAlchemy-Repositories: Abbildung zwischen Domaene und Modellen."""
 
+import builtins
 from collections.abc import Iterator, Sequence
 from datetime import UTC, datetime
 
-from sqlalchemy import delete, insert, select
+from sqlalchemy import delete, insert, select, update
 from sqlalchemy.orm import Session
 
 from app.domain.errors import EntityNotFoundError
@@ -12,6 +13,7 @@ from app.domain.sbom import Sbom, SbomEntry, SbomVersion
 from app.domain.sources import RunStatus, SourceSetting
 from app.domain.vulnerability import Advisory, Finding, FindingStatus, RiskScore, Severity
 from app.infrastructure.models import (
+    AdvisoryAliasModel,
     AdvisoryModel,
     ApplicationModel,
     ComponentModel,
@@ -208,6 +210,38 @@ class SqlAlchemyAdvisoryRepository:
             raise EntityNotFoundError("Advisory", advisory_id)
         return _to_advisory(model)
 
+    def find(self, advisory_id: str) -> Advisory | None:
+        model = self._session.get(AdvisoryModel, advisory_id)
+        return _to_advisory(model) if model else None
+
+    def delete(self, advisory_id: str) -> None:
+        self._session.execute(delete(AdvisoryModel).where(AdvisoryModel.advisory_id == advisory_id))
+
+
+class SqlAlchemyAdvisoryAliasRepository:
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def save(self, alias_id: str, advisory_id: str) -> None:
+        model = self._session.get(AdvisoryAliasModel, alias_id)
+        if model is None:
+            self._session.add(AdvisoryAliasModel(alias_id=alias_id, advisory_id=advisory_id))
+        else:
+            model.advisory_id = advisory_id
+        self._session.flush()
+
+    def remove(self, alias_id: str) -> None:
+        self._session.execute(
+            delete(AdvisoryAliasModel).where(AdvisoryAliasModel.alias_id == alias_id)
+        )
+
+    def repoint(self, old_advisory_id: str, new_advisory_id: str) -> None:
+        self._session.execute(
+            update(AdvisoryAliasModel)
+            .where(AdvisoryAliasModel.advisory_id == old_advisory_id)
+            .values(advisory_id=new_advisory_id)
+        )
+
 
 class SqlAlchemyFindingRepository:
     def __init__(self, session: Session) -> None:
@@ -242,6 +276,31 @@ class SqlAlchemyFindingRepository:
     def list(self) -> list[Finding]:
         models = self._session.scalars(select(FindingModel)).all()
         return [_to_finding(model) for model in models]
+
+    def _model(self, finding_id: int) -> FindingModel:
+        model = self._session.get(FindingModel, finding_id)
+        if model is None:
+            raise EntityNotFoundError("Fund", finding_id)
+        return model
+
+    def list_for_advisory(self, advisory_id: str) -> builtins.list[Finding]:
+        models = self._session.scalars(
+            select(FindingModel).where(FindingModel.advisory_id == advisory_id)
+        ).all()
+        return [_to_finding(model) for model in models]
+
+    def reassign(self, finding_id: int, advisory_id: str) -> None:
+        self._model(finding_id).advisory_id = advisory_id
+        self._session.flush()
+
+    def save_triage(self, finding_id: int, status: FindingStatus, comment: str) -> None:
+        model = self._model(finding_id)
+        model.status = status.value
+        model.comment = comment
+        self._session.flush()
+
+    def delete(self, finding_id: int) -> None:
+        self._session.execute(delete(FindingModel).where(FindingModel.id == finding_id))
 
     def delete_for_components(self, component_ids: Sequence[int]) -> None:
         for chunk in _chunks(component_ids):

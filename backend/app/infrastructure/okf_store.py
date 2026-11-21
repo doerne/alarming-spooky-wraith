@@ -48,6 +48,9 @@ class FileAdvisoryStore:
         path.write_text(content, encoding="utf-8")
         return f"advisories/{safe_id}.md"
 
+    def delete(self, advisory_id: str) -> None:
+        (self._dir / f"{_safe_id(advisory_id)}.md").unlink(missing_ok=True)
+
     def read(self, advisory_id: str) -> str:
         safe_id = _safe_id(advisory_id)
         return (self._dir / f"{safe_id}.md").read_text(encoding="utf-8")

@@ -4,12 +4,13 @@ Abweichende Werte entscheidet eine feste Rangfolge (Spec §7), damit der
 Risk Score nicht von Lauf zu Lauf schwankt.
 """
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 
 from app.domain.ports import SourceReference, SourceVuln
 
 _CVE_PREFIX = "CVE-"
+_GHSA_PREFIX = "GHSA-"
 
 
 @dataclass(frozen=True)
@@ -23,16 +24,48 @@ class MergedAdvisory:
     fixed_version: str | None
     references: list[str]
     sources: list[SourceReference]
+    aliases: tuple[str, ...] = ()
 
 
-def advisory_key(vuln: SourceVuln) -> tuple[str, str | None]:
-    """(advisory_id, cve_id): CVE-ID bevorzugt, sonst die eigene ID der Quelle."""
-    if vuln.id.startswith(_CVE_PREFIX):
-        return vuln.id, vuln.id
-    for alias in vuln.aliases:
-        if alias.startswith(_CVE_PREFIX):
-            return alias, alias
-    return vuln.id, None
+def identity_ids(vuln: SourceVuln) -> frozenset[str]:
+    """Alle IDs, unter denen eine Quelle die Schwachstelle führt."""
+    return frozenset([vuln.id, *vuln.aliases])
+
+
+def canonical_key(ids: Iterable[str]) -> tuple[str, str | None]:
+    """(advisory_id, cve_id): kleinste CVE-ID, sonst kleinste GHSA-ID, sonst kleinste ID."""
+    unique = sorted(set(ids))
+    for prefix in (_CVE_PREFIX, _GHSA_PREFIX):
+        matching = [identifier for identifier in unique if identifier.startswith(prefix)]
+        if matching:
+            chosen = matching[0]
+            return chosen, chosen if prefix == _CVE_PREFIX else None
+    return unique[0], None
+
+
+def group_by_identity[T](
+    items: Sequence[T], ids_of: Callable[[T], frozenset[str]]
+) -> list[list[T]]:
+    """Fasst Einträge zusammen, die (auch über Ecken) eine ID teilen. Reihenfolge stabil."""
+    parent = list(range(len(items)))
+
+    def root(index: int) -> int:
+        while parent[index] != index:
+            parent[index] = parent[parent[index]]
+            index = parent[index]
+        return index
+
+    owner: dict[str, int] = {}
+    for index, item in enumerate(items):
+        for identifier in ids_of(item):
+            if identifier in owner:
+                parent[root(index)] = root(owner[identifier])
+            else:
+                owner[identifier] = index
+    groups: dict[int, list[T]] = {}
+    for index, item in enumerate(items):
+        groups.setdefault(root(index), []).append(item)
+    return list(groups.values())
 
 
 def _ranked(vulns: Sequence[SourceVuln], order: Sequence[str]) -> list[SourceVuln]:
@@ -56,7 +89,8 @@ def _unique(values: Sequence[str]) -> list[str]:
 
 def merge_vulns(vulns: Sequence[SourceVuln], order: Sequence[str]) -> MergedAdvisory:
     ranked = _ranked(vulns, order)
-    advisory_id, cve_id = advisory_key(ranked[0])
+    all_ids = frozenset(identifier for vuln in vulns for identifier in identity_ids(vuln))
+    advisory_id, cve_id = canonical_key(all_ids)
     summary = _first(ranked, lambda vuln: vuln.summary) or ""
     return MergedAdvisory(
         advisory_id=advisory_id,
@@ -68,4 +102,5 @@ def merge_vulns(vulns: Sequence[SourceVuln], order: Sequence[str]) -> MergedAdvi
         fixed_version=_first(ranked, lambda vuln: vuln.fixed_version),
         references=_unique([url for vuln in ranked for url in vuln.references]),
         sources=list(dict.fromkeys(SourceReference(vuln.source_key, vuln.url) for vuln in ranked)),
+        aliases=tuple(sorted(all_ids - {advisory_id})),
     )

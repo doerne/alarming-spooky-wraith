@@ -10,13 +10,19 @@ from dataclasses import dataclass, replace
 from datetime import datetime
 from typing import cast
 
-from app.application.advisory_merge import MergedAdvisory, advisory_key, merge_vulns
+from app.application.advisory_merge import (
+    MergedAdvisory,
+    group_by_identity,
+    identity_ids,
+    merge_vulns,
+)
+from app.application.alias_absorber import AliasAbsorber
 from app.application.component_matching import ComponentMatcher, normalize_package_name
 from app.application.risk_score import compute_risk_score
 from app.application.source_registry import SourceRegistry
 from app.application.source_use_cases import load_setting
 from app.application.unit_of_work import UnitOfWork, UnitOfWorkFactory
-from app.domain.errors import EntityNotFoundError, SourceAccessError
+from app.domain.errors import SourceAccessError
 from app.domain.inventory import Component
 from app.domain.ports import (
     AdvisoryStore,
@@ -263,22 +269,27 @@ class RunIngest:
     def _persist(self, hits: Sequence[_Hit]) -> int:
         # Während des Laufs kann ein SBOM-Upload Komponenten gelöscht haben.
         existing = {component.id for component in self._uow.components.list_all()}
-        groups: dict[str, list[_Hit]] = {}
-        for hit in (hit for hit in hits if hit.component.id in existing):
-            groups.setdefault(advisory_key(hit.vuln)[0], []).append(hit)
+        current = [hit for hit in hits if hit.component.id in existing]
+        groups = group_by_identity(current, lambda hit: identity_ids(hit.vuln))
         order = [*MERGE_PRECEDENCE, *(d.key for d in self._registry.descriptors())]
-        return sum(self._persist_advisory(group, order) for group in groups.values())
+        return sum(self._persist_advisory(group, order) for group in groups)
 
     def _keep_known_values(self, merged: MergedAdvisory) -> MergedAdvisory:
-        """Fällt eine Quelle in diesem Lauf aus, bleiben bekannte Werte stehen (Spec §5.2)."""
-        try:
-            previous = self._uow.advisories.get(merged.advisory_id)
-        except EntityNotFoundError:
-            return merged
+        """Fällt eine Quelle in diesem Lauf aus, bleiben bekannte Werte stehen (Spec §5.2).
+
+        Gesucht wird auch unter den Alias-IDs, die gleich in die kanonische Advisory aufgehen.
+        """
+        known = [
+            advisory
+            for advisory_id in (merged.advisory_id, *merged.aliases)
+            if (advisory := self._uow.advisories.find(advisory_id)) is not None
+        ]
+        cvss = next((a.cvss_base for a in known if a.cvss_base is not None), None)
+        fixed = next((a.fixed_version for a in known if a.fixed_version), None)
         return replace(
             merged,
-            cvss_base=merged.cvss_base if merged.cvss_base is not None else previous.cvss_base,
-            fixed_version=merged.fixed_version or previous.fixed_version,
+            cvss_base=merged.cvss_base if merged.cvss_base is not None else cvss,
+            fixed_version=merged.fixed_version or fixed,
         )
 
     def _persist_advisory(self, hits: Sequence[_Hit], order: Sequence[str]) -> int:
@@ -305,6 +316,7 @@ class RunIngest:
             # Unzulässige ID aus einer Fremdquelle: verwerfen, Lauf geht weiter.
             return 0
         self._uow.advisories.upsert(replace(advisory, okf_path=okf_path))
+        AliasAbsorber(self._uow, self._store).absorb(merged.advisory_id, merged.aliases)
         components = {hit.component.id: hit.component for hit in hits}
         for component in components.values():
             assert component.id is not None

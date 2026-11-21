@@ -97,6 +97,15 @@ class FindingModel(Base):
     )
 
 
+class AdvisoryAliasModel(Base):
+    """Frühere ID einer zusammengeführten Advisory. Ohne FK: das Ziel kann selbst umziehen."""
+
+    __tablename__ = "advisory_alias"
+
+    alias_id: Mapped[str] = mapped_column(String(ADVISORY_ID_MAX_LENGTH), primary_key=True)
+    advisory_id: Mapped[str] = mapped_column(String(ADVISORY_ID_MAX_LENGTH))
+
+
 class SourceSettingModel(Base):
     __tablename__ = "source_setting"
 

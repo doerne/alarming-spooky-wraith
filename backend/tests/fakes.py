@@ -1,5 +1,6 @@
 """In-Memory-Adapter für schnelle Tests ohne Datenbank."""
 
+import builtins
 from collections.abc import Mapping, Sequence
 from dataclasses import replace
 
@@ -15,7 +16,7 @@ from app.domain.sources import (
     SourceKind,
     SourceSetting,
 )
-from app.domain.vulnerability import Advisory, Finding
+from app.domain.vulnerability import Advisory, Finding, FindingStatus
 
 
 class InMemoryApplicationRepository:
@@ -107,6 +108,28 @@ class InMemoryFindingRepository:
 
     def list(self) -> list[Finding]:
         return list(self._items.values())
+
+    def _key_of(self, finding_id: int) -> tuple[str, int]:
+        for key, finding in self._items.items():
+            if finding.id == finding_id:
+                return key
+        raise EntityNotFoundError("Fund", finding_id)
+
+    def list_for_advisory(self, advisory_id: str) -> builtins.list[Finding]:
+        return [finding for finding in self._items.values() if finding.advisory_id == advisory_id]
+
+    def reassign(self, finding_id: int, advisory_id: str) -> None:
+        finding = self._items.pop(self._key_of(finding_id))
+        finding.advisory_id = advisory_id
+        self._items[(advisory_id, finding.component_id)] = finding
+
+    def save_triage(self, finding_id: int, status: FindingStatus, comment: str) -> None:
+        finding = self._items[self._key_of(finding_id)]
+        finding.status = status
+        finding.comment = comment
+
+    def delete(self, finding_id: int) -> None:
+        del self._items[self._key_of(finding_id)]
 
     def delete_for_components(self, component_ids: Sequence[int]) -> None:
         doomed = set(component_ids)
@@ -204,6 +227,32 @@ class InMemoryAdvisoryRepository:
             raise EntityNotFoundError("Advisory", advisory_id)
         return self._items[advisory_id]
 
+    def find(self, advisory_id: str) -> Advisory | None:
+        return self._items.get(advisory_id)
+
+    def delete(self, advisory_id: str) -> None:
+        self._items.pop(advisory_id, None)
+
+
+class InMemoryAdvisoryAliasRepository:
+    def __init__(self) -> None:
+        self._items: dict[str, str] = {}
+
+    def save(self, alias_id: str, advisory_id: str) -> None:
+        self._items[alias_id] = advisory_id
+
+    def remove(self, alias_id: str) -> None:
+        self._items.pop(alias_id, None)
+
+    def repoint(self, old_advisory_id: str, new_advisory_id: str) -> None:
+        for alias_id, target in self._items.items():
+            if target == old_advisory_id:
+                self._items[alias_id] = new_advisory_id
+
+    def resolve(self, alias_id: str) -> str | None:
+        """Nur für Tests: wohin zeigt ein Alias?"""
+        return self._items.get(alias_id)
+
 
 class InMemorySourceSettingRepository:
     def __init__(self) -> None:
@@ -227,6 +276,7 @@ class InMemoryUnitOfWork:
         self.components = InMemoryComponentRepository()
         self.findings = InMemoryFindingRepository()
         self.advisories = InMemoryAdvisoryRepository()
+        self.advisory_aliases = InMemoryAdvisoryAliasRepository()
         self.source_settings = InMemorySourceSettingRepository()
         self.sbom_versions = InMemorySbomVersionRepository()
         self.sboms = InMemorySbomRepository(self.sbom_versions)
@@ -255,6 +305,10 @@ class FakeAdvisoryStore:
 
     def read_document(self, advisory_id: str) -> AdvisoryDocument | None:
         return self.documents.get(advisory_id)
+
+    def delete(self, advisory_id: str) -> None:
+        self.saved.pop(advisory_id, None)
+        self.documents.pop(advisory_id, None)
 
 
 class FakePackageSource:

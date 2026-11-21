@@ -3,6 +3,7 @@ from contextlib import AbstractContextManager
 from typing import Protocol
 
 from app.domain.ports import (
+    AdvisoryAliasRepository,
     AdvisoryRepository,
     ApplicationRepository,
     ComponentRepository,
@@ -24,6 +25,8 @@ class UnitOfWork(Protocol):
     def findings(self) -> FindingRepository: ...
     @property
     def advisories(self) -> AdvisoryRepository: ...
+    @property
+    def advisory_aliases(self) -> AdvisoryAliasRepository: ...
     @property
     def source_settings(self) -> SourceSettingRepository: ...
     @property

@@ -209,3 +209,11 @@ def test_undecodable_file_returns_none(tmp_path: Path) -> None:
     (tmp_path / "advisories").mkdir(parents=True)
     (tmp_path / "advisories" / "CVE-2024-1.md").write_bytes(b"---\n\xff\xfe\n---\n")
     assert FileAdvisoryStore(tmp_path).read_document("CVE-2024-1") is None
+
+
+def test_delete_removes_file_and_ignores_missing(tmp_path: Path) -> None:
+    store = FileAdvisoryStore(tmp_path)
+    store.save(_advisory(), tags=[], sources=[], body="b")
+    store.delete("CVE-2024-1")
+    assert not (tmp_path / "advisories" / "CVE-2024-1.md").exists()
+    store.delete("CVE-2024-1")

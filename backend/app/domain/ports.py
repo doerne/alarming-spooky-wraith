@@ -1,5 +1,6 @@
 """Repository- und Datenquellen-Ports (Protocols). Keine Infrastruktur."""
 
+import builtins
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Protocol
@@ -7,7 +8,7 @@ from typing import Protocol
 from app.domain.inventory import Application, Component
 from app.domain.sbom import ParsedSbom, Sbom, SbomVersion
 from app.domain.sources import SourceDescriptor, SourceSetting
-from app.domain.vulnerability import Advisory, Finding
+from app.domain.vulnerability import Advisory, Finding, FindingStatus
 
 
 class ApplicationRepository(Protocol):
@@ -31,6 +32,10 @@ class FindingRepository(Protocol):
     def upsert(self, finding: Finding) -> Finding: ...
     def list(self) -> list[Finding]: ...
     def delete_for_components(self, component_ids: Sequence[int]) -> None: ...
+    def list_for_advisory(self, advisory_id: str) -> builtins.list[Finding]: ...
+    def reassign(self, finding_id: int, advisory_id: str) -> None: ...
+    def save_triage(self, finding_id: int, status: FindingStatus, comment: str) -> None: ...
+    def delete(self, finding_id: int) -> None: ...
 
 
 class SbomRepository(Protocol):
@@ -61,6 +66,18 @@ class SbomParser(Protocol):
 class AdvisoryRepository(Protocol):
     def upsert(self, advisory: Advisory) -> Advisory: ...
     def get(self, advisory_id: str) -> Advisory: ...
+    def find(self, advisory_id: str) -> Advisory | None: ...
+    def delete(self, advisory_id: str) -> None: ...
+
+
+class AdvisoryAliasRepository(Protocol):
+    """Merkt sich frühere IDs zusammengeführter Advisories (alias → kanonisch)."""
+
+    def save(self, alias_id: str, advisory_id: str) -> None: ...
+    def remove(self, alias_id: str) -> None: ...
+    def repoint(self, old_advisory_id: str, new_advisory_id: str) -> None:
+        """Alle Aliase, die auf ``old_advisory_id`` zeigen, auf ``new_advisory_id`` umstellen."""
+        ...
 
 
 @dataclass(frozen=True)
@@ -90,6 +107,10 @@ class AdvisoryStore(Protocol):
     def read(self, advisory_id: str) -> str: ...
     def read_document(self, advisory_id: str) -> AdvisoryDocument | None:
         """Zerlegtes Dokument; None, wenn es fehlt oder unlesbar ist."""
+        ...
+
+    def delete(self, advisory_id: str) -> None:
+        """Entfernt das File; ein fehlendes File ist kein Fehler."""
         ...
 
 

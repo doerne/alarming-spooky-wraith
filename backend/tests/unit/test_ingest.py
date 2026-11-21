@@ -381,3 +381,61 @@ def test_ingest_drops_findings_of_components_deleted_meanwhile() -> None:
     )
     _run(uow, _DeletingSource(uow, vue_id, vuln))
     assert [finding.component_id for finding in uow.findings.list()] == [react_id]
+
+
+_CERTIFI = _component("certifi", Ecosystem.PYPI, "2026.5.20")
+_CERTIFI_RANGE = (RangeEvent("introduced", "0"), RangeEvent("fixed", "2026.10.18"))
+
+
+def _certifi_vuln(vuln_id: str, aliases: list[str]) -> SourceVuln:
+    return _vuln(
+        id=vuln_id,
+        aliases=aliases,
+        affected=(AffectedPackage("PyPI", "certifi", _CERTIFI_RANGE),),
+    )
+
+
+def test_ingest_merges_ghsa_and_pysec_into_one_finding() -> None:
+    uow = _uow(_CERTIFI)
+    ghsa = _certifi_vuln("GHSA-6q48-6c7w-9gw2", [])
+    pysec = _certifi_vuln("PYSEC-2026-4320", ["GHSA-6q48-6c7w-9gw2"])
+    store = FakeAdvisoryStore()
+    _run(uow, FakePackageSource(descriptor("osv"), {"certifi": [ghsa, pysec]}), store=store)
+    assert [finding.advisory_id for finding in uow.findings.list()] == ["GHSA-6q48-6c7w-9gw2"]
+    assert uow.advisories.find("PYSEC-2026-4320") is None
+    assert uow.advisory_aliases.resolve("PYSEC-2026-4320") == "GHSA-6q48-6c7w-9gw2"
+
+
+def test_ingest_moves_ghsa_into_later_cve() -> None:
+    uow = _uow(_CERTIFI)
+    store = FakeAdvisoryStore()
+    first = _certifi_vuln("GHSA-6q48-6c7w-9gw2", [])
+    _run(uow, FakePackageSource(descriptor("osv"), {"certifi": [first]}), store=store)
+    triaged = uow.findings.list()[0]
+    assert triaged.id is not None
+    uow.findings.save_triage(triaged.id, FindingStatus.IN_PROGRESS, "PR #7")
+    later = _certifi_vuln("GHSA-6q48-6c7w-9gw2", ["CVE-2026-1111"])
+    _run(uow, FakePackageSource(descriptor("osv"), {"certifi": [later]}), store=store)
+    [finding] = uow.findings.list()
+    assert (finding.advisory_id, finding.status, finding.comment) == (
+        "CVE-2026-1111",
+        FindingStatus.IN_PROGRESS,
+        "PR #7",
+    )
+    assert uow.advisories.find("GHSA-6q48-6c7w-9gw2") is None
+    assert "GHSA-6q48-6c7w-9gw2" not in store.saved
+
+
+def test_ingest_keeps_known_values_of_absorbed_alias() -> None:
+    uow = _uow(_CERTIFI)
+    store = FakeAdvisoryStore()
+    first = replace(
+        _certifi_vuln("GHSA-6q48-6c7w-9gw2", []), cvss_base=9.1, fixed_version="2026.10.18"
+    )
+    _run(uow, FakePackageSource(descriptor("osv"), {"certifi": [first]}), store=store)
+    later = replace(
+        _certifi_vuln("GHSA-6q48-6c7w-9gw2", ["CVE-2026-1111"]), cvss_base=None, fixed_version=None
+    )
+    _run(uow, FakePackageSource(descriptor("osv"), {"certifi": [later]}), store=store)
+    advisory = uow.advisories.get("CVE-2026-1111")
+    assert (advisory.cvss_base, advisory.fixed_version) == (9.1, "2026.10.18")
