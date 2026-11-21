@@ -38,9 +38,7 @@ export async function getSbomVersion(
   sbomId: number,
   versionId: number,
 ): Promise<SbomVersionDetail> {
-  return request<SbomVersionDetail>(
-    `${sbomsPath(applicationId)}/${sbomId}/versions/${versionId}`,
-  );
+  return request<SbomVersionDetail>(`${sbomsPath(applicationId)}/${sbomId}/versions/${versionId}`);
 }
 
 export async function deleteSbom(applicationId: number, sbomId: number): Promise<void> {

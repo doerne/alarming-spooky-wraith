@@ -3,9 +3,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { deleteSbom, getSbomVersion, uploadSbomVersion } from "./sbom-api";
 
 function mockFetch(status: number, body: unknown) {
-  const fetchMock = vi.fn().mockResolvedValue(
-    new Response(status === 204 ? null : JSON.stringify(body), { status }),
-  );
+  const fetchMock = vi
+    .fn()
+    .mockResolvedValue(new Response(status === 204 ? null : JSON.stringify(body), { status }));
   vi.stubGlobal("fetch", fetchMock);
   return fetchMock;
 }

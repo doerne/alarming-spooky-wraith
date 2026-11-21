@@ -1,13 +1,15 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 
 import { Button } from "@/shared/ui/button";
 import { Skeleton } from "@/shared/ui/skeleton";
 
 import { ApplicationCvesPage } from "./application-cves-page";
+import { ApplicationSbomsPage } from "./application-sboms-page";
 import { DetailTabs } from "./components/detail-tabs";
 import { useAddComponent } from "./hooks/use-add-component";
 import { useApplication } from "./hooks/use-application";
+import { useSboms } from "./hooks/use-sboms";
 import { useUpdateComponent } from "./hooks/use-update-component";
 import type { ComponentInput } from "./model/schema";
 import type { Component } from "./model/types";
@@ -24,6 +26,11 @@ export function ApplicationDetailPage({
   onSelectCve,
 }: ApplicationDetailPageProps) {
   const detail = useApplication(applicationId);
+  const sboms = useSboms(applicationId);
+  const sbomNames = useMemo(
+    () => new Map((sboms.data ?? []).map((sbom) => [sbom.id, sbom.name])),
+    [sboms.data],
+  );
   const addComponent = useAddComponent();
   const updateComponent = useUpdateComponent();
   const [editing, setEditing] = useState<Component | null>(null);
@@ -60,6 +67,8 @@ export function ApplicationDetailPage({
       ) : (
         <DetailTabs
           components={detail.data?.components ?? []}
+          sbomNames={sbomNames}
+          sbomsPanel={<ApplicationSbomsPage applicationId={applicationId} />}
           cvesPanel={
             <ApplicationCvesPage applicationId={applicationId} onSelectCve={onSelectCve} />
           }

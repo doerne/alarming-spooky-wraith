@@ -8,7 +8,9 @@ import { ComponentsTab } from "./components-tab";
 
 interface DetailTabsProps {
   components: Component[];
+  sbomNames: ReadonlyMap<number, string>;
   cvesPanel: ReactNode;
+  sbomsPanel: ReactNode;
   editing: Component | null;
   isSubmitting: boolean;
   onEdit: (component: Component) => void;
@@ -18,7 +20,9 @@ interface DetailTabsProps {
 
 export function DetailTabs({
   components,
+  sbomNames,
   cvesPanel,
+  sbomsPanel,
   editing,
   isSubmitting,
   onEdit,
@@ -31,6 +35,9 @@ export function DetailTabs({
         <TabsTrigger value="components" data-testid="inventory-tab-components">
           Komponenten
         </TabsTrigger>
+        <TabsTrigger value="sboms" data-testid="inventory-tab-sboms">
+          SBOMs
+        </TabsTrigger>
         <TabsTrigger value="cves" data-testid="inventory-tab-cves">
           CVEs
         </TabsTrigger>
@@ -38,6 +45,7 @@ export function DetailTabs({
       <TabsContent value="components">
         <ComponentsTab
           components={components}
+          sbomNames={sbomNames}
           editing={editing}
           isSubmitting={isSubmitting}
           onEdit={onEdit}
@@ -45,6 +53,7 @@ export function DetailTabs({
           onCancelEdit={onCancelEdit}
         />
       </TabsContent>
+      <TabsContent value="sboms">{sbomsPanel}</TabsContent>
       <TabsContent value="cves" className="pt-4">
         {cvesPanel}
       </TabsContent>
