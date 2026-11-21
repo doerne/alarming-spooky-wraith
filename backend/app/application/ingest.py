@@ -369,3 +369,13 @@ def run_ingest_job(
     """Führt einen Lauf mit eigener Unit of Work aus (für den Hintergrund-Thread)."""
     with uow_factory() as uow:
         return RunIngest(uow, registry, matcher, store, clock).execute()
+
+
+def run_scan_then_sync(scan: Callable[[], IngestResult], sync: Callable[[], None]) -> IngestResult:
+    """Scan, danach der Abgleich. Ein Fehler im Abgleich wird nur protokolliert."""
+    result = scan()
+    try:
+        sync()
+    except Exception:
+        _logger.exception("GitHub-Abgleich nach dem Scan fehlgeschlagen")
+    return result

@@ -5,12 +5,14 @@ from datetime import datetime
 
 from fastapi import FastAPI
 
+from app.application.github_sync import GitHubSyncRunner
 from app.application.ingest_runner import IngestRunner
 from app.application.source_registry import SourceRegistry
 from app.application.unit_of_work import UnitOfWorkFactory
-from app.domain.ports import AdvisoryStore, SbomParser
+from app.domain.ports import AdvisoryStore, IssueTracker, SbomParser
 from app.presentation.cves_router import router as cves_router
 from app.presentation.error_handlers import register_error_handlers
+from app.presentation.github_router import router as github_router
 from app.presentation.health_router import router as health_router
 from app.presentation.ingest_router import router as ingest_router
 from app.presentation.inventory_router import router as inventory_router
@@ -40,6 +42,8 @@ class AppServices:
     on_startup: Callable[[], None] | None = None
     sbom_parser: SbomParser | None = None
     clock: Callable[[], datetime] | None = None
+    github_tracker: IssueTracker | None = None
+    github_sync_runner: GitHubSyncRunner | None = None
 
 
 def create_app(
@@ -63,6 +67,8 @@ def create_app(
     app.state.source_registry = services.source_registry
     app.state.sbom_parser = services.sbom_parser
     app.state.clock = services.clock
+    app.state.github_tracker = services.github_tracker
+    app.state.github_sync_runner = services.github_sync_runner
     register_error_handlers(app)
     app.include_router(health_router)
     app.include_router(inventory_router)
@@ -70,4 +76,5 @@ def create_app(
     app.include_router(ingest_router)
     app.include_router(cves_router)
     app.include_router(sources_router)
+    app.include_router(github_router)
     return app

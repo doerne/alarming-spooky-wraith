@@ -63,10 +63,12 @@ services:
     <<: *hardening
     build: ./backend
     networks: [web, data]
-    secrets: [db_password]
+    secrets: [db_password, github_app_private_key]
     environment:
       <<: *backend-env
       ENABLE_DOCS: "false"
+      # Keine Geheimnisse: die App-ID ist öffentlich. Leer = GitHub-Anbindung aus.
+      GITHUB_APP_ID: "${GITHUB_APP_ID:-}"
     # Beschreibbare Volumes für OKF-Files und Quellen-Cache (read_only bleibt sonst aktiv).
     volumes:
       - okfdata:/data/okf
@@ -98,6 +100,8 @@ secrets:
     file: ./secrets/db_password.txt
   db_root_password:
     file: ./secrets/db_root_password.txt
+  github_app_private_key:
+    file: ./secrets/github_app_private_key.pem
 
 volumes:
   dbdata: {}

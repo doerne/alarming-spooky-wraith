@@ -11,21 +11,28 @@ from datetime import datetime
 
 from app.application.ingest import IngestResult
 from app.application.ingest_runner import IngestRunState
+from app.infrastructure.job_gate import JobGate
 
 _logger = logging.getLogger(__name__)
 
 
 class ThreadIngestRunner:
-    def __init__(self, job: Callable[[], IngestResult], clock: Callable[[], datetime]) -> None:
+    def __init__(
+        self,
+        job: Callable[[], IngestResult],
+        clock: Callable[[], datetime],
+        gate: JobGate | None = None,
+    ) -> None:
         self._job = job
         self._clock = clock
+        self._gate = gate or JobGate()
         self._lock = threading.Lock()
         self._state = IngestRunState(running=False)
         self._thread: threading.Thread | None = None
 
     def start(self) -> bool:
         with self._lock:
-            if self._state.running:
+            if self._state.running or not self._gate.try_acquire():
                 return False
             self._state = IngestRunState(running=True, started_at=self._clock())
             self._thread = threading.Thread(target=self._run, name="ingest", daemon=True)
@@ -50,10 +57,12 @@ class ThreadIngestRunner:
             # Details nur ins Log: Ausnahmen (z. B. der DB) können Interna enthalten.
             _logger.exception("Ingest-Lauf fehlgeschlagen")
             self._finish(error=f"Lauf fehlgeschlagen ({type(error).__name__})")
-            return
-        self._finish(
-            components_scanned=result.components_scanned, findings_found=result.findings_found
-        )
+        else:
+            self._finish(
+                components_scanned=result.components_scanned, findings_found=result.findings_found
+            )
+        finally:
+            self._gate.release()
 
     def _finish(
         self,

@@ -5,6 +5,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import replace
 from datetime import UTC, datetime
 
+from app.application.github_sync import SyncRequest, SyncRunState
 from app.application.ingest_runner import IngestRunState
 from app.application.issue_export import IssueDraft
 from app.domain.errors import EntityNotFoundError, IssueTrackerError
@@ -536,3 +537,20 @@ class FakeIngestRunner:
 
     def state(self) -> IngestRunState:
         return self._state
+
+
+class FakeSyncRunner:
+    """Sync-Runner ohne Thread: merkt sich Aufträge, Sperre lässt sich vorgeben."""
+
+    def __init__(self, *, busy: bool = False) -> None:
+        self.busy = busy
+        self.requests: list[SyncRequest] = []
+
+    def start(self, request: SyncRequest) -> bool:
+        if self.busy:
+            return False
+        self.requests.append(request)
+        return True
+
+    def state(self) -> SyncRunState:
+        return SyncRunState(running=self.busy)

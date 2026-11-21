@@ -9,10 +9,10 @@ from typing import Protocol
 
 from app.application.issue_export import ExportApplicationIssues, IssueDraft
 from app.application.issue_sync_rules import IssueAction, aggregate_state, decide_issue_action
-from app.application.unit_of_work import UnitOfWork
+from app.application.unit_of_work import UnitOfWork, UnitOfWorkFactory
 from app.domain.errors import IssueTrackerError
 from app.domain.inventory import Application
-from app.domain.ports import IssueContent, IssueTracker, TrackedIssue
+from app.domain.ports import AdvisoryStore, IssueContent, IssueTracker, TrackedIssue
 from app.domain.vulnerability import (
     Finding,
     FindingResolution,
@@ -372,3 +372,44 @@ def _last_open_note(group: list[Finding]) -> str:
         ),
         "Wieder offen in CVE-Radar",
     )
+
+
+@dataclass(frozen=True)
+class SyncRunState:
+    """Zustand des letzten bzw. laufenden Abgleichs im Hintergrund."""
+
+    running: bool
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    error: str | None = None
+
+
+class GitHubSyncRunner(Protocol):
+    def start(self, request: SyncRequest) -> bool:
+        """Startet einen Abgleich. False, wenn ein Scan oder Abgleich läuft."""
+        ...
+
+    def state(self) -> SyncRunState: ...
+
+
+@dataclass(frozen=True)
+class GitHubSyncServices:
+    """Abhängigkeiten des Abgleichs, vom Composition Root gesetzt."""
+
+    tracker: IssueTracker
+    formatter: IssueFormatter
+    store: AdvisoryStore
+    clock: Callable[[], datetime]
+
+
+def run_github_sync(
+    uow_factory: UnitOfWorkFactory, services: GitHubSyncServices, request: SyncRequest
+) -> None:
+    """Abgleich mit eigener Unit of Work; ohne GitHub-Konfiguration passiert nichts."""
+    if not services.tracker.is_configured():
+        return
+    with uow_factory() as uow:
+        drafts = ExportApplicationIssues(uow, services.store, services.clock)
+        SyncGitHubIssues(uow, services.tracker, services.formatter, drafts, services.clock).execute(
+            request
+        )

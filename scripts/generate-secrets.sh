@@ -29,3 +29,14 @@ generate() {
 
 generate db_password
 generate db_root_password
+
+# GitHub-App-Schlüssel: leer lassen, solange GitHub nicht eingerichtet ist.
+# Compose braucht die Datei; eine leere Datei schaltet die Anbindung aus.
+github_key="secrets/github_app_private_key.pem"
+if [[ ! -f "$github_key" ]]; then
+  : >"$github_key"
+  chmod 644 "$github_key"
+  echo "✓ $github_key leer angelegt (GitHub-Anbindung aus)"
+else
+  echo "• $github_key existiert bereits"
+fi

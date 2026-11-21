@@ -1,5 +1,6 @@
 """Inventar-Domäne: Anwendungen und ihre manuell gepflegten Komponenten."""
 
+import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
@@ -8,6 +9,14 @@ from app.domain.vulnerability import Severity
 
 COMPONENT_NAME_MAX_LENGTH = 200
 COMPONENT_VERSION_MAX_LENGTH = 100
+_GITHUB_REPOSITORY_RE = re.compile(r"^([A-Za-z0-9-]{1,39})/([A-Za-z0-9._-]{1,100})$")
+_RESERVED_REPOSITORY_NAMES = frozenset({".", ".."})
+
+
+def is_valid_github_repository(value: str) -> bool:
+    """``owner/repo`` streng geprüft; keine Pfadtricks wie ``..`` in API-URLs."""
+    match = _GITHUB_REPOSITORY_RE.fullmatch(value)
+    return match is not None and match.group(2) not in _RESERVED_REPOSITORY_NAMES
 
 
 class Category(StrEnum):
