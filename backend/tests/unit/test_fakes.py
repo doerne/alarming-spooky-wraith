@@ -1,5 +1,17 @@
+from dataclasses import replace
+from datetime import UTC, datetime
+
+import pytest
+
+from app.domain.errors import EntityNotFoundError
+from app.domain.inventory import Category, Component, Ecosystem
+from app.domain.sbom import Sbom, SbomVersion
 from app.domain.vulnerability import Finding, FindingStatus, RiskScore, Severity
-from tests.fakes import InMemoryFindingRepository
+from tests.fakes import (
+    InMemoryComponentRepository,
+    InMemoryFindingRepository,
+    InMemoryUnitOfWork,
+)
 
 
 def _finding(status: FindingStatus = FindingStatus.OPEN, comment: str = "") -> Finding:
@@ -22,3 +34,75 @@ def test_fake_upsert_keeps_triage_status() -> None:
     assert stored.status == FindingStatus.FALSE_POSITIVE
     assert stored.comment == "nein"
     assert again.status == FindingStatus.FALSE_POSITIVE
+
+
+def _version(sbom_id: int, label: str, *, is_current: bool) -> SbomVersion:
+
+    return SbomVersion(
+        sbom_id=sbom_id,
+        label=label,
+        uploaded_at=datetime(2026, 11, 21, tzinfo=UTC),
+        serial_number=None,
+        is_current=is_current,
+        entries=(),
+    )
+
+
+def test_fake_sbom_repository_finds_by_name_per_application() -> None:
+
+    uow = InMemoryUnitOfWork()
+    uow.sboms.add(Sbom(application_id=1, name="backend"))
+    uow.sboms.add(Sbom(application_id=2, name="backend"))
+    found = uow.sboms.find_by_name(1, "backend")
+    assert found is not None
+    assert found.application_id == 1
+    assert uow.sboms.find_by_name(1, "frontend") is None
+
+
+def test_fake_sbom_delete_removes_versions() -> None:
+
+    uow = InMemoryUnitOfWork()
+    sbom = uow.sboms.add(Sbom(application_id=1, name="backend"))
+    assert sbom.id is not None
+    uow.sbom_versions.add(_version(sbom.id, "v1", is_current=True))
+    uow.sboms.delete(sbom.id)
+    assert uow.sbom_versions.list_for_sbom(sbom.id) == []
+    with pytest.raises(EntityNotFoundError):
+        uow.sboms.get(sbom.id)
+
+
+def test_fake_version_repository_lists_newest_first_and_archives() -> None:
+
+    uow = InMemoryUnitOfWork()
+    first = uow.sbom_versions.add(_version(1, "v1", is_current=True))
+    second = uow.sbom_versions.add(_version(1, "v2", is_current=True))
+    assert first.id is not None
+    assert [version.label for version in uow.sbom_versions.list_for_sbom(1)] == ["v2", "v1"]
+    uow.sbom_versions.archive(first.id)
+    current = uow.sbom_versions.current_for_sbom(1)
+    assert current is not None
+    assert current.id == second.id
+    assert uow.sbom_versions.get(first.id).is_current is False
+
+
+def test_fake_finding_delete_for_component() -> None:
+    repository = InMemoryFindingRepository()
+    repository.upsert(_finding())
+    other = _finding()
+    other.component_id = 2
+    repository.upsert(other)
+    repository.delete_for_component(1)
+    assert [finding.component_id for finding in repository.list()] == [2]
+
+
+def test_fake_component_delete_and_list_for_sbom() -> None:
+
+    repository = InMemoryComponentRepository()
+    base = Component("react", "18.2.0", Category.LIBRARY, Ecosystem.NPM, True)
+
+    manual = repository.add(1, base)
+    from_sbom = repository.add(1, replace(base, sbom_id=7))
+    assert [component.id for component in repository.list_for_sbom(7)] == [from_sbom.id]
+    assert manual.id is not None
+    repository.delete(manual.id)
+    assert [component.id for component in repository.list_all()] == [from_sbom.id]

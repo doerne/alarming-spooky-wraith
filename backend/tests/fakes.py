@@ -1,11 +1,13 @@
 """In-Memory-Adapter für schnelle Tests ohne Datenbank."""
 
+from collections.abc import Mapping
 from dataclasses import replace
 
 from app.application.ingest_runner import IngestRunState
 from app.domain.errors import EntityNotFoundError
 from app.domain.inventory import Application, Component
 from app.domain.ports import AdvisoryDocument, SourceReference, SourceVuln
+from app.domain.sbom import ParsedSbom, Sbom, SbomVersion
 from app.domain.sources import (
     ApiKeyRequirement,
     MatchScope,
@@ -67,6 +69,12 @@ class InMemoryComponentRepository:
     def list_for_application(self, application_id: int) -> list[Component]:
         return [component for app_id, component in self._items if app_id == application_id]
 
+    def list_for_sbom(self, sbom_id: int) -> list[Component]:
+        return [component for _, component in self._items if component.sbom_id == sbom_id]
+
+    def delete(self, component_id: int) -> None:
+        self._items = [item for item in self._items if item[1].id != component_id]
+
     def application_id_of(self, component_id: int) -> int:
         for application_id, component in self._items:
             if component.id == component_id:
@@ -94,6 +102,87 @@ class InMemoryFindingRepository:
 
     def list(self) -> list[Finding]:
         return list(self._items.values())
+
+    def delete_for_component(self, component_id: int) -> None:
+        self._items = {
+            key: finding
+            for key, finding in self._items.items()
+            if finding.component_id != component_id
+        }
+
+
+class InMemorySbomVersionRepository:
+    def __init__(self) -> None:
+        self._items: dict[int, SbomVersion] = {}
+        self._next_id = 1
+
+    def add(self, version: SbomVersion) -> SbomVersion:
+        saved = replace(version, id=self._next_id)
+        self._items[self._next_id] = saved
+        self._next_id += 1
+        return saved
+
+    def get(self, version_id: int) -> SbomVersion:
+        if version_id not in self._items:
+            raise EntityNotFoundError("SBOM-Version", version_id)
+        return self._items[version_id]
+
+    def current_for_sbom(self, sbom_id: int) -> SbomVersion | None:
+        current = [v for v in self.list_for_sbom(sbom_id) if v.is_current]
+        return current[0] if current else None
+
+    def list_for_sbom(self, sbom_id: int) -> list[SbomVersion]:
+        versions = [v for v in self._items.values() if v.sbom_id == sbom_id]
+        return sorted(versions, key=lambda version: version.id or 0, reverse=True)
+
+    def archive(self, version_id: int) -> None:
+        self._items[version_id] = replace(self.get(version_id), is_current=False)
+
+    def delete_for_sbom(self, sbom_id: int) -> None:
+        self._items = {key: v for key, v in self._items.items() if v.sbom_id != sbom_id}
+
+
+class InMemorySbomRepository:
+    def __init__(self, versions: InMemorySbomVersionRepository) -> None:
+        self._items: dict[int, Sbom] = {}
+        self._next_id = 1
+        self._versions = versions
+
+    def add(self, sbom: Sbom) -> Sbom:
+        sbom.id = self._next_id
+        self._items[self._next_id] = sbom
+        self._next_id += 1
+        return sbom
+
+    def get(self, sbom_id: int) -> Sbom:
+        if sbom_id not in self._items:
+            raise EntityNotFoundError("SBOM", sbom_id)
+        return self._items[sbom_id]
+
+    def find_by_name(self, application_id: int, name: str) -> Sbom | None:
+        for sbom in self._items.values():
+            if sbom.application_id == application_id and sbom.name == name:
+                return sbom
+        return None
+
+    def list_for_application(self, application_id: int) -> list[Sbom]:
+        return [sbom for sbom in self._items.values() if sbom.application_id == application_id]
+
+    def delete(self, sbom_id: int) -> None:
+        self._items.pop(sbom_id, None)
+        self._versions.delete_for_sbom(sbom_id)
+
+
+class FakeSbomParser:
+    """Liefert ein vorgegebenes Ergebnis; merkt sich das übergebene Dokument."""
+
+    def __init__(self, parsed: ParsedSbom) -> None:
+        self.parsed = parsed
+        self.documents: list[Mapping[str, object]] = []
+
+    def parse(self, document: Mapping[str, object]) -> ParsedSbom:
+        self.documents.append(document)
+        return self.parsed
 
 
 class InMemoryAdvisoryRepository:
@@ -133,6 +222,8 @@ class InMemoryUnitOfWork:
         self.findings = InMemoryFindingRepository()
         self.advisories = InMemoryAdvisoryRepository()
         self.source_settings = InMemorySourceSettingRepository()
+        self.sbom_versions = InMemorySbomVersionRepository()
+        self.sboms = InMemorySbomRepository(self.sbom_versions)
 
     def commit(self) -> None:
         self.commits += 1

@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.domain.errors import EntityNotFoundError
 from app.domain.inventory import Application, Category, Component, Ecosystem
+from app.domain.sbom import Sbom, SbomEntry, SbomVersion
 from app.domain.sources import RunStatus, SourceSetting
 from app.domain.vulnerability import Advisory, Finding, FindingStatus, RiskScore, Severity
 from app.infrastructure import models  # noqa: F401  (Modelle registrieren)
@@ -138,3 +139,116 @@ def test_upsert_keeps_triage_status(uow: SqlAlchemyUnitOfWork) -> None:
     assert stored.status == FindingStatus.FALSE_POSITIVE
     assert stored.comment == "betrifft uns nicht"
     assert again.status == FindingStatus.FALSE_POSITIVE
+
+
+def _app_with_sbom(uow: SqlAlchemyUnitOfWork) -> tuple[int, int]:
+    application = uow.applications.add(Application(name="Shop"))
+    assert application.id is not None
+    sbom = uow.sboms.add(Sbom(application_id=application.id, name="backend-image"))
+    assert sbom.id is not None
+    return application.id, sbom.id
+
+
+def _sbom_version(sbom_id: int, label: str) -> SbomVersion:
+    return SbomVersion(
+        sbom_id=sbom_id,
+        label=label,
+        uploaded_at=datetime(2026, 11, 21, 12, 0, tzinfo=UTC),
+        serial_number="urn:uuid:1",
+        is_current=True,
+        entries=(
+            SbomEntry(
+                "react", "18.2.0", Category.LIBRARY, Ecosystem.NPM, True, "pkg:npm/react@18.2.0"
+            ),
+            SbomEntry("openssl", "3.0.11", Category.LIBRARY, None, False, None),
+        ),
+    )
+
+
+def test_sbom_version_roundtrip_keeps_entries(uow: SqlAlchemyUnitOfWork) -> None:
+    _, sbom_id = _app_with_sbom(uow)
+    saved = uow.sbom_versions.add(_sbom_version(sbom_id, "v1"))
+    uow.commit()
+    assert saved.id is not None
+    loaded = uow.sbom_versions.get(saved.id)
+    assert loaded.entries == _sbom_version(sbom_id, "v1").entries
+    assert loaded.label == "v1"
+    assert loaded.serial_number == "urn:uuid:1"
+
+
+def test_sbom_find_by_name_and_list(uow: SqlAlchemyUnitOfWork) -> None:
+    application_id, sbom_id = _app_with_sbom(uow)
+    found = uow.sboms.find_by_name(application_id, "backend-image")
+    assert found is not None
+    assert found.id == sbom_id
+    assert uow.sboms.find_by_name(application_id, "frontend") is None
+    assert [sbom.name for sbom in uow.sboms.list_for_application(application_id)] == [
+        "backend-image"
+    ]
+
+
+def test_current_for_sbom_and_archive(uow: SqlAlchemyUnitOfWork) -> None:
+    _, sbom_id = _app_with_sbom(uow)
+    first = uow.sbom_versions.add(_sbom_version(sbom_id, "v1"))
+    assert first.id is not None
+    uow.sbom_versions.archive(first.id)
+    second = uow.sbom_versions.add(_sbom_version(sbom_id, "v2"))
+    uow.commit()
+    current = uow.sbom_versions.current_for_sbom(sbom_id)
+    assert current is not None
+    assert current.id == second.id
+    assert [v.label for v in uow.sbom_versions.list_for_sbom(sbom_id)] == ["v2", "v1"]
+
+
+def test_component_roundtrip_keeps_sbom_id_and_checked(uow: SqlAlchemyUnitOfWork) -> None:
+    application_id, sbom_id = _app_with_sbom(uow)
+    component = uow.components.add(
+        application_id,
+        Component(
+            "openssl", "3.0.11", Category.LIBRARY, None, True, sbom_id=sbom_id, checked=False
+        ),
+    )
+    assert component.id is not None
+    updated = uow.components.update(
+        Component(
+            "openssl",
+            "3.0.11",
+            Category.LIBRARY,
+            None,
+            False,
+            id=component.id,
+            application_id=application_id,
+            sbom_id=sbom_id,
+            checked=True,
+        )
+    )
+    uow.commit()
+    assert component.sbom_id == sbom_id
+    assert component.checked is False
+    assert updated.checked is True
+    assert [c.id for c in uow.components.list_for_sbom(sbom_id)] == [component.id]
+
+
+def test_delete_component_and_findings_for_component(uow: SqlAlchemyUnitOfWork) -> None:
+    application_id, _ = _app_with_sbom(uow)
+    component = uow.components.add(
+        application_id, Component("react", "18.2.0", Category.LIBRARY, Ecosystem.NPM, True)
+    )
+    assert component.id is not None
+    uow.advisories.upsert(_advisory())
+    uow.findings.upsert(_finding(component.id, application_id))
+    uow.findings.delete_for_component(component.id)
+    uow.components.delete(component.id)
+    uow.commit()
+    assert uow.findings.list() == []
+    assert uow.components.list_all() == []
+
+
+def test_delete_sbom_removes_versions(uow: SqlAlchemyUnitOfWork) -> None:
+    _, sbom_id = _app_with_sbom(uow)
+    uow.sbom_versions.add(_sbom_version(sbom_id, "v1"))
+    uow.sboms.delete(sbom_id)
+    uow.commit()
+    assert uow.sbom_versions.list_for_sbom(sbom_id) == []
+    with pytest.raises(EntityNotFoundError):
+        uow.sboms.get(sbom_id)

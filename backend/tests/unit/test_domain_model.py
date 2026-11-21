@@ -1,4 +1,12 @@
+from app.domain.errors import (
+    ComponentManagedBySbomError,
+    ConflictError,
+    DuplicateSbomVersionError,
+    InvalidSbomError,
+    InvalidValueError,
+)
 from app.domain.inventory import Application, Category, Component, Ecosystem
+from app.domain.sbom import SbomEntry
 from app.domain.vulnerability import Finding, FindingStatus, RiskScore, Severity
 
 
@@ -29,3 +37,37 @@ def test_finding_is_open_by_default() -> None:
         risk=RiskScore(value=98, level=Severity.KRITISCH, rationale="x"),
     )
     assert finding.status is FindingStatus.OPEN
+
+
+def test_sbom_entry_without_ecosystem_is_unchecked() -> None:
+
+    entry = SbomEntry(
+        name="openssl",
+        version="3.0.11",
+        category=Category.LIBRARY,
+        ecosystem=None,
+        direct=True,
+        purl="pkg:deb/debian/openssl@3.0.11",
+    )
+    assert entry.checked is False
+    npm_entry = SbomEntry("react", "18.2.0", Category.LIBRARY, Ecosystem.NPM, True, None)
+    assert npm_entry.checked is True
+
+
+def test_component_defaults_to_manual_and_checked() -> None:
+    component = Component(
+        name="react",
+        version="18.2.0",
+        category=Category.LIBRARY,
+        ecosystem=Ecosystem.NPM,
+        direct=True,
+    )
+    assert component.sbom_id is None
+    assert component.checked is True
+
+
+def test_sbom_errors_have_expected_bases() -> None:
+
+    assert issubclass(DuplicateSbomVersionError, ConflictError)
+    assert issubclass(ComponentManagedBySbomError, ConflictError)
+    assert issubclass(InvalidSbomError, InvalidValueError)

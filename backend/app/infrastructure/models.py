@@ -2,9 +2,10 @@
 
 from datetime import UTC, datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import JSON, DateTime, ForeignKey, String, Text, UniqueConstraint, true
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.domain.sbom import SBOM_LABEL_MAX_LENGTH, SBOM_NAME_MAX_LENGTH, SBOM_SERIAL_MAX_LENGTH
 from app.domain.vulnerability import (
     ADVISORY_ID_MAX_LENGTH,
     ADVISORY_TITLE_MAX_LENGTH,
@@ -31,6 +32,32 @@ class ComponentModel(Base):
     category: Mapped[str] = mapped_column(String(20))
     ecosystem: Mapped[str | None] = mapped_column(String(20), nullable=True)
     direct: Mapped[bool] = mapped_column(default=True)
+    sbom_id: Mapped[int | None] = mapped_column(
+        ForeignKey("sbom.id", name="fk_component_sbom"), nullable=True
+    )
+    checked: Mapped[bool] = mapped_column(default=True, server_default=true())
+
+
+class SbomModel(Base):
+    __tablename__ = "sbom"
+    __table_args__ = (UniqueConstraint("application_id", "name", name="uq_sbom_application_name"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    application_id: Mapped[int] = mapped_column(ForeignKey("application.id"))
+    name: Mapped[str] = mapped_column(String(SBOM_NAME_MAX_LENGTH))
+
+
+class SbomVersionModel(Base):
+    __tablename__ = "sbom_version"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    sbom_id: Mapped[int] = mapped_column(ForeignKey("sbom.id"))
+    label: Mapped[str] = mapped_column(String(SBOM_LABEL_MAX_LENGTH))
+    uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    serial_number: Mapped[str | None] = mapped_column(String(SBOM_SERIAL_MAX_LENGTH), nullable=True)
+    is_current: Mapped[bool] = mapped_column(default=True)
+    # Momentaufnahme der Komponenten dieser Version (Liste von Objekten)
+    components: Mapped[list[dict[str, object]]] = mapped_column(JSON)
 
 
 class AdvisoryModel(Base):

@@ -31,7 +31,10 @@ class Ecosystem(StrEnum):
 
 @dataclass(frozen=True)
 class Component:
-    """Eine Position im Inventar. ``ecosystem`` None → Produkt/CPE-Matching."""
+    """Eine Position im Inventar. ``ecosystem`` None → Produkt/CPE-Matching.
+
+    ``sbom_id`` None → manuell gepflegt. ``checked`` False → wird nicht abgeglichen.
+    """
 
     name: str
     version: str
@@ -40,6 +43,8 @@ class Component:
     direct: bool
     id: int | None = None
     application_id: int | None = None
+    sbom_id: int | None = None
+    checked: bool = True
 
 
 @dataclass

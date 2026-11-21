@@ -7,6 +7,8 @@ from app.domain.ports import (
     ApplicationRepository,
     ComponentRepository,
     FindingRepository,
+    SbomRepository,
+    SbomVersionRepository,
     SourceSettingRepository,
 )
 
@@ -24,6 +26,10 @@ class UnitOfWork(Protocol):
     def advisories(self) -> AdvisoryRepository: ...
     @property
     def source_settings(self) -> SourceSettingRepository: ...
+    @property
+    def sboms(self) -> SbomRepository: ...
+    @property
+    def sbom_versions(self) -> SbomVersionRepository: ...
     def commit(self) -> None: ...
 
 

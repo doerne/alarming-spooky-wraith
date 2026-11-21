@@ -1,10 +1,11 @@
 """SQLAlchemy-Repositories: Abbildung zwischen Domaene und Modellen."""
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.domain.errors import EntityNotFoundError
 from app.domain.inventory import Application, Category, Component, Ecosystem
+from app.domain.sbom import Sbom, SbomEntry, SbomVersion
 from app.domain.sources import RunStatus, SourceSetting
 from app.domain.vulnerability import Advisory, Finding, FindingStatus, RiskScore, Severity
 from app.infrastructure.models import (
@@ -12,6 +13,8 @@ from app.infrastructure.models import (
     ApplicationModel,
     ComponentModel,
     FindingModel,
+    SbomModel,
+    SbomVersionModel,
     SourceSettingModel,
 )
 
@@ -29,6 +32,8 @@ def _to_component(model: ComponentModel) -> Component:
         direct=model.direct,
         id=model.id,
         application_id=model.application_id,
+        sbom_id=model.sbom_id,
+        checked=model.checked,
     )
 
 
@@ -92,6 +97,8 @@ class SqlAlchemyComponentRepository:
             category=component.category.value,
             ecosystem=component.ecosystem.value if component.ecosystem else None,
             direct=component.direct,
+            sbom_id=component.sbom_id,
+            checked=component.checked,
         )
         self._session.add(model)
         self._session.flush()
@@ -113,6 +120,8 @@ class SqlAlchemyComponentRepository:
         model.category = component.category.value
         model.ecosystem = component.ecosystem.value if component.ecosystem else None
         model.direct = component.direct
+        model.sbom_id = component.sbom_id
+        model.checked = component.checked
         self._session.flush()
         return _to_component(model)
 
@@ -125,6 +134,15 @@ class SqlAlchemyComponentRepository:
             select(ComponentModel).where(ComponentModel.application_id == application_id)
         ).all()
         return [_to_component(model) for model in models]
+
+    def list_for_sbom(self, sbom_id: int) -> list[Component]:
+        models = self._session.scalars(
+            select(ComponentModel).where(ComponentModel.sbom_id == sbom_id)
+        ).all()
+        return [_to_component(model) for model in models]
+
+    def delete(self, component_id: int) -> None:
+        self._session.execute(delete(ComponentModel).where(ComponentModel.id == component_id))
 
 
 class SqlAlchemyAdvisoryRepository:
@@ -185,6 +203,132 @@ class SqlAlchemyFindingRepository:
     def list(self) -> list[Finding]:
         models = self._session.scalars(select(FindingModel)).all()
         return [_to_finding(model) for model in models]
+
+    def delete_for_component(self, component_id: int) -> None:
+        self._session.execute(delete(FindingModel).where(FindingModel.component_id == component_id))
+
+
+def _entry_to_json(entry: SbomEntry) -> dict[str, object]:
+    return {
+        "name": entry.name,
+        "version": entry.version,
+        "category": entry.category.value,
+        "ecosystem": entry.ecosystem.value if entry.ecosystem else None,
+        "direct": entry.direct,
+        "purl": entry.purl,
+    }
+
+
+def _entry_from_json(raw: dict[str, object]) -> SbomEntry:
+    ecosystem = raw.get("ecosystem")
+    purl = raw.get("purl")
+    return SbomEntry(
+        name=str(raw["name"]),
+        version=str(raw["version"]),
+        category=Category(str(raw["category"])),
+        ecosystem=Ecosystem(str(ecosystem)) if ecosystem else None,
+        direct=bool(raw["direct"]),
+        purl=str(purl) if purl else None,
+    )
+
+
+def _to_sbom(model: SbomModel) -> Sbom:
+    return Sbom(application_id=model.application_id, name=model.name, id=model.id)
+
+
+def _to_sbom_version(model: SbomVersionModel) -> SbomVersion:
+    return SbomVersion(
+        sbom_id=model.sbom_id,
+        label=model.label,
+        uploaded_at=model.uploaded_at,
+        serial_number=model.serial_number,
+        is_current=model.is_current,
+        entries=tuple(_entry_from_json(raw) for raw in model.components),
+        id=model.id,
+    )
+
+
+class SqlAlchemySbomRepository:
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def add(self, sbom: Sbom) -> Sbom:
+        model = SbomModel(application_id=sbom.application_id, name=sbom.name)
+        self._session.add(model)
+        self._session.flush()
+        sbom.id = model.id
+        return sbom
+
+    def get(self, sbom_id: int) -> Sbom:
+        model = self._session.get(SbomModel, sbom_id)
+        if model is None:
+            raise EntityNotFoundError("SBOM", sbom_id)
+        return _to_sbom(model)
+
+    def find_by_name(self, application_id: int, name: str) -> Sbom | None:
+        model = self._session.scalars(
+            select(SbomModel).where(
+                SbomModel.application_id == application_id, SbomModel.name == name
+            )
+        ).one_or_none()
+        return _to_sbom(model) if model else None
+
+    def list_for_application(self, application_id: int) -> list[Sbom]:
+        models = self._session.scalars(
+            select(SbomModel).where(SbomModel.application_id == application_id)
+        ).all()
+        return [_to_sbom(model) for model in models]
+
+    def delete(self, sbom_id: int) -> None:
+        self._session.execute(delete(SbomVersionModel).where(SbomVersionModel.sbom_id == sbom_id))
+        self._session.execute(delete(SbomModel).where(SbomModel.id == sbom_id))
+
+
+class SqlAlchemySbomVersionRepository:
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def add(self, version: SbomVersion) -> SbomVersion:
+        model = SbomVersionModel(
+            sbom_id=version.sbom_id,
+            label=version.label,
+            uploaded_at=version.uploaded_at,
+            serial_number=version.serial_number,
+            is_current=version.is_current,
+            components=[_entry_to_json(entry) for entry in version.entries],
+        )
+        self._session.add(model)
+        self._session.flush()
+        return _to_sbom_version(model)
+
+    def get(self, version_id: int) -> SbomVersion:
+        model = self._session.get(SbomVersionModel, version_id)
+        if model is None:
+            raise EntityNotFoundError("SBOM-Version", version_id)
+        return _to_sbom_version(model)
+
+    def current_for_sbom(self, sbom_id: int) -> SbomVersion | None:
+        model = self._session.scalars(
+            select(SbomVersionModel)
+            .where(SbomVersionModel.sbom_id == sbom_id, SbomVersionModel.is_current.is_(True))
+            .order_by(SbomVersionModel.id.desc())
+        ).first()
+        return _to_sbom_version(model) if model else None
+
+    def list_for_sbom(self, sbom_id: int) -> list[SbomVersion]:
+        models = self._session.scalars(
+            select(SbomVersionModel)
+            .where(SbomVersionModel.sbom_id == sbom_id)
+            .order_by(SbomVersionModel.id.desc())
+        ).all()
+        return [_to_sbom_version(model) for model in models]
+
+    def archive(self, version_id: int) -> None:
+        model = self._session.get(SbomVersionModel, version_id)
+        if model is None:
+            raise EntityNotFoundError("SBOM-Version", version_id)
+        model.is_current = False
+        self._session.flush()
 
 
 def _to_source_setting(model: SourceSettingModel) -> SourceSetting:
