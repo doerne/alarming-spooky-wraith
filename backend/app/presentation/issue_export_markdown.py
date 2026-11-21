@@ -3,6 +3,7 @@
 import re
 
 from app.application.issue_export import AffectedComponent, IssueDraft, IssueExport
+from app.domain.ports import IssueContent
 
 ISSUE_LABEL = "security"
 # Gedankenstrich zwischen Kennung und Komponente im Issue-Titel
@@ -120,7 +121,7 @@ def _existing_issue_section(draft: IssueDraft) -> list[str]:
     return ["## Vorhandenes Issue", *(f"- {_inline(url)}" for url in draft.issue_urls), ""]
 
 
-def _issue_body(export: IssueExport, draft: IssueDraft) -> str:
+def _issue_body(application_id: int, draft: IssueDraft) -> str:
     lines = [
         f"**{_inline(draft.title)}**",
         "",
@@ -138,14 +139,14 @@ def _issue_body(export: IssueExport, draft: IssueDraft) -> str:
         "",
         *_comment_section(draft),
         *_existing_issue_section(draft),
-        issue_marker(export.application_id, draft.advisory_id),
+        issue_marker(application_id, draft.advisory_id),
     ]
     return "\n".join(lines)
 
 
 def _issue_section(export: IssueExport, number: int, draft: IssueDraft) -> str:
     title = _issue_title(draft)
-    body = _issue_body(export, draft)
+    body = _issue_body(export.application_id, draft)
     fence = _fence(body)
     return "\n".join(
         [
@@ -227,3 +228,20 @@ def render_issue_export(export: IssueExport) -> str:
         _issue_section(export, number, draft) for number, draft in enumerate(export.issues, start=1)
     ]
     return "\n\n".join(sections) + "\n"
+
+
+def issue_content(application_id: int, draft: IssueDraft) -> IssueContent:
+    """Titel, Text, Labels und Marker eines GitHub-Issues - wie im Export."""
+    return IssueContent(
+        title=_issue_title(draft),
+        body=_issue_body(application_id, draft),
+        labels=(ISSUE_LABEL, _risk_label(draft)),
+        marker=issue_marker(application_id, draft.advisory_id),
+    )
+
+
+class MarkdownIssueFormatter:
+    """Implementiert den Formatter-Port der GitHub-Anbindung."""
+
+    def format(self, application_id: int, draft: IssueDraft) -> IssueContent:
+        return issue_content(application_id, draft)

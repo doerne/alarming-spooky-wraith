@@ -4,7 +4,9 @@ from app.application.issue_export import AffectedComponent, IssueDraft, IssueExp
 from app.domain.vulnerability import FindingStatus, Severity
 from app.presentation.issue_export_markdown import (
     EN_DASH,
+    MarkdownIssueFormatter,
     export_filename,
+    issue_content,
     issue_marker,
     render_issue_export,
 )
@@ -190,3 +192,13 @@ def test_instructions_explain_feedback_api() -> None:
     assert "/api/applications/3/cves/<advisory-id>" in text
     assert '{"issueUrl": "<issue-url>"}' in text
     assert '{"status": "behoben"}' in text
+
+
+def test_issue_content_has_labels_marker_and_same_title_as_export() -> None:
+    draft = _draft(risk_level=Severity.HOCH, advisory_id="CVE-2024-1")
+    content = MarkdownIssueFormatter().format(7, draft)
+
+    assert content.labels == ("security", "risk:hoch")
+    assert content.marker == "<!-- cve-radar:application=7;advisory=CVE-2024-1 -->"
+    assert content.marker in content.body
+    assert content == issue_content(7, draft)
