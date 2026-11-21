@@ -5,7 +5,14 @@ from app.application.retired_findings import ResolveRetiredFindings
 from app.domain.inventory import Application, Category, Component, Ecosystem
 from app.domain.ports import AdvisoryDocument, SourceReference
 from app.domain.sbom import Sbom, SbomVersion
-from app.domain.vulnerability import Advisory, Finding, FindingStatus, RiskScore, Severity
+from app.domain.vulnerability import (
+    Advisory,
+    Finding,
+    FindingStatus,
+    ResolutionSource,
+    RiskScore,
+    Severity,
+)
 from tests.fakes import FakeAdvisoryStore, InMemoryUnitOfWork
 
 _NOW = datetime(2026, 11, 22, 3, 0, tzinfo=UTC)
@@ -68,6 +75,7 @@ def test_resolves_to_fixed_when_cve_gone() -> None:
     assert finding.status == FindingStatus.FIXED
     assert finding.resolved_at == _NOW
     assert finding.resolution == "Komponente ausgebaut mit SBOM backend-image v1.5.0"
+    assert finding.resolved_by == ResolutionSource.SBOM
     assert finding.comment == "PR #3"
 
 

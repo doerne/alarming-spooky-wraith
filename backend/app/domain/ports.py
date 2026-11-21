@@ -3,13 +3,17 @@
 import builtins
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from datetime import datetime
 from typing import Protocol
 
 from app.domain.inventory import Application, Component
 from app.domain.sbom import ParsedSbom, Sbom, SbomVersion
 from app.domain.sources import SourceDescriptor, SourceSetting
-from app.domain.vulnerability import Advisory, Finding, FindingStatus
+from app.domain.vulnerability import (
+    Advisory,
+    Finding,
+    FindingResolution,
+    FindingStatus,
+)
 
 
 class ApplicationRepository(Protocol):
@@ -38,9 +42,11 @@ class FindingRepository(Protocol):
     def components_with_findings(self, component_ids: Sequence[int]) -> set[int]: ...
     def reassign(self, finding_id: int, advisory_id: str) -> None: ...
     def save_triage(self, finding_id: int, status: FindingStatus, comment: str) -> None: ...
-    def resolve(
-        self, finding_id: int, status: FindingStatus, resolved_at: datetime, resolution: str
-    ) -> None: ...
+    def resolve(self, finding_id: int, resolution: FindingResolution) -> None: ...
+    def save_report(self, finding: Finding) -> None:
+        """Übernimmt Status, Kommentar, Issue-URL und Auflösung des Treffers."""
+        ...
+
     def delete(self, finding_id: int) -> None: ...
 
 
@@ -80,6 +86,7 @@ class AdvisoryAliasRepository(Protocol):
     """Merkt sich frühere IDs zusammengeführter Advisories (alias → kanonisch)."""
 
     def save(self, alias_id: str, advisory_id: str) -> None: ...
+    def resolve(self, alias_id: str) -> str | None: ...
     def remove(self, alias_id: str) -> None: ...
     def repoint(self, old_advisory_id: str, new_advisory_id: str) -> None:
         """Alle Aliase, die auf ``old_advisory_id`` zeigen, auf ``new_advisory_id`` umstellen."""

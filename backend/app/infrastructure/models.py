@@ -11,6 +11,8 @@ from app.domain.vulnerability import (
     ADVISORY_ID_MAX_LENGTH,
     ADVISORY_TITLE_MAX_LENGTH,
     FIX_VERSION_MAX_LENGTH,
+    ISSUE_URL_MAX_LENGTH,
+    RESOLUTION_SOURCE_MAX_LENGTH,
 )
 from app.infrastructure.database import Base
 
@@ -96,6 +98,10 @@ class FindingModel(Base):
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # nullable, weil MariaDB-TEXT-Spalten ohne Default in Bestandszeilen leer sind
     resolution: Mapped[str | None] = mapped_column(Text, nullable=True, default="")
+    resolved_by: Mapped[str | None] = mapped_column(
+        String(RESOLUTION_SOURCE_MAX_LENGTH), nullable=True
+    )
+    issue_url: Mapped[str | None] = mapped_column(String(ISSUE_URL_MAX_LENGTH), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC),

@@ -12,7 +12,12 @@ from datetime import datetime
 from app.application.unit_of_work import UnitOfWork
 from app.domain.inventory import Component
 from app.domain.ports import AdvisoryStore
-from app.domain.vulnerability import Finding, FindingStatus
+from app.domain.vulnerability import (
+    Finding,
+    FindingResolution,
+    FindingStatus,
+    ResolutionSource,
+)
 
 _COMMENT_SEPARATOR = "\n\n"
 _KEPT_STATUSES = frozenset({FindingStatus.FALSE_POSITIVE})
@@ -80,7 +85,10 @@ class ResolveRetiredFindings:
     def _mark_fixed(self, finding: Finding, component: Component, now: datetime) -> None:
         assert finding.id is not None
         status = finding.status if finding.status in _KEPT_STATUSES else FindingStatus.FIXED
-        self._uow.findings.resolve(finding.id, status, now, self._resolution(component))
+        self._uow.findings.resolve(
+            finding.id,
+            FindingResolution(status, now, self._resolution(component), ResolutionSource.SBOM),
+        )
 
     def _resolution(self, component: Component) -> str:
         assert component.retired_in_version_id is not None

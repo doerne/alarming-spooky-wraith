@@ -11,7 +11,15 @@ from app.application.alias_absorber import AliasAbsorber
 from app.application.sbom_use_cases import DeleteSbom
 from app.domain.inventory import Application, Category, Component, Ecosystem
 from app.domain.sbom import Sbom, SbomVersion
-from app.domain.vulnerability import Advisory, Finding, FindingStatus, RiskScore, Severity
+from app.domain.vulnerability import (
+    Advisory,
+    Finding,
+    FindingResolution,
+    FindingStatus,
+    ResolutionSource,
+    RiskScore,
+    Severity,
+)
 from app.infrastructure import models  # noqa: F401  (Modelle registrieren)
 from app.infrastructure.database import Base
 from app.infrastructure.models import AdvisoryAliasModel
@@ -103,8 +111,8 @@ def test_advisory_alias_save_resolve_overwrites(uow: SqlAlchemyUnitOfWork) -> No
     uow.advisory_aliases.save("PYSEC-1", "CVE-2026-1")
     uow.advisory_aliases.save("PYSEC-1", "CVE-2026-1")
     uow.commit()
-    assert _alias_target(uow, "PYSEC-1") == "CVE-2026-1"
-    assert _alias_target(uow, "UNKNOWN") is None
+    assert uow.advisory_aliases.resolve("PYSEC-1") == "CVE-2026-1"
+    assert uow.advisory_aliases.resolve("UNKNOWN") is None
 
 
 def test_absorber_runs_with_foreign_keys(uow: SqlAlchemyUnitOfWork) -> None:
@@ -142,7 +150,10 @@ def test_retired_component_roundtrip_and_delete_sbom(uow: SqlAlchemyUnitOfWork) 
     stored = uow.findings.upsert(_finding("GHSA-1", component.id, application_id))
     assert stored.id is not None
     resolved_at = datetime(2026, 11, 22, tzinfo=UTC)
-    uow.findings.resolve(stored.id, FindingStatus.FIXED, resolved_at, "ausgebaut")
+    uow.findings.resolve(
+        stored.id,
+        FindingResolution(FindingStatus.FIXED, resolved_at, "ausgebaut", ResolutionSource.SBOM),
+    )
     uow.commit()
     assert uow.components.get(component.id).retired_in_version_id == version.id
     [finding] = uow.findings.list_for_advisory("GHSA-1")
@@ -150,3 +161,23 @@ def test_retired_component_roundtrip_and_delete_sbom(uow: SqlAlchemyUnitOfWork) 
     assert finding.resolved_at == resolved_at
     DeleteSbom(uow).execute(application_id=application_id, sbom_id=sbom.id)
     assert [c.id for c in uow.components.list_all()] == [component_id]
+
+
+def test_save_report_roundtrip(uow: SqlAlchemyUnitOfWork) -> None:
+    application_id, component_id = _setup(uow)
+    stored = uow.findings.upsert(_finding("GHSA-1", component_id, application_id))
+    assert stored.id is not None
+    resolved_at = datetime(2026, 11, 22, tzinfo=UTC)
+    stored.status = FindingStatus.FIXED
+    stored.issue_url = "https://github.com/acme/shop/issues/1"
+    stored.resolved_at = resolved_at
+    stored.resolved_by = ResolutionSource.REPORTED
+    stored.resolution = "Als behoben gemeldet"
+    uow.findings.save_report(stored)
+    uow.commit()
+    [loaded] = uow.findings.list_for_advisory("GHSA-1")
+    assert (loaded.issue_url, loaded.resolved_by, loaded.resolved_at) == (
+        "https://github.com/acme/shop/issues/1",
+        ResolutionSource.REPORTED,
+        resolved_at,
+    )

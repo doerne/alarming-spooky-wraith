@@ -3,7 +3,6 @@
 import builtins
 from collections.abc import Mapping, Sequence
 from dataclasses import replace
-from datetime import datetime
 
 from app.application.ingest_runner import IngestRunState
 from app.domain.errors import EntityNotFoundError
@@ -17,7 +16,7 @@ from app.domain.sources import (
     SourceKind,
     SourceSetting,
 )
-from app.domain.vulnerability import Advisory, Finding, FindingStatus
+from app.domain.vulnerability import Advisory, Finding, FindingResolution, FindingStatus
 
 
 class InMemoryApplicationRepository:
@@ -115,6 +114,8 @@ class InMemoryFindingRepository:
             finding.comment = existing.comment
             finding.resolved_at = existing.resolved_at
             finding.resolution = existing.resolution
+            finding.resolved_by = existing.resolved_by
+            finding.issue_url = existing.issue_url
         else:
             finding.id = self._next_id
             self._next_id += 1
@@ -151,13 +152,16 @@ class InMemoryFindingRepository:
         finding.status = status
         finding.comment = comment
 
-    def resolve(
-        self, finding_id: int, status: FindingStatus, resolved_at: datetime, resolution: str
-    ) -> None:
+    def resolve(self, finding_id: int, resolution: FindingResolution) -> None:
         finding = self._items[self._key_of(finding_id)]
-        finding.status = status
-        finding.resolved_at = resolved_at
-        finding.resolution = resolution
+        finding.status = resolution.status
+        finding.resolved_at = resolution.resolved_at
+        finding.resolution = resolution.text
+        finding.resolved_by = resolution.source
+
+    def save_report(self, finding: Finding) -> None:
+        assert finding.id is not None
+        self._items[self._key_of(finding.id)] = replace(finding)
 
     def delete(self, finding_id: int) -> None:
         del self._items[self._key_of(finding_id)]
@@ -281,7 +285,6 @@ class InMemoryAdvisoryAliasRepository:
                 self._items[alias_id] = new_advisory_id
 
     def resolve(self, alias_id: str) -> str | None:
-        """Nur für Tests: wohin zeigt ein Alias?"""
         return self._items.get(alias_id)
 
 

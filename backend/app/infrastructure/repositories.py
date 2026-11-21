@@ -11,7 +11,15 @@ from app.domain.errors import EntityNotFoundError
 from app.domain.inventory import Application, Category, Component, Ecosystem
 from app.domain.sbom import Sbom, SbomEntry, SbomVersion
 from app.domain.sources import RunStatus, SourceSetting
-from app.domain.vulnerability import Advisory, Finding, FindingStatus, RiskScore, Severity
+from app.domain.vulnerability import (
+    Advisory,
+    Finding,
+    FindingResolution,
+    FindingStatus,
+    ResolutionSource,
+    RiskScore,
+    Severity,
+)
 from app.infrastructure.models import (
     AdvisoryAliasModel,
     AdvisoryModel,
@@ -95,6 +103,8 @@ def _to_finding(model: FindingModel) -> Finding:
         id=model.id,
         resolved_at=_as_utc(model.resolved_at) if model.resolved_at else None,
         resolution=model.resolution or "",
+        resolved_by=ResolutionSource(model.resolved_by) if model.resolved_by else None,
+        issue_url=model.issue_url or "",
     )
 
 
@@ -244,6 +254,10 @@ class SqlAlchemyAdvisoryAliasRepository:
             model.advisory_id = advisory_id
         self._session.flush()
 
+    def resolve(self, alias_id: str) -> str | None:
+        model = self._session.get(AdvisoryAliasModel, alias_id)
+        return model.advisory_id if model else None
+
     def remove(self, alias_id: str) -> None:
         self._session.execute(
             delete(AdvisoryAliasModel).where(AdvisoryAliasModel.alias_id == alias_id)
@@ -325,13 +339,23 @@ class SqlAlchemyFindingRepository:
         model.comment = comment
         self._session.flush()
 
-    def resolve(
-        self, finding_id: int, status: FindingStatus, resolved_at: datetime, resolution: str
-    ) -> None:
+    def resolve(self, finding_id: int, resolution: FindingResolution) -> None:
         model = self._model(finding_id)
-        model.status = status.value
-        model.resolved_at = resolved_at
-        model.resolution = resolution
+        model.status = resolution.status.value
+        model.resolved_at = resolution.resolved_at
+        model.resolution = resolution.text
+        model.resolved_by = resolution.source.value
+        self._session.flush()
+
+    def save_report(self, finding: Finding) -> None:
+        assert finding.id is not None
+        model = self._model(finding.id)
+        model.status = finding.status.value
+        model.comment = finding.comment
+        model.issue_url = finding.issue_url
+        model.resolved_at = finding.resolved_at
+        model.resolution = finding.resolution
+        model.resolved_by = finding.resolved_by.value if finding.resolved_by else None
         self._session.flush()
 
     def delete(self, finding_id: int) -> None:
