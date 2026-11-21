@@ -181,3 +181,12 @@ def test_save_report_roundtrip(uow: SqlAlchemyUnitOfWork) -> None:
         ResolutionSource.REPORTED,
         resolved_at,
     )
+
+
+def test_list_for_components(uow: SqlAlchemyUnitOfWork) -> None:
+    application_id, component_id = _setup(uow)
+    uow.findings.upsert(_finding("GHSA-1", component_id, application_id))
+    uow.commit()
+    found = uow.findings.list_for_components([component_id])
+    assert [finding.advisory_id for finding in found] == ["GHSA-1"]
+    assert uow.findings.list_for_components([]) == []

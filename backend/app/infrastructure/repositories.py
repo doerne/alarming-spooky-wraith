@@ -311,6 +311,15 @@ class SqlAlchemyFindingRepository:
             raise EntityNotFoundError("Fund", finding_id)
         return model
 
+    def list_for_components(self, component_ids: Sequence[int]) -> builtins.list[Finding]:
+        found: builtins.list[Finding] = []
+        for chunk in _chunks(component_ids):
+            models = self._session.scalars(
+                select(FindingModel).where(FindingModel.component_id.in_(chunk))
+            ).all()
+            found += [_to_finding(model) for model in models]
+        return found
+
     def components_with_findings(self, component_ids: Sequence[int]) -> set[int]:
         found: set[int] = set()
         for chunk in _chunks(component_ids):

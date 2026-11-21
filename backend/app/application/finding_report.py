@@ -8,8 +8,6 @@ from app.application.unit_of_work import UnitOfWork
 from app.domain.errors import EntityNotFoundError
 from app.domain.vulnerability import Finding, FindingStatus, ResolutionSource
 
-_COMMENT_SEPARATOR = "\n\n"
-
 
 @dataclass(frozen=True)
 class ProgressReport:
@@ -29,7 +27,7 @@ def _with_status(finding: Finding, status: FindingStatus, now: datetime) -> Find
         # Schon behoben (ggf. per SBOM nachgewiesen): Nachweis und Zeitpunkt bleiben.
         return finding
     if status != FindingStatus.FIXED:
-        return replace(finding, status=status, resolved_at=None, resolved_by=None, resolution="")
+        return replace(finding.reopened(), status=status)
     # Vorläufig: der nächste SBOM-Upload prüft nach (siehe UploadSbomVersion).
     return replace(
         finding,
@@ -45,8 +43,7 @@ def _apply(finding: Finding, report: ProgressReport, now: datetime) -> Finding:
     if report.issue_url is not None:
         updated = replace(updated, issue_url=report.issue_url)
     if report.comment:
-        parts = [part for part in (updated.comment, report.comment) if part]
-        updated = replace(updated, comment=_COMMENT_SEPARATOR.join(parts))
+        updated = updated.with_note(report.comment)
     if report.status is not None:
         updated = _with_status(updated, report.status, now)
     return updated

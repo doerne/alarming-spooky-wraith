@@ -201,3 +201,16 @@ Ein Agent im Repo (z. B. Claude Code mit `gh`) kann die Datei auch selbst holen:
 ```bash
 curl -s http://127.0.0.1:8000/api/applications/<id>/cves/export -o cve-issues.md
 ```
+
+Rückmeldung des Agenten (wirkt auf alle Treffer der CVE in der Anwendung; alte IDs aus
+früheren Markern werden aufgelöst):
+
+```bash
+curl -X PATCH http://127.0.0.1:8000/api/applications/<id>/cves/<advisory-id> \
+  -H 'Content-Type: application/json' -d '{"issueUrl": "https://github.com/…/issues/12"}'
+curl -X PATCH http://127.0.0.1:8000/api/applications/<id>/cves/<advisory-id> \
+  -H 'Content-Type: application/json' -d '{"status": "behoben"}'
+```
+
+Ein so gemeldetes „behoben“ ist vorläufig: Enthält die nächste SBOM-Version die Komponente
+unverändert, wird der Treffer automatisch wieder „offen“ (mit Kommentar).

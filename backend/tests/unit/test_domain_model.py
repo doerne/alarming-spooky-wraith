@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import UTC, datetime
 
 from app.domain.errors import (
@@ -12,6 +13,7 @@ from app.domain.sbom import SbomEntry, SbomVersion
 from app.domain.vulnerability import (
     Finding,
     FindingStatus,
+    ResolutionSource,
     RiskScore,
     Severity,
     is_valid_advisory_id,
@@ -103,3 +105,37 @@ def test_advisory_id_rule() -> None:
     assert not is_valid_advisory_id("../etc")
     assert not is_valid_advisory_id("X" * 65)
     assert not is_valid_advisory_id("")
+
+
+def _plain_finding(comment: str = "") -> Finding:
+    return Finding(
+        advisory_id="CVE-1",
+        component_id=1,
+        application_id=1,
+        found_version="1.0",
+        risk=RiskScore(value=50, level=Severity.MITTEL, rationale=""),
+        comment=comment,
+    )
+
+
+def test_finding_with_note_appends_comment() -> None:
+    assert _plain_finding().with_note("neu").comment == "neu"
+    assert _plain_finding("alt").with_note("neu").comment == "alt\n\nneu"
+    assert _plain_finding("alt").with_note("").comment == "alt"
+
+
+def test_finding_reopened_clears_resolution() -> None:
+    fixed = replace(
+        _plain_finding(),
+        status=FindingStatus.FIXED,
+        resolved_at=datetime(2026, 11, 21, tzinfo=UTC),
+        resolved_by=ResolutionSource.REPORTED,
+        resolution="gemeldet",
+    )
+    reopened = fixed.reopened()
+    assert (reopened.status, reopened.resolved_at, reopened.resolved_by, reopened.resolution) == (
+        FindingStatus.OPEN,
+        None,
+        None,
+        "",
+    )

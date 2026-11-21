@@ -36,6 +36,7 @@ def _draft(**overrides: object) -> IssueDraft:
         "description": "Beschreibung",
         "references": ("https://nvd.nist.gov/vuln/detail/CVE-2024-1",),
         "components": (_component(),),
+        "issue_urls": (),
     }
     values.update(overrides)
     return IssueDraft(**values)  # type: ignore[arg-type]
@@ -173,3 +174,19 @@ def test_title_fits_github_limit() -> None:
     title_line = next(line for line in text.splitlines() if line.startswith("- **Titel:** "))
     assert len(title_line.removeprefix("- **Titel:** ")) <= 256
     assert title_line.endswith("…")
+
+
+def test_existing_issue_is_shown_in_issue_text() -> None:
+    draft = _draft(issue_urls=("https://github.com/acme/shop/issues/12",))
+    text = render_issue_export(_export(draft))
+    assert "## Vorhandenes Issue" in text
+    assert "- https://github.com/acme/shop/issues/12" in text
+    assert "## Vorhandenes Issue" not in render_issue_export(_export(_draft()))
+
+
+def test_instructions_explain_feedback_api() -> None:
+    text = render_issue_export(_export(_draft()))
+    assert "PATCH" in text
+    assert "/api/applications/3/cves/<advisory-id>" in text
+    assert '{"issueUrl": "<issue-url>"}' in text
+    assert '{"status": "behoben"}' in text

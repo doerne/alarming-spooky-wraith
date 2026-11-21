@@ -2,11 +2,19 @@ from datetime import UTC, datetime
 
 import pytest
 
+from app.application.finding_report import ProgressReport, ReportFindingProgress
 from app.application.sbom_use_cases import SbomUploadResult, UploadSbomVersion
 from app.domain.errors import DuplicateSbomVersionError, EntityNotFoundError, InvalidValueError
 from app.domain.inventory import Application, Category, Component, Ecosystem
 from app.domain.sbom import ParsedSbom, SbomEntry
-from app.domain.vulnerability import Finding, FindingStatus, RiskScore, Severity
+from app.domain.vulnerability import (
+    Finding,
+    FindingResolution,
+    FindingStatus,
+    ResolutionSource,
+    RiskScore,
+    Severity,
+)
 from tests.fakes import FakeSbomParser, InMemoryUnitOfWork
 
 _NOW = datetime(2026, 11, 21, 9, 30, tzinfo=UTC)
@@ -250,3 +258,54 @@ def test_reconcile_ignores_retired_components() -> None:
     assert (back.added, back.kept, back.removed) == (1, 1, 0)
     live = [c for c in uow.components.list_for_application(application_id) if not c.is_retired]
     assert sorted(c.name for c in live) == ["lodash", "react"]
+
+
+def _report_fixed(uow: InMemoryUnitOfWork, application_id: int) -> None:
+    ReportFindingProgress(uow, lambda: _NOW).execute(
+        application_id=application_id,
+        advisory_id="CVE-2024-1",
+        report=ProgressReport(status=FindingStatus.FIXED),
+    )
+
+
+def test_reported_fix_reopens_when_component_still_shipped() -> None:
+    uow = InMemoryUnitOfWork()
+    application_id = _application(uow)
+    _upload(uow, application_id, _parsed(_REACT))
+    _finding_for(uow, uow.components.list_for_application(application_id)[0])
+    _report_fixed(uow, application_id)
+    _upload(uow, application_id, _parsed(_REACT, label="1.1.0"))
+    [finding] = uow.findings.list()
+    assert finding.status == FindingStatus.OPEN
+    assert (finding.resolved_at, finding.resolved_by, finding.resolution) == (None, None, "")
+    assert finding.comment == (
+        "geprüft\n\nWieder offen: react 18.2.0 weiterhin in SBOM backend-image 1.1.0 enthalten."
+    )
+
+
+def test_reported_fix_stays_when_component_upgraded() -> None:
+    uow = InMemoryUnitOfWork()
+    application_id = _application(uow)
+    _upload(uow, application_id, _parsed(_REACT))
+    _finding_for(uow, uow.components.list_for_application(application_id)[0])
+    _report_fixed(uow, application_id)
+    upgraded = SbomEntry("react", "18.3.1", Category.LIBRARY, Ecosystem.NPM, True, None)
+    _upload(uow, application_id, _parsed(upgraded, label="1.1.0"))
+    [finding] = uow.findings.list()
+    assert finding.status == FindingStatus.FIXED
+    assert finding.resolved_by == ResolutionSource.REPORTED
+
+
+def test_sbom_fix_is_not_reopened() -> None:
+    uow = InMemoryUnitOfWork()
+    application_id = _application(uow)
+    _upload(uow, application_id, _parsed(_REACT))
+    react = uow.components.list_for_application(application_id)[0]
+    _finding_for(uow, react)
+    finding = uow.findings.list()[0]
+    assert finding.id is not None
+    uow.findings.resolve(
+        finding.id, FindingResolution(FindingStatus.FIXED, _NOW, "x", ResolutionSource.SBOM)
+    )
+    _upload(uow, application_id, _parsed(_REACT, label="1.1.0"))
+    assert uow.findings.list()[0].status == FindingStatus.FIXED

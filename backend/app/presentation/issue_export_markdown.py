@@ -114,6 +114,12 @@ def _comment_section(draft: IssueDraft) -> list[str]:
     return ["## Triage-Kommentar", *comments, ""] if comments else []
 
 
+def _existing_issue_section(draft: IssueDraft) -> list[str]:
+    if not draft.issue_urls:
+        return []
+    return ["## Vorhandenes Issue", *(f"- {_inline(url)}" for url in draft.issue_urls), ""]
+
+
 def _issue_body(export: IssueExport, draft: IssueDraft) -> str:
     lines = [
         f"**{_inline(draft.title)}**",
@@ -131,6 +137,7 @@ def _issue_body(export: IssueExport, draft: IssueDraft) -> str:
         *(f"- {_inline(reference)}" for reference in draft.references),
         "",
         *_comment_section(draft),
+        *_existing_issue_section(draft),
         issue_marker(export.application_id, draft.advisory_id),
     ]
     return "\n".join(lines)
@@ -161,6 +168,7 @@ def _count(issues: int) -> str:
 
 def _instructions(export: IssueExport) -> list[str]:
     marker = issue_marker(export.application_id, "<advisory-id>")
+    feedback_path = f"/api/applications/{export.application_id}/cves/<advisory-id>"
     issue_list = f"gh issue list --label {ISSUE_LABEL} --state all --limit 1000 --json number,body"
     return [
         "## Anleitung für die KI",
@@ -184,6 +192,18 @@ def _instructions(export: IssueExport) -> list[str]:
         f"5. Fehlende Labels vorher anlegen, z. B. `gh label create {ISSUE_LABEL}` und "
         "`gh label create risk:kritisch`.",
         "6. Ohne Zugriff auf `gh`: gib Titel, Labels und Text je Issue zum Kopieren aus.",
+        "",
+        "### Rückmeldung an CVE-Radar",
+        "",
+        "Melde Fortschritt per HTTP `PATCH` an CVE-Radar (`<cve-radar>` ist die Adresse, z. B. "
+        "`http://127.0.0.1:8000`; `<advisory-id>` wie im Marker):",
+        "",
+        f"   `curl -X PATCH <cve-radar>{feedback_path} "
+        "-H 'Content-Type: application/json' -d '{\"issueUrl\": \"<issue-url>\"}'` "
+        "direkt nach dem Anlegen,",
+        f"   `curl -X PATCH <cve-radar>{feedback_path} "
+        "-H 'Content-Type: application/json' -d '{\"status\": \"behoben\"}'` "
+        "nach dem Schließen. „behoben“ gilt vorläufig, bis eine neue SBOM-Version es bestätigt.",
     ]
 
 

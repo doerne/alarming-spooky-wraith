@@ -212,3 +212,20 @@ def test_falls_back_when_document_fields_are_empty() -> None:
     assert issue.description == "DB-Beschreibung CVE-1"
     assert issue.rationale != ""
     assert issue.references == ("https://example.org/CVE-1",)
+
+
+def test_collects_issue_urls_of_findings() -> None:
+    world = _World()
+    world.advisory("CVE-1")
+    world.finding("CVE-1", world.component("react"), 50)
+    world.finding("CVE-1", world.component("react-dom"), 40)
+    first, second = world.uow.findings.list()
+    first.issue_url = "https://github.com/acme/shop/issues/12"
+    second.issue_url = "https://github.com/acme/shop/issues/12"
+    world.finding("CVE-1", world.component("react-native"), 30)
+    world.uow.findings.list()[2].issue_url = "https://github.com/acme/shop/issues/13"
+    [issue] = world.export().issues
+    assert issue.issue_urls == (
+        "https://github.com/acme/shop/issues/12",
+        "https://github.com/acme/shop/issues/13",
+    )

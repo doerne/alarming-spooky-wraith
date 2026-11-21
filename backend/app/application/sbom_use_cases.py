@@ -17,6 +17,7 @@ from app.domain.sbom import (
     SbomEntry,
     SbomVersion,
 )
+from app.domain.vulnerability import Finding, FindingStatus, ResolutionSource
 
 _CLOCK_LABEL_FORMAT = "%Y-%m-%d %H:%M"
 
@@ -56,6 +57,12 @@ def _is_unchanged(component: Component, entry: SbomEntry) -> bool:
         entry.category,
         entry.direct,
         entry.checked,
+    )
+
+
+def _is_reported_fix(finding: Finding) -> bool:
+    return (
+        finding.status == FindingStatus.FIXED and finding.resolved_by == ResolutionSource.REPORTED
     )
 
 
@@ -147,11 +154,31 @@ class UploadSbomVersion:
                     component, category=entry.category, direct=entry.direct, checked=entry.checked
                 )
             )
+        self._reopen_reported_fixes([component for component, _ in changes.to_keep], version)
         self._retire_or_remove(changes.to_remove, version.id)
         self._uow.components.add_many(
             application_id,
             [_component_from(entry, version.sbom_id) for entry in changes.to_add],
         )
+
+    def _reopen_reported_fixes(self, kept: Sequence[Component], version: SbomVersion) -> None:
+        """Gemeldetes „behoben“ gilt erst, wenn die Komponente nicht mehr ausgeliefert wird."""
+        by_id = {component.id: component for component in kept if component.id is not None}
+        reported = [
+            finding
+            for finding in self._uow.findings.list_for_components(list(by_id))
+            if _is_reported_fix(finding)
+        ]
+        if not reported:
+            return
+        sbom_name = self._uow.sboms.get(version.sbom_id).name
+        for finding in reported:
+            component = by_id[finding.component_id]
+            note = (
+                f"Wieder offen: {component.name} {component.version} weiterhin in "
+                f"SBOM {sbom_name} {version.label} enthalten."
+            )
+            self._uow.findings.save_report(finding.reopened().with_note(note))
 
     def _retire_or_remove(self, components: Sequence[Component], version_id: int) -> None:
         """Mit Treffern: ausbauen (der nächste Scan löst auf); ohne: löschen."""

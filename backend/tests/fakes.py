@@ -131,6 +131,10 @@ class InMemoryFindingRepository:
                 return key
         raise EntityNotFoundError("Fund", finding_id)
 
+    def list_for_components(self, component_ids: Sequence[int]) -> builtins.list[Finding]:
+        wanted = set(component_ids)
+        return [finding for finding in self._items.values() if finding.component_id in wanted]
+
     def components_with_findings(self, component_ids: Sequence[int]) -> set[int]:
         wanted = set(component_ids)
         return {

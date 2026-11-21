@@ -40,6 +40,7 @@ class IssueDraft:
     description: str
     references: tuple[str, ...]
     components: tuple[AffectedComponent, ...]
+    issue_urls: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -60,8 +61,9 @@ def _draft(
     advisory: Advisory,
     document: AdvisoryDocument | None,
     components: Sequence[AffectedComponent],
-    top: Finding,
+    findings: Sequence[Finding],
 ) -> IssueDraft:
+    top = findings[0]
     rationale = document.rationale if document and document.rationale else ""
     references = document.references if document and document.references else advisory.references
     description = document.description if document and document.description else ""
@@ -78,6 +80,9 @@ def _draft(
         description=_truncate(description),
         references=tuple(references[:REFERENCES_MAX]),
         components=tuple(components),
+        issue_urls=tuple(
+            dict.fromkeys(finding.issue_url for finding in findings if finding.issue_url)
+        ),
     )
 
 
@@ -128,7 +133,7 @@ class ExportApplicationIssues:
         ]
         advisory = self._uow.advisories.get(ordered[0].advisory_id)
         document = self._store.read_document(advisory.advisory_id)
-        return _draft(advisory, document, affected, ordered[0])
+        return _draft(advisory, document, affected, ordered)
 
     def _affected(self, finding: Finding, component: Component) -> AffectedComponent:
         return AffectedComponent(
