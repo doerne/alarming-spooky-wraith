@@ -131,3 +131,39 @@ def test_repeated_fix_keeps_existing_resolution() -> None:
         "ausgebaut",
     )
     assert stored.issue_url == _ISSUE
+
+
+def test_status_report_spares_history_of_retired_components() -> None:
+    world = _World()
+    world.finding("react")
+    retired = world.uow.components.add(
+        world.application_id,
+        Component("react", "0.9", Category.LIBRARY, Ecosystem.NPM, True, retired_in_version_id=1),
+    )
+    assert retired.id is not None
+    world.uow.findings.upsert(
+        Finding(
+            "CVE-1",
+            retired.id,
+            world.application_id,
+            "0.9",
+            RiskScore(value=75, level=Severity.HOCH, rationale=""),
+        )
+    )
+    history = world.uow.findings.list()[1]
+    assert history.id is not None
+    sbom_time = datetime(2026, 11, 20, tzinfo=UTC)
+    world.uow.findings.resolve(
+        history.id,
+        FindingResolution(FindingStatus.FIXED, sbom_time, "ausgebaut", ResolutionSource.SBOM),
+    )
+    assert world.report(
+        ProgressReport(status=FindingStatus.IN_PROGRESS, comment="X", issue_url=_ISSUE)
+    ) == ("CVE-1", 2)
+    stored = world.uow.findings.list()[1]
+    assert (stored.status, stored.resolved_by, stored.comment) == (
+        FindingStatus.FIXED,
+        ResolutionSource.SBOM,
+        "",
+    )
+    assert stored.issue_url == _ISSUE

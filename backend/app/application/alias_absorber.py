@@ -4,13 +4,7 @@ from collections.abc import Sequence
 
 from app.application.unit_of_work import UnitOfWork
 from app.domain.ports import AdvisoryStore
-from app.domain.vulnerability import Finding, FindingStatus
-
-_COMMENT_SEPARATOR = "\n\n"
-
-
-def _merged_comment(first: str, second: str) -> str:
-    return _COMMENT_SEPARATOR.join(comment for comment in (first, second) if comment)
+from app.domain.vulnerability import Finding
 
 
 class AliasAbsorber:
@@ -51,8 +45,5 @@ class AliasAbsorber:
         if target is None:
             self._uow.findings.reassign(finding.id, canonical_id)
             return
-        assert target.id is not None
-        status = finding.status if target.status == FindingStatus.OPEN else target.status
-        comment = _merged_comment(target.comment, finding.comment)
-        self._uow.findings.save_triage(target.id, status, comment)
+        self._uow.findings.save_report(target.absorb(finding))
         self._uow.findings.delete(finding.id)

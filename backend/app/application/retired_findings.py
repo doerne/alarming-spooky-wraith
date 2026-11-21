@@ -19,12 +19,13 @@ from app.domain.vulnerability import (
     ResolutionSource,
 )
 
-_COMMENT_SEPARATOR = "\n\n"
 _KEPT_STATUSES = frozenset({FindingStatus.FALSE_POSITIVE})
 
 
-def _merged_comment(first: str, second: str) -> str:
-    return _COMMENT_SEPARATOR.join(comment for comment in (first, second) if comment)
+def _is_reported_fix(finding: Finding) -> bool:
+    return (
+        finding.status == FindingStatus.FIXED and finding.resolved_by == ResolutionSource.REPORTED
+    )
 
 
 class ResolveRetiredFindings:
@@ -58,7 +59,9 @@ class ResolveRetiredFindings:
                 continue
             successor = live.get((finding.application_id, finding.advisory_id))
             if successor is not None:
-                self._transfer(finding, successor)
+                live[(finding.application_id, finding.advisory_id)] = self._transfer(
+                    finding, successor, components[successor.component_id]
+                )
             elif not self._reporter_failed(finding.advisory_id, failed_sources):
                 self._mark_fixed(finding, component, now)
                 resolved += 1
@@ -69,9 +72,10 @@ class ResolveRetiredFindings:
     def _is_pending(
         component: Component, finding: Finding, eligible: frozenset[int] | None
     ) -> bool:
-        """Noch offen und (falls angegeben) schon vor dem Lauf ausgebaut."""
+        """Ungeklärt (offen oder nur gemeldet behoben); falls angegeben, vor dem Lauf ausgebaut."""
         in_scope = eligible is None or component.id in eligible
-        return component.is_retired and finding.resolved_at is None and in_scope
+        unsettled = finding.resolved_at is None or _is_reported_fix(finding)
+        return component.is_retired and unsettled and in_scope
 
     def _reporter_failed(self, advisory_id: str, failed_sources: frozenset[str]) -> bool:
         """Ob eine Quelle ausfiel, die diese Lücke melden könnte (unbekannte Herkunft: jede)."""
@@ -96,16 +100,20 @@ class ResolveRetiredFindings:
         sbom = self._uow.sboms.get(version.sbom_id)
         return f"Komponente ausgebaut mit SBOM {sbom.name} {version.label}"
 
-    def _transfer(self, finding: Finding, successor: Finding) -> None:
+    def _transfer(self, finding: Finding, successor: Finding, successor_of: Component) -> Finding:
+        """Gibt Triage, Kommentar und Issue-Link an den Treffer der Live-Komponente weiter."""
         assert finding.id is not None
-        assert successor.id is not None
-        status = finding.status if successor.status == FindingStatus.OPEN else successor.status
-        comment = _merged_comment(successor.comment, finding.comment)
-        self._uow.findings.save_triage(successor.id, status, comment)
+        donor = finding
+        if _is_reported_fix(finding):
+            # Die Lücke steckt im Nachfolger: die Meldung war (noch) nicht wirksam.
+            donor = finding.reopened().with_note(
+                f"Gemeldete Behebung nicht wirksam: {successor_of.name} "
+                f"{successor_of.version} weiterhin betroffen."
+            )
+        merged = successor.absorb(donor)
+        self._uow.findings.save_report(merged)
         self._uow.findings.delete(finding.id)
-        # Für weitere Vorgänger derselben Lücke gilt die übernommene Triage.
-        successor.status = status
-        successor.comment = comment
+        return merged
 
     def _remove_empty(self, components: Iterable[Component]) -> None:
         in_use = {finding.component_id for finding in self._uow.findings.list()}

@@ -1,6 +1,13 @@
 from app.application.alias_absorber import AliasAbsorber
 from app.domain.inventory import Application, Category, Component, Ecosystem
-from app.domain.vulnerability import Advisory, Finding, FindingStatus, RiskScore, Severity
+from app.domain.vulnerability import (
+    Advisory,
+    Finding,
+    FindingStatus,
+    ResolutionSource,
+    RiskScore,
+    Severity,
+)
 from tests.fakes import FakeAdvisoryStore, InMemoryUnitOfWork
 
 _CANONICAL = "GHSA-6q48-6c7w-9gw2"
@@ -109,3 +116,20 @@ def test_absorber_repoints_chains_and_drops_alias_row_of_canonical() -> None:
     assert world.uow.advisory_aliases.resolve("PYSEC-1") == "CVE-2026-1"
     assert world.uow.advisory_aliases.resolve(_CANONICAL) == "CVE-2026-1"
     assert world.uow.advisory_aliases.resolve("CVE-2026-1") is None
+
+
+def test_absorber_keeps_issue_link_and_reported_fix() -> None:
+    world = _World()
+    world.advisory(_CANONICAL)
+    world.advisory(_ALIAS)
+    certifi = world.component("certifi")
+    world.finding(_CANONICAL, certifi, FindingStatus.OPEN)
+    world.finding(_ALIAS, certifi, FindingStatus.OPEN)
+    alias_finding = world.uow.findings.list_for_advisory(_ALIAS)[0]
+    alias_finding.issue_url = "https://github.com/acme/shop/issues/9"
+    alias_finding.status = FindingStatus.FIXED
+    alias_finding.resolved_by = ResolutionSource.REPORTED
+    world.absorb()
+    [finding] = world.uow.findings.list()
+    assert finding.issue_url == "https://github.com/acme/shop/issues/9"
+    assert (finding.status, finding.resolved_by) == (FindingStatus.FIXED, ResolutionSource.REPORTED)

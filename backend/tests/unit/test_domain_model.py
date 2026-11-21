@@ -139,3 +139,38 @@ def test_finding_reopened_clears_resolution() -> None:
         None,
         "",
     )
+
+
+def test_finding_absorb_takes_status_resolution_and_issue_when_open() -> None:
+    reported = replace(
+        _plain_finding("alt"),
+        status=FindingStatus.FIXED,
+        resolved_at=datetime(2026, 11, 21, tzinfo=UTC),
+        resolved_by=ResolutionSource.REPORTED,
+        resolution="gemeldet",
+        issue_url="https://github.com/a/b/issues/1",
+    )
+    merged = _plain_finding("ziel").absorb(reported)
+    assert (merged.status, merged.resolved_by, merged.resolution) == (
+        FindingStatus.FIXED,
+        ResolutionSource.REPORTED,
+        "gemeldet",
+    )
+    assert merged.issue_url == "https://github.com/a/b/issues/1"
+    assert merged.comment == "ziel\n\nalt"
+
+
+def test_finding_absorb_keeps_own_status_and_issue_when_triaged() -> None:
+    own = replace(
+        _plain_finding(), status=FindingStatus.ACCEPTED, issue_url="https://github.com/a/b/issues/2"
+    )
+    other = replace(
+        _plain_finding(),
+        status=FindingStatus.IN_PROGRESS,
+        issue_url="https://github.com/a/b/issues/3",
+    )
+    merged = own.absorb(other)
+    assert (merged.status, merged.issue_url) == (
+        FindingStatus.ACCEPTED,
+        "https://github.com/a/b/issues/2",
+    )

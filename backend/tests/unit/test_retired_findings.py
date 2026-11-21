@@ -163,3 +163,50 @@ def test_waits_on_any_failure_without_known_origin() -> None:
     world.finding(old)
     assert world.resolve(frozenset({"ghsa"})) == 0
     assert world.resolve() == 1
+
+
+def test_transfer_keeps_issue_link() -> None:
+    world = _World()
+    old = world.component("3.1.4", retired_in=world.version("v1.5.0"))
+    world.finding(old)
+    world.uow.findings.list()[0].issue_url = "https://github.com/acme/shop/issues/4"
+    successor = world.component("3.1.5")
+    world.finding(successor)
+    world.resolve()
+    [finding] = world.uow.findings.list()
+    assert finding.component_id == successor.id
+    assert finding.issue_url == "https://github.com/acme/shop/issues/4"
+
+
+def test_ineffective_reported_fix_moves_to_successor_as_open() -> None:
+    world = _World()
+    old = world.component("3.1.4", retired_in=world.version("v1.5.0"))
+    world.finding(old, comment="PR #3")
+    predecessor = world.uow.findings.list()[0]
+    predecessor.status = FindingStatus.FIXED
+    predecessor.resolved_at = _NOW
+    predecessor.resolved_by = ResolutionSource.REPORTED
+    predecessor.issue_url = "https://github.com/acme/shop/issues/4"
+    successor = world.component("3.1.5")
+    world.finding(successor)
+    world.resolve()
+    [finding] = world.uow.findings.list()
+    assert finding.component_id == successor.id
+    assert finding.status == FindingStatus.OPEN
+    assert finding.issue_url == "https://github.com/acme/shop/issues/4"
+    assert finding.comment == (
+        "PR #3\n\nGemeldete Behebung nicht wirksam: jinja2 3.1.5 weiterhin betroffen."
+    )
+
+
+def test_reported_fix_is_confirmed_by_sbom_when_component_gone() -> None:
+    world = _World()
+    old = world.component("3.1.4", retired_in=world.version("v1.5.0"))
+    world.finding(old)
+    predecessor = world.uow.findings.list()[0]
+    predecessor.status = FindingStatus.FIXED
+    predecessor.resolved_at = _NOW
+    predecessor.resolved_by = ResolutionSource.REPORTED
+    world.resolve()
+    [finding] = world.uow.findings.list()
+    assert (finding.status, finding.resolved_by) == (FindingStatus.FIXED, ResolutionSource.SBOM)

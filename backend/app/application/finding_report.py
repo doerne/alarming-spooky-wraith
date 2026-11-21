@@ -69,6 +69,11 @@ class ReportFindingProgress:
             raise EntityNotFoundError("CVE der Anwendung", advisory_id)
         now = self._clock()
         for finding in findings:
+            if self._uow.components.get(finding.component_id).is_retired:
+                # Historie ausgebauter Komponenten: nur den Issue-Link ergänzen.
+                if report.issue_url is not None:
+                    self._uow.findings.save_report(replace(finding, issue_url=report.issue_url))
+                continue
             self._uow.findings.save_report(_apply(finding, report, now))
         self._uow.commit()
         return canonical_id, len(findings)
