@@ -23,6 +23,15 @@ class ApplicationModel(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(200))
     description: Mapped[str] = mapped_column(String(1000), default="")
+    github_repository: Mapped[str | None] = mapped_column(String(140), nullable=True)
+    auto_issue_min_level: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    auto_issue_enabled_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    github_synced_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    github_sync_message: Mapped[str] = mapped_column(Text, default="", server_default="")
 
 
 class ComponentModel(Base):
@@ -102,6 +111,8 @@ class FindingModel(Base):
         String(RESOLUTION_SOURCE_MAX_LENGTH), nullable=True
     )
     issue_url: Mapped[str | None] = mapped_column(String(ISSUE_URL_MAX_LENGTH), nullable=True)
+    issue_state: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    first_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC),

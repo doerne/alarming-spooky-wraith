@@ -16,6 +16,7 @@ from app.domain.vulnerability import (
     Finding,
     FindingResolution,
     FindingStatus,
+    IssueState,
     ResolutionSource,
     RiskScore,
     Severity,
@@ -60,7 +61,34 @@ def _component_values(application_id: int, component: Component) -> dict[str, ob
 
 
 def _to_application(model: ApplicationModel) -> Application:
-    return Application(name=model.name, description=model.description, id=model.id)
+    return Application(
+        name=model.name,
+        description=model.description,
+        id=model.id,
+        github_repository=model.github_repository,
+        auto_issue_min_level=Severity(model.auto_issue_min_level)
+        if model.auto_issue_min_level
+        else None,
+        auto_issue_enabled_at=_as_utc(model.auto_issue_enabled_at)
+        if model.auto_issue_enabled_at
+        else None,
+        github_synced_at=_as_utc(model.github_synced_at) if model.github_synced_at else None,
+        github_sync_message=model.github_sync_message or "",
+    )
+
+
+def _application_values(application: Application) -> dict[str, object]:
+    return {
+        "name": application.name,
+        "description": application.description,
+        "github_repository": application.github_repository,
+        "auto_issue_min_level": application.auto_issue_min_level.value
+        if application.auto_issue_min_level
+        else None,
+        "auto_issue_enabled_at": application.auto_issue_enabled_at,
+        "github_synced_at": application.github_synced_at,
+        "github_sync_message": application.github_sync_message,
+    }
 
 
 def _to_component(model: ComponentModel) -> Component:
@@ -105,6 +133,8 @@ def _to_finding(model: FindingModel) -> Finding:
         resolution=model.resolution or "",
         resolved_by=ResolutionSource(model.resolved_by) if model.resolved_by else None,
         issue_url=model.issue_url or "",
+        issue_state=IssueState(model.issue_state) if model.issue_state else None,
+        first_seen_at=_as_utc(model.first_seen_at) if model.first_seen_at else None,
     )
 
 
@@ -113,10 +143,20 @@ class SqlAlchemyApplicationRepository:
         self._session = session
 
     def add(self, application: Application) -> Application:
-        model = ApplicationModel(name=application.name, description=application.description)
+        model = ApplicationModel(**_application_values(application))
         self._session.add(model)
         self._session.flush()
         application.id = model.id
+        return application
+
+    def update(self, application: Application) -> Application:
+        assert application.id is not None
+        model = self._session.get(ApplicationModel, application.id)
+        if model is None:
+            raise EntityNotFoundError("Anwendung", application.id)
+        for key, value in _application_values(application).items():
+            setattr(model, key, value)
+        self._session.flush()
         return application
 
     def get(self, application_id: int) -> Application:
@@ -290,6 +330,7 @@ class SqlAlchemyFindingRepository:
                 application_id=finding.application_id,
                 status=finding.status.value,
                 comment=finding.comment,
+                first_seen_at=datetime.now(UTC),
             )
             self._session.add(model)
         model.found_version = finding.found_version
@@ -365,6 +406,14 @@ class SqlAlchemyFindingRepository:
         model.resolved_at = finding.resolved_at
         model.resolution = finding.resolution
         model.resolved_by = finding.resolved_by.value if finding.resolved_by else None
+        self._session.flush()
+
+    def save_issue_link(
+        self, finding_id: int, issue_url: str, issue_state: IssueState | None
+    ) -> None:
+        model = self._model(finding_id)
+        model.issue_url = issue_url
+        model.issue_state = issue_state.value if issue_state else None
         self._session.flush()
 
     def delete(self, finding_id: int) -> None:

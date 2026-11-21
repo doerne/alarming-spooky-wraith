@@ -3,6 +3,7 @@
 import builtins
 from collections.abc import Mapping, Sequence
 from dataclasses import replace
+from datetime import UTC, datetime
 
 from app.application.ingest_runner import IngestRunState
 from app.domain.errors import EntityNotFoundError
@@ -16,7 +17,13 @@ from app.domain.sources import (
     SourceKind,
     SourceSetting,
 )
-from app.domain.vulnerability import Advisory, Finding, FindingResolution, FindingStatus
+from app.domain.vulnerability import (
+    Advisory,
+    Finding,
+    FindingResolution,
+    FindingStatus,
+    IssueState,
+)
 
 
 class InMemoryApplicationRepository:
@@ -37,6 +44,13 @@ class InMemoryApplicationRepository:
 
     def list(self) -> list[Application]:
         return list(self._items.values())
+
+    def update(self, application: Application) -> Application:
+        assert application.id is not None
+        if application.id not in self._items:
+            raise EntityNotFoundError("Anwendung", application.id)
+        self._items[application.id] = application
+        return application
 
 
 class InMemoryComponentRepository:
@@ -116,9 +130,12 @@ class InMemoryFindingRepository:
             finding.resolution = existing.resolution
             finding.resolved_by = existing.resolved_by
             finding.issue_url = existing.issue_url
+            finding.issue_state = existing.issue_state
+            finding.first_seen_at = existing.first_seen_at
         else:
             finding.id = self._next_id
             self._next_id += 1
+            finding.first_seen_at = finding.first_seen_at or datetime.now(UTC)
         self._items[key] = finding
         return finding
 
@@ -166,6 +183,13 @@ class InMemoryFindingRepository:
     def save_report(self, finding: Finding) -> None:
         assert finding.id is not None
         self._items[self._key_of(finding.id)] = replace(finding)
+
+    def save_issue_link(
+        self, finding_id: int, issue_url: str, issue_state: IssueState | None
+    ) -> None:
+        finding = self._items[self._key_of(finding_id)]
+        finding.issue_url = issue_url
+        finding.issue_state = issue_state
 
     def delete(self, finding_id: int) -> None:
         del self._items[self._key_of(finding_id)]

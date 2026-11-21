@@ -13,6 +13,7 @@ from app.domain.vulnerability import (
     Finding,
     FindingResolution,
     FindingStatus,
+    IssueState,
 )
 
 
@@ -56,6 +57,7 @@ class ApplicationRepository(Protocol):
     def add(self, application: Application) -> Application: ...
     def get(self, application_id: int) -> Application: ...
     def list(self) -> list[Application]: ...
+    def update(self, application: Application) -> Application: ...
 
 
 class ComponentRepository(Protocol):
@@ -84,6 +86,9 @@ class FindingRepository(Protocol):
         """Übernimmt Status, Kommentar, Issue-URL und Auflösung des Treffers."""
         ...
 
+    def save_issue_link(
+        self, finding_id: int, issue_url: str, issue_state: IssueState | None
+    ) -> None: ...
     def delete(self, finding_id: int) -> None: ...
 
 

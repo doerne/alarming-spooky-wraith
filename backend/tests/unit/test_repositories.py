@@ -8,7 +8,14 @@ from app.domain.errors import EntityNotFoundError
 from app.domain.inventory import Application, Category, Component, Ecosystem
 from app.domain.sbom import Sbom, SbomEntry, SbomVersion
 from app.domain.sources import RunStatus, SourceSetting
-from app.domain.vulnerability import Advisory, Finding, FindingStatus, RiskScore, Severity
+from app.domain.vulnerability import (
+    Advisory,
+    Finding,
+    FindingStatus,
+    IssueState,
+    RiskScore,
+    Severity,
+)
 from app.infrastructure import models  # noqa: F401  (Modelle registrieren)
 from app.infrastructure.database import Base
 from app.infrastructure.unit_of_work import SqlAlchemyUnitOfWork
@@ -283,3 +290,60 @@ def test_sbom_version_uploaded_at_is_utc_aware(uow: SqlAlchemyUnitOfWork) -> Non
     loaded = uow.sbom_versions.get(saved.id)
     assert loaded.uploaded_at.tzinfo is not None
     assert loaded.uploaded_at == datetime(2026, 11, 21, 12, 0, tzinfo=UTC)
+
+
+def test_application_github_settings_roundtrip(uow: SqlAlchemyUnitOfWork) -> None:
+    application = uow.applications.add(Application(name="Shop"))
+    application.github_repository = "acme/shop"
+    application.auto_issue_min_level = Severity.HOCH
+    application.auto_issue_enabled_at = datetime(2026, 11, 21, 10, 0, tzinfo=UTC)
+    application.github_sync_message = "3 angelegt"
+    uow.applications.update(application)
+
+    assert application.id is not None
+    loaded = uow.applications.get(application.id)
+    assert loaded.github_repository == "acme/shop"
+    assert loaded.auto_issue_min_level == Severity.HOCH
+    assert loaded.auto_issue_enabled_at == datetime(2026, 11, 21, 10, 0, tzinfo=UTC)
+    assert loaded.github_sync_message == "3 angelegt"
+    assert loaded.github_synced_at is None
+
+
+def _seeded_finding(uow: SqlAlchemyUnitOfWork) -> Finding:
+    application = uow.applications.add(Application(name="Shop"))
+    assert application.id is not None
+    component = uow.components.add(
+        application.id,
+        Component(
+            name="react",
+            version="18.2.0",
+            category=Category.LIBRARY,
+            ecosystem=Ecosystem.NPM,
+            direct=True,
+        ),
+    )
+    assert component.id is not None
+    uow.advisories.upsert(_advisory())
+    return uow.findings.upsert(_finding(component.id, application.id))
+
+
+def test_new_finding_gets_first_seen_and_upsert_keeps_it(uow: SqlAlchemyUnitOfWork) -> None:
+    finding = _seeded_finding(uow)
+    first_seen = uow.findings.list()[0].first_seen_at
+    assert first_seen is not None
+
+    uow.findings.upsert(_finding(finding.component_id, finding.application_id))
+    assert uow.findings.list()[0].first_seen_at == first_seen
+
+
+def test_finding_issue_link_roundtrip(uow: SqlAlchemyUnitOfWork) -> None:
+    finding = _seeded_finding(uow)
+    assert finding.id is not None
+
+    uow.findings.save_issue_link(
+        finding.id, "https://github.com/acme/shop/issues/7", IssueState.CLOSED
+    )
+
+    loaded = uow.findings.list()[0]
+    assert loaded.issue_url == "https://github.com/acme/shop/issues/7"
+    assert loaded.issue_state == IssueState.CLOSED
