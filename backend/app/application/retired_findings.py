@@ -30,7 +30,9 @@ class ResolveRetiredFindings:
         self._store = store
         self._clock = clock
 
-    def execute(self, failed_sources: frozenset[str] = frozenset()) -> int:
+    def execute(
+        self, failed_sources: frozenset[str] = frozenset(), eligible: frozenset[int] | None = None
+    ) -> int:
         """Löst offene Treffer ausgebauter Komponenten auf; Anzahl behobener. Kein Commit."""
         components = {
             component.id: component
@@ -47,7 +49,7 @@ class ResolveRetiredFindings:
         now = self._clock()
         for finding in findings:
             component = components[finding.component_id]
-            if not component.is_retired or finding.resolved_at is not None:
+            if not self._is_pending(component, finding, eligible):
                 continue
             successor = live.get((finding.application_id, finding.advisory_id))
             if successor is not None:
@@ -57,6 +59,14 @@ class ResolveRetiredFindings:
                 resolved += 1
         self._remove_empty(components.values())
         return resolved
+
+    @staticmethod
+    def _is_pending(
+        component: Component, finding: Finding, eligible: frozenset[int] | None
+    ) -> bool:
+        """Noch offen und (falls angegeben) schon vor dem Lauf ausgebaut."""
+        in_scope = eligible is None or component.id in eligible
+        return component.is_retired and finding.resolved_at is None and in_scope
 
     def _reporter_failed(self, advisory_id: str, failed_sources: frozenset[str]) -> bool:
         """Ob eine Quelle ausfiel, die diese Lücke melden könnte (unbekannte Herkunft: jede)."""

@@ -523,7 +523,10 @@ class _RetiringSource(FakePackageSource):
         self._doomed = doomed
 
     def query(self, component: Component, api_key: str | None) -> list[SourceVuln]:
-        self._uow.components.update(replace(self._doomed, retired_in_version_id=99))
+        doomed = self._doomed
+        if not doomed.is_retired:
+            doomed = replace(doomed, retired_in_version_id=99)
+        self._uow.components.update(doomed)
         return super().query(component, api_key)
 
 
@@ -533,3 +536,47 @@ def test_ingest_drops_findings_of_components_retired_meanwhile() -> None:
     vuln = _vuln(affected=[AffectedPackage("npm", "vue", _REACT_RANGE)])
     _run(uow, _RetiringSource(uow, vue, vuln))
     assert uow.findings.list() == []
+
+
+class _PartlyFailingSource(FakePackageSource):
+    """Eine Abfrage scheitert, die anderen gelingen (Teilausfall, Lauf bleibt OK)."""
+
+    def query(self, component: Component, api_key: str | None) -> list[SourceVuln]:
+        if component.name == "vue":
+            raise SourceAccessError("Timeout")
+        return super().query(component, api_key)
+
+
+def test_ingest_partial_failure_of_reporting_source_blocks_resolution() -> None:
+    uow = _retired_world()
+    AddComponent(uow).execute(
+        application_id=uow.components.list_all()[0].application_id or 0,
+        component=_component("svelte", Ecosystem.NPM),
+    )
+    _run(uow, _PartlyFailingSource(descriptor("osv"), {}), store=_store_reported_by("osv"))
+    assert uow.findings.list()[0].status == FindingStatus.OPEN
+
+
+def test_ingest_only_resolves_components_retired_before_the_run() -> None:
+    uow = _uow(_REACT, _component("vue", Ecosystem.NPM))
+    _, vue = uow.components.list_all()
+    assert vue.id is not None
+    sbom = uow.sboms.add(Sbom(application_id=vue.application_id or 0, name="img"))
+    assert sbom.id is not None
+    version = uow.sbom_versions.add(SbomVersion(sbom.id, "v2", _NOW, None, True, ()))
+    uow.advisories.upsert(Advisory("CVE-9", "CVE-9", "t", "d", 7.5, None, [], ""))
+    uow.findings.upsert(
+        Finding(
+            "CVE-9",
+            vue.id,
+            vue.application_id or 0,
+            "18.2.0",
+            RiskScore(value=75, level=Severity.HOCH, rationale=""),
+        )
+    )
+    retiring = _RetiringSource(uow, replace(vue, sbom_id=sbom.id), _vuln())
+    retiring._doomed = replace(vue, sbom_id=sbom.id, retired_in_version_id=version.id)
+    _run(uow, retiring, store=_store_reported_by("osv"))
+    [finding] = uow.findings.list()
+    assert finding.status == FindingStatus.OPEN
+    assert finding.resolved_at is None

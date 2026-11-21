@@ -65,6 +65,13 @@ class SourceRunResult:
     status: RunStatus
     findings: int
     message: str
+    # False bei Teilausfall: einzelne Abfragen scheiterten, der Lauf gilt trotzdem als OK.
+    complete: bool = True
+
+    @property
+    def unreliable(self) -> bool:
+        """Ob die Quelle in diesem Lauf Lücken übersehen haben kann (SKIPPED zählt nicht)."""
+        return self.status == RunStatus.ERROR or not self.complete
 
 
 @dataclass(frozen=True)
@@ -138,6 +145,7 @@ def _normalized_name(component: Component) -> str:
 class _Collected:
     hits: list[_Hit]
     message: str = ""
+    complete: bool = True
 
 
 class _SourceCollector:
@@ -186,7 +194,7 @@ class _SourceCollector:
         if not failures:
             return _Collected(hits)
         note = f"{len(failures)} von {len(targets)} Abfragen fehlgeschlagen: {failures[0]}"
-        return _Collected(hits, note[:_MAX_MESSAGE_LENGTH])
+        return _Collected(hits, note[:_MAX_MESSAGE_LENGTH], complete=False)
 
     def _query(
         self, source: PackageQuerySource, api_key: str | None, component: Component
@@ -216,6 +224,13 @@ class RunIngest:
         self._clock = clock
 
     def execute(self) -> IngestResult:
+        # Nur was schon vor dem Lauf ausgebaut war, wird aufgelöst: später ausgebaute
+        # Komponenten haben ihren Nachfolger in diesem Lauf noch nicht geprüft bekommen.
+        retired_before = frozenset(
+            component.id
+            for component in self._uow.components.list_all()
+            if component.id is not None and component.is_retired
+        )
         components = [
             component
             for component in self._uow.components.list_all()
@@ -231,10 +246,10 @@ class RunIngest:
             results.append(result)
             hits.extend(source_hits)
         found = self._persist(hits)
-        failed = frozenset(
-            result.source_key for result in results if result.status == RunStatus.ERROR
+        failed = frozenset(result.source_key for result in results if result.unreliable)
+        ResolveRetiredFindings(self._uow, self._store, self._clock).execute(
+            failed, eligible=retired_before
         )
-        ResolveRetiredFindings(self._uow, self._store, self._clock).execute(failed)
         self._uow.commit()
         return IngestResult(len(components), found, results)
 
@@ -251,7 +266,8 @@ class RunIngest:
         except Exception as error:
             return self._finish(setting, RunStatus.ERROR, _error_message(error), None), []
         hits = collected.hits
-        return self._finish(setting, RunStatus.OK, collected.message, len(hits)), hits
+        result = self._finish(setting, RunStatus.OK, collected.message, len(hits))
+        return replace(result, complete=collected.complete), hits
 
     def _finish(
         self, setting: SourceSetting, status: RunStatus, message: str, findings: int | None

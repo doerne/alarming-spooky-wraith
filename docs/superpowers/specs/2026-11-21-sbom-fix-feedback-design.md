@@ -37,7 +37,10 @@ dass Issues später automatisch geschlossen werden.
     `resolution` mit SBOM-Name und Versionsbezeichnung –
   - **außer** eine Quelle, die diese Advisory bisher gemeldet hat (Quellen im OKF-File), ist im
     Lauf mit Fehler ausgefallen; ohne bekannte Herkunft sperrt jeder Quellenfehler. Dann bleibt
-    der Treffer bis zum nächsten Lauf vorgemerkt.
+    der Treffer bis zum nächsten Lauf vorgemerkt. Als ausgefallen gilt auch ein **Teilausfall**
+    (einzelne Abfragen gescheitert); übersprungene Quellen (deaktiviert, kein Key) sperren nicht.
+  - Aufgelöst werden nur Komponenten, die **vor Beginn des Laufs** ausgebaut waren – ein Upload
+    während des Scans wartet auf den nächsten Lauf.
   - (Änderung 2026-11-21 nach echtem Lauf: „ein Quellenfehler sperrt alles“ hätte wegen
     dauerhaft fehlerhafter Quellen – abgelehnter GHSA-Key, Rate-Limits – nie aufgelöst. Vom
     Nutzer als Empfehlung freigegeben, verfeinert von „nach Ökosystem“ auf „nach Herkunft“.)
