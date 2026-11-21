@@ -1,5 +1,6 @@
 # Geheimnisse
 secrets/*.txt
+secrets/*.pem
 .env
 .env.*
 !.env.example

@@ -50,7 +50,9 @@ export function ApplicationDetailPage({
       <DetailHeader
         name={detail.data?.name ?? "Anwendung"}
         onBack={onBack}
-        actions={<ApplicationGithubSettings applicationId={applicationId} />}
+        actions={
+          <ApplicationGithubSettings applicationId={applicationId} application={detail.data} />
+        }
       />
       {detail.isPending ? (
         <Skeleton className="h-40 w-full" />

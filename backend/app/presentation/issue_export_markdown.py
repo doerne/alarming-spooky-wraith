@@ -3,9 +3,9 @@
 import re
 
 from app.application.issue_export import AffectedComponent, IssueDraft, IssueExport
+from app.domain.issues import ISSUE_LABEL, MARKER_PREFIX, issue_marker
 from app.domain.ports import IssueContent
 
-ISSUE_LABEL = "security"
 # Gedankenstrich zwischen Kennung und Komponente im Issue-Titel
 EN_DASH = "\u2013"
 _MIN_FENCE_LENGTH = 4
@@ -15,15 +15,9 @@ _TRUNCATION_MARK = "…"
 _BACKTICK_RUN = re.compile(r"`+")
 _SLUG_SEPARATORS = re.compile(r"[^a-z0-9]+")
 _FALLBACK_SLUG = "anwendung"
-_MARKER_PREFIX = "cve-radar:"
 # Fremdtexte dürfen weder einen Kommentar öffnen noch den Marker-Text nachbilden.
-_NEUTRALIZED = (("<!--", "&lt;!--"), (_MARKER_PREFIX, "cve-radar&#58;"))
+_NEUTRALIZED = (("<!--", "&lt;!--"), (MARKER_PREFIX, "cve-radar&#58;"))
 _LINE_BREAKS = re.compile(r"[\r\n]+")
-
-
-def issue_marker(application_id: int, advisory_id: str) -> str:
-    """Feste Kennung im Issue-Text; Rückkanäle ordnen Issues darüber zu."""
-    return f"<!-- {_MARKER_PREFIX}application={application_id};advisory={advisory_id} -->"
 
 
 def export_filename(export: IssueExport) -> str:

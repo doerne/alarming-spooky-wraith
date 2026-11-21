@@ -327,13 +327,32 @@ def _seeded_finding(uow: SqlAlchemyUnitOfWork) -> Finding:
     return uow.findings.upsert(_finding(component.id, application.id))
 
 
-def test_new_finding_gets_first_seen_and_upsert_keeps_it(uow: SqlAlchemyUnitOfWork) -> None:
-    finding = _seeded_finding(uow)
-    first_seen = uow.findings.list()[0].first_seen_at
-    assert first_seen is not None
+def test_first_seen_is_stored_on_creation_and_never_overwritten(uow: SqlAlchemyUnitOfWork) -> None:
+    seeded = _seeded_finding(uow)
+    assert uow.findings.list()[0].first_seen_at is None  # ohne Zeitpunkt bleibt er leer
+    component = uow.components.add(
+        seeded.application_id,
+        Component(
+            name="vue",
+            version="3.0.0",
+            category=Category.LIBRARY,
+            ecosystem=Ecosystem.NPM,
+            direct=True,
+        ),
+    )
+    assert component.id is not None
+    first = datetime(2026, 11, 1, 9, 0, tzinfo=UTC)
+    later = datetime(2026, 11, 20, 9, 0, tzinfo=UTC)
 
-    uow.findings.upsert(_finding(finding.component_id, finding.application_id))
-    assert uow.findings.list()[0].first_seen_at == first_seen
+    created = _finding(component.id, seeded.application_id)
+    created.first_seen_at = first
+    uow.findings.upsert(created)
+    again = _finding(component.id, seeded.application_id)
+    again.first_seen_at = later
+    uow.findings.upsert(again)
+
+    stored = next(item for item in uow.findings.list() if item.component_id == component.id)
+    assert stored.first_seen_at == first
 
 
 def test_finding_issue_link_roundtrip(uow: SqlAlchemyUnitOfWork) -> None:

@@ -330,7 +330,7 @@ class SqlAlchemyFindingRepository:
                 application_id=finding.application_id,
                 status=finding.status.value,
                 comment=finding.comment,
-                first_seen_at=datetime.now(UTC),
+                first_seen_at=finding.first_seen_at,
             )
             self._session.add(model)
         model.found_version = finding.found_version

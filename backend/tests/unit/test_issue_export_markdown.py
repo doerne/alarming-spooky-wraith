@@ -1,13 +1,13 @@
 from datetime import UTC, datetime
 
 from app.application.issue_export import AffectedComponent, IssueDraft, IssueExport
+from app.domain.issues import issue_marker
 from app.domain.vulnerability import FindingStatus, Severity
 from app.presentation.issue_export_markdown import (
     EN_DASH,
     MarkdownIssueFormatter,
     export_filename,
     issue_content,
-    issue_marker,
     render_issue_export,
 )
 

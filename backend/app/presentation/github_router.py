@@ -5,7 +5,11 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
-from app.application.github_sync import GitHubSyncRunner, SyncRequest, SyncRunState
+from app.application.github_start import (
+    NOT_CONFIGURED_MESSAGE,
+    StartGitHubSync,
+)
+from app.application.github_sync import GitHubSyncRunner, SyncRunState
 from app.domain.ports import IssueTracker
 from app.domain.vulnerability import Severity
 from app.presentation.dependencies import UnitOfWorkDep
@@ -13,9 +17,7 @@ from app.presentation.schemas import ApiModel
 
 router = APIRouter(prefix="/api", tags=["github"])
 
-ALREADY_RUNNING = "Ein Scan oder Abgleich läuft bereits"
-NOT_CONFIGURED = "GitHub ist nicht konfiguriert"
-NO_REPOSITORY = "Für diese Anwendung ist kein GitHub-Repository hinterlegt"
+NOT_CONFIGURED = NOT_CONFIGURED_MESSAGE
 
 
 def get_tracker(request: Request) -> IssueTracker | None:
@@ -74,14 +76,9 @@ def start_github_sync(
     tracker: TrackerDep,
     runner: SyncRunnerDep,
 ) -> GitHubSyncStateResponse:
-    application = uow.applications.get(application_id)  # EntityNotFoundError → 404
-    if application.github_repository is None:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=NO_REPOSITORY)
-    if tracker is None or runner is None or not tracker.is_configured():
+    if tracker is None or runner is None:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=NOT_CONFIGURED)
-    request = SyncRequest(
-        application_id, create_issues=body.create_issues, min_level=body.min_level
+    state = StartGitHubSync(uow, tracker, runner).execute(
+        application_id, body.create_issues, body.min_level
     )
-    if not runner.start(request):
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=ALREADY_RUNNING)
-    return _to_state_response(runner.state())
+    return _to_state_response(state)

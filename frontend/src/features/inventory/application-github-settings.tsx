@@ -3,18 +3,21 @@ import { Github } from "lucide-react";
 import { Button } from "@/shared/ui/button";
 
 import { GithubSettingsDialog } from "./components/github-settings-dialog";
-import { useApplication } from "./hooks/use-application";
 import { useGithubSettingsDialog } from "./hooks/use-github-settings-dialog";
+
+import type { ApplicationDetail } from "./model/types";
 
 interface ApplicationGithubSettingsProps {
   applicationId: number;
+  application: ApplicationDetail | undefined;
 }
 
 /** GitHub-Einstellungen einer Anwendung: Knopf im Kopf und Dialog mit Repository und Automatik. */
-export function ApplicationGithubSettings({ applicationId }: ApplicationGithubSettingsProps) {
-  const detail = useApplication(applicationId);
+export function ApplicationGithubSettings({
+  applicationId,
+  application,
+}: ApplicationGithubSettingsProps) {
   const settings = useGithubSettingsDialog(applicationId);
-  const application = detail.data;
   return (
     <>
       <Button

@@ -3,7 +3,6 @@
 Der private Schlüssel wird nur hier gelesen und nie geloggt oder in Meldungen ausgegeben.
 """
 
-import re
 import time
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
@@ -13,17 +12,16 @@ import httpx
 import jwt
 
 from app.domain.errors import IssueTrackerError
+from app.domain.issues import ISSUE_LABEL, find_markers
 from app.domain.ports import IssueContent, TrackedIssue
 from app.infrastructure.config import Settings
 
 _API_VERSION = "2022-11-28"
-_MARKER_PATTERN = re.compile(r"<!-- cve-radar:application=\d+;advisory=[A-Za-z0-9_-]+ -->")
 _JWT_BACKDATE = timedelta(seconds=60)
 _JWT_LIFETIME = timedelta(minutes=9)
 _TOKEN_RENEW_MARGIN = timedelta(minutes=5)
 _PAGE_SIZE = 100
 _CREATE_PAUSE_SECONDS = 1.0
-_SECURITY_LABEL = "security"
 _LABEL_EXISTS_STATUS = 422
 _BAD_REQUEST_STATUS = 400
 _UNAUTHORIZED_STATUS = 401
@@ -95,7 +93,7 @@ class GitHubAppIssueTracker:
     def existing_markers(self, repository: str) -> dict[str, TrackedIssue]:
         markers: dict[str, TrackedIssue] = {}
         url: str | None = (
-            f"/repos/{repository}/issues?labels={_SECURITY_LABEL}&state=all&per_page={_PAGE_SIZE}"
+            f"/repos/{repository}/issues?labels={ISSUE_LABEL}&state=all&per_page={_PAGE_SIZE}"
         )
         while url:
             response = self._authorized(repository, "GET", url)
@@ -242,7 +240,7 @@ class GitHubAppIssueTracker:
     @staticmethod
     def _index_markers(item: dict[str, Any], markers: dict[str, TrackedIssue]) -> None:
         tracked = _to_tracked(item)
-        for marker in _MARKER_PATTERN.findall(str(item.get("body") or "")):
+        for marker in find_markers(str(item.get("body") or "")):
             markers[marker] = tracked
 
 

@@ -354,6 +354,7 @@ class RunIngest:
                     application_id=component.application_id,
                     found_version=component.version,
                     risk=risk,
+                    first_seen_at=self._clock(),
                 )
             )
         return len(components)
