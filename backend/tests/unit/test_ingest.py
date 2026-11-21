@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import UTC, datetime
 
 from app.application.component_matching import ComponentMatcher
@@ -342,3 +343,12 @@ def test_body_always_ends_with_own_sections() -> None:
     _run(uow, FakePackageSource(descriptor("osv"), {"react": [tricky]}), store=store)
     body = store.saved["CVE-2024-123"]
     assert body.rstrip().endswith("# References")
+
+
+def test_ingest_skips_unchecked_components() -> None:
+    openssl = replace(_component("openssl", None, "3.0.11"), checked=False)
+    curl = _component("curl", None, "8.0.0")
+    uow = _uow(curl, openssl)
+    bulk = FakeBulkSource(descriptor("cve-org", kind=SourceKind.BULK, scope=MatchScope.PRODUCT))
+    _run(uow, bulk)
+    assert bulk.names == [frozenset({"curl"})]

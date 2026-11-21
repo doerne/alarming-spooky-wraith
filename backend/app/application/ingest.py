@@ -212,7 +212,9 @@ class RunIngest:
         components = [
             component
             for component in self._uow.components.list_all()
-            if component.id is not None and component.application_id is not None
+            if component.id is not None
+            and component.application_id is not None
+            and component.checked
         ]
         results: list[SourceRunResult] = []
         hits: list[_Hit] = []

@@ -6,7 +6,7 @@ from datetime import datetime
 
 from app.application.sbom_reconcile import Reconciliation, merge_duplicates, reconcile
 from app.application.unit_of_work import UnitOfWork
-from app.domain.errors import DuplicateSbomVersionError, InvalidValueError
+from app.domain.errors import DuplicateSbomVersionError, EntityNotFoundError, InvalidValueError
 from app.domain.inventory import Component
 from app.domain.ports import SbomParser
 from app.domain.sbom import (
@@ -42,6 +42,13 @@ def _clean_name(name: str) -> str:
 def _label(label: str | None, parsed: ParsedSbom, now: datetime) -> str:
     chosen = (label or "").strip() or parsed.suggested_label
     return (chosen or now.strftime(_CLOCK_LABEL_FORMAT))[:SBOM_LABEL_MAX_LENGTH]
+
+
+def _remove_component(uow: UnitOfWork, component: Component) -> None:
+    """Entfernt eine SBOM-Komponente samt ihrer Treffer."""
+    assert component.id is not None
+    uow.findings.delete_for_component(component.id)
+    uow.components.delete(component.id)
 
 
 def _component_from(entry: SbomEntry, sbom_id: int) -> Component:
@@ -125,8 +132,73 @@ class UploadSbomVersion:
                 )
             )
         for component in changes.to_remove:
-            assert component.id is not None
-            self._uow.findings.delete_for_component(component.id)
-            self._uow.components.delete(component.id)
+            _remove_component(self._uow, component)
         for entry in changes.to_add:
             self._uow.components.add(application_id, _component_from(entry, sbom_id))
+
+
+@dataclass(frozen=True)
+class SbomOverview:
+    sbom: Sbom
+    current: SbomVersion | None
+    version_count: int
+
+
+def _owned_sbom(uow: UnitOfWork, application_id: int, sbom_id: int) -> Sbom:
+    """SBOM, die zur Anwendung gehört; sonst EntityNotFoundError."""
+    uow.applications.get(application_id)
+    sbom = uow.sboms.get(sbom_id)
+    if sbom.application_id != application_id:
+        raise EntityNotFoundError("SBOM", sbom_id)
+    return sbom
+
+
+class ListSboms:
+    def __init__(self, uow: UnitOfWork) -> None:
+        self._uow = uow
+
+    def execute(self, application_id: int) -> list[SbomOverview]:
+        self._uow.applications.get(application_id)  # EntityNotFoundError, falls unbekannt
+        sboms = sorted(
+            self._uow.sboms.list_for_application(application_id), key=lambda sbom: sbom.name
+        )
+        return [self._overview(sbom) for sbom in sboms]
+
+    def _overview(self, sbom: Sbom) -> SbomOverview:
+        assert sbom.id is not None
+        versions = self._uow.sbom_versions.list_for_sbom(sbom.id)
+        current = next((version for version in versions if version.is_current), None)
+        return SbomOverview(sbom=sbom, current=current, version_count=len(versions))
+
+
+class ListSbomVersions:
+    def __init__(self, uow: UnitOfWork) -> None:
+        self._uow = uow
+
+    def execute(self, *, application_id: int, sbom_id: int) -> list[SbomVersion]:
+        _owned_sbom(self._uow, application_id, sbom_id)
+        return self._uow.sbom_versions.list_for_sbom(sbom_id)
+
+
+class GetSbomVersion:
+    def __init__(self, uow: UnitOfWork) -> None:
+        self._uow = uow
+
+    def execute(self, *, application_id: int, sbom_id: int, version_id: int) -> SbomVersion:
+        _owned_sbom(self._uow, application_id, sbom_id)
+        version = self._uow.sbom_versions.get(version_id)
+        if version.sbom_id != sbom_id:
+            raise EntityNotFoundError("SBOM-Version", version_id)
+        return version
+
+
+class DeleteSbom:
+    def __init__(self, uow: UnitOfWork) -> None:
+        self._uow = uow
+
+    def execute(self, *, application_id: int, sbom_id: int) -> None:
+        _owned_sbom(self._uow, application_id, sbom_id)
+        for component in self._uow.components.list_for_sbom(sbom_id):
+            _remove_component(self._uow, component)
+        self._uow.sboms.delete(sbom_id)
+        self._uow.commit()

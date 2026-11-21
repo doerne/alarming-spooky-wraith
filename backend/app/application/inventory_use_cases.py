@@ -3,7 +3,7 @@
 from dataclasses import replace
 
 from app.application.unit_of_work import UnitOfWork
-from app.domain.errors import EntityNotFoundError
+from app.domain.errors import ComponentManagedBySbomError, EntityNotFoundError
 from app.domain.inventory import Application, Component
 
 
@@ -45,6 +45,8 @@ class UpdateComponent:
         existing = self._uow.components.get(component_id)
         if existing.application_id != application_id:
             raise EntityNotFoundError("Komponente", component_id)
+        if existing.sbom_id is not None:
+            raise ComponentManagedBySbomError(component_id)
         updated = self._uow.components.update(
             replace(component, id=component_id, application_id=application_id)
         )
