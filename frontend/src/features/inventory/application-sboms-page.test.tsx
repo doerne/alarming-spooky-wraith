@@ -65,7 +65,7 @@ describe("ApplicationSbomsPage", () => {
       "5 hinzugefügt · 2 entfernt · 400 unverändert · 318 nicht geprüft",
     );
     expect(screen.getByTestId("inventory-text-sbom-result")).toHaveTextContent(
-      "Neue Treffer erscheinen nach dem nächsten Abgleich.",
+      "Neue Treffer erscheinen nach dem nächsten Scan.",
     );
     const post = fetchMock.mock.calls.find(([, init]) => init?.method === "POST");
     expect(String(post?.[0])).toBe("/api/applications/1/sboms/versions");

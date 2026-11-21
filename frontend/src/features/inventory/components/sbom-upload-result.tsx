@@ -18,7 +18,7 @@ export function SbomUploadResultText({ result }: { result: SbomUploadResult }) {
       role="status"
       data-testid="inventory-text-sbom-result"
     >
-      {counts(result)}. Neue Treffer erscheinen nach dem nächsten Abgleich.
+      {counts(result)}. Neue Treffer erscheinen nach dem nächsten Scan.
     </p>
   );
 }

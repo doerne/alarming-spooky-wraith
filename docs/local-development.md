@@ -167,3 +167,18 @@ Container (`aquasec/trivy` in der Version aus `TRIVY_VERSION` in `sbom.yml`):
 ```bash
 docker run --rm -v "$PWD/backend:/src:ro" aquasec/trivy:<TRIVY_VERSION ohne v> fs --format cyclonedx /src
 ```
+
+### SBOM im CVE-Radar hinterlegen
+
+In der Anwendung → Reiter **SBOMs** → *SBOM hochladen* eine CycloneDX-JSON-Datei (1.4–1.7,
+höchstens 25 MB / 50 000 Komponenten) wählen. Name und Versionsbezeichnung werden aus der Datei
+vorbelegt.
+
+- Jeder Upload unter demselben Namen ist eine neue Version; die bisherige wird archiviert
+  (*Verlauf* zeigt ihre Komponentenliste). Dieselbe Datei zweimal hintereinander wird abgelehnt.
+- Abgeglichen werden nur die Komponenten der **aktuellen** Version. Unveränderte Komponenten
+  behalten ihre Treffer samt Status und Kommentar; weggefallene verlieren sie.
+- Pakete ohne passendes Ökosystem (z. B. `pkg:deb`, `pkg:apk` aus Image-SBOMs) erscheinen als
+  „nicht geprüft“ und werden nicht abgeglichen.
+- SBOM-Komponenten sind nicht von Hand bearbeitbar. Neue Treffer erscheinen beim nächsten
+  Scan (täglich oder *Scan starten* auf der Schwachstellen-Seite).
