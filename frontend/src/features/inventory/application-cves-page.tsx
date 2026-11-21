@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import { ApplicationCvesPanel } from "./components/application-cves-panel";
+import { CvesExportButton } from "./components/cves-export-button";
 import { useApplicationFindings } from "./hooks/use-application-findings";
 import { type CveFilters, EMPTY_CVE_FILTERS, cveColumnOptionsOf } from "./model/cve-filters";
 
@@ -18,6 +19,9 @@ export function ApplicationCvesPage({ applicationId, onSelectCve }: ApplicationC
 
   return (
     <div className="flex flex-col gap-4" data-testid="inventory-card-cves-panel">
+      <div className="flex justify-end">
+        <CvesExportButton applicationId={applicationId} />
+      </div>
       <ApplicationCvesPanel
         page={findings.data}
         options={cveColumnOptionsOf(allFindings.data?.items ?? [])}

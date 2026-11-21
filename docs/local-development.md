@@ -182,3 +182,17 @@ vorbelegt.
   „nicht geprüft“ und werden nicht abgeglichen.
 - SBOM-Komponenten sind nicht von Hand bearbeitbar. Neue Treffer erscheinen beim nächsten
   Scan (täglich oder *Scan starten* auf der Schwachstellen-Seite).
+
+## CVEs als GitHub-Issues exportieren
+
+In der Anwendung → Reiter **CVEs** → *Für KI exportieren* lädt eine Markdown-Datei mit allen
+offenen Schwachstellen (Status „offen“ und „in Arbeit“), ein Abschnitt pro CVE, nach Risk
+Score sortiert. Oben steht eine Anleitung für die KI; jeder Issue-Text endet mit einem
+unsichtbaren Marker `<!-- cve-radar:application=<id>;advisory=<id> -->`, über den bereits
+angelegte Issues erkannt werden. Labels: `security`, `risk:<stufe>`.
+
+Ein Agent im Repo (z. B. Claude Code mit `gh`) kann die Datei auch selbst holen:
+
+```bash
+curl -s http://127.0.0.1:8000/api/applications/<id>/cves/export -o cve-issues.md
+```

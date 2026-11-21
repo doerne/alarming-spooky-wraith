@@ -50,7 +50,6 @@ CVE-Radar legt Issues selbst an und gleicht ihren Status ab).
     findet HTML-Kommentare nicht verlässlich.)
   - Fremdtexte (Advisory, SBOM-Namen, Triage-Kommentare) werden entschärft: kein `<!--`, kein
     `cve-radar:`; einzeilige Felder ohne Zeilenumbrüche, `|` in Tabellenzellen maskiert.
-    und vorhandene Issues nicht doppelt anlegen;
   - Labels bei Bedarf anlegen; in Score-Reihenfolge anlegen.
 - **Pro Abschnitt:**
   - Issue-Titel: `[<score>] <CVE-ID oder Advisory-ID> – <Komponente> <Version>` (bei mehreren

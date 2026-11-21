@@ -30,6 +30,11 @@ export function applicationFindingsPath(applicationId: number, filters: CveFilte
   return `/api/cves?${params.toString()}`;
 }
 
+/** Markdown-Export der offenen CVEs (auch per curl abrufbar). */
+export function applicationIssueExportPath(applicationId: number): string {
+  return `/api/applications/${applicationId}/cves/export`;
+}
+
 export async function listApplicationFindings(
   applicationId: number,
   filters: CveFilters,
