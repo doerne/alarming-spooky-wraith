@@ -1,3 +1,5 @@
+from datetime import UTC, datetime
+
 from app.domain.errors import (
     ComponentManagedBySbomError,
     ConflictError,
@@ -6,7 +8,7 @@ from app.domain.errors import (
     InvalidValueError,
 )
 from app.domain.inventory import Application, Category, Component, Ecosystem
-from app.domain.sbom import SbomEntry
+from app.domain.sbom import SbomEntry, SbomVersion
 from app.domain.vulnerability import Finding, FindingStatus, RiskScore, Severity
 
 
@@ -71,3 +73,19 @@ def test_sbom_errors_have_expected_bases() -> None:
     assert issubclass(DuplicateSbomVersionError, ConflictError)
     assert issubclass(ComponentManagedBySbomError, ConflictError)
     assert issubclass(InvalidSbomError, InvalidValueError)
+
+
+def test_sbom_version_counts_entries() -> None:
+    version = SbomVersion(
+        sbom_id=1,
+        label="v1",
+        uploaded_at=datetime(2026, 11, 21, tzinfo=UTC),
+        serial_number=None,
+        is_current=True,
+        entries=(
+            SbomEntry("react", "18.2.0", Category.LIBRARY, Ecosystem.NPM, True, None),
+            SbomEntry("openssl", "3.0.11", Category.LIBRARY, None, False, None),
+        ),
+    )
+    assert version.component_count == 2
+    assert version.unchecked_count == 1

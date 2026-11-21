@@ -3,12 +3,13 @@ from http import HTTPStatus
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from app.domain.errors import DomainError, EntityNotFoundError, InvalidValueError
+from app.domain.errors import ConflictError, DomainError, EntityNotFoundError, InvalidValueError
 
 # Neue fachliche Fehler hier auf einen HTTP-Status abbilden.
 _STATUS_BY_ERROR: dict[type[DomainError], HTTPStatus] = {
     EntityNotFoundError: HTTPStatus.NOT_FOUND,
     InvalidValueError: HTTPStatus.UNPROCESSABLE_ENTITY,
+    ConflictError: HTTPStatus.CONFLICT,
 }
 
 

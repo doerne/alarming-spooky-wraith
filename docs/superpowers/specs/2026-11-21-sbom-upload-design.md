@@ -114,7 +114,7 @@ erscheinen beim nächsten Ingest-Lauf (täglich oder manuell ausgelöst); der Up
 - `GET  /api/applications/{id}/sboms/{sbomId}/versions` → Versionshistorie ohne Komponenten.
 - `GET  /api/applications/{id}/sboms/{sbomId}/versions/{versionId}` → Version mit Komponentenliste.
 - `DELETE /api/applications/{id}/sboms/{sbomId}` → 204.
-- `ComponentResponse` bekommt `sbomId`, `sbomName` und `checked`.
+- `ComponentResponse` bekommt `sbomId` und `checked`. (Umsetzung: kein `sbomName` – das Frontend löst den Namen über die SBOM-Liste auf, damit der Router ohne Logik bleibt.)
 - `PUT …/components/{id}` auf eine SBOM-Komponente → 409 (`ComponentManagedBySbomError`),
   weil die nächste Version sie überschreiben würde.
 - Fehler-Mapping: `InvalidSbomError` → 422, `DuplicateSbomVersionError` → 409.

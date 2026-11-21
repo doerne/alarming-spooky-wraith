@@ -13,6 +13,7 @@ from app.application.source_use_cases import reset_interrupted_runs
 from app.infrastructure.config import get_settings
 from app.infrastructure.database import create_session_factory
 from app.infrastructure.okf_store import FileAdvisoryStore
+from app.infrastructure.sbom.cyclonedx import CycloneDxParser
 from app.infrastructure.sources.catalog import build_sources
 from app.infrastructure.sources.http_cache import HttpCache
 from app.infrastructure.thread_ingest_runner import ThreadIngestRunner
@@ -47,6 +48,8 @@ def build_app() -> FastAPI:
             advisory_store=store,
             source_registry=registry,
             on_startup=partial(reset_interrupted_runs, uow_factory),
+            sbom_parser=CycloneDxParser(),
+            clock=_now,
         ),
     )
 

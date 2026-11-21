@@ -43,6 +43,8 @@ class ComponentResponse(ApiModel):
     category: Category
     ecosystem: Ecosystem | None
     direct: bool
+    sbom_id: int | None
+    checked: bool
 
 
 class ApplicationDetailResponse(ApiModel):
@@ -73,6 +75,8 @@ def _to_component_response(component: Component) -> ComponentResponse:
         category=component.category,
         ecosystem=component.ecosystem,
         direct=component.direct,
+        sbom_id=component.sbom_id,
+        checked=component.checked,
     )
 
 

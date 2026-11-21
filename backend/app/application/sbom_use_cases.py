@@ -103,7 +103,7 @@ class UploadSbomVersion:
             added=len(changes.to_add),
             removed=len(changes.to_remove),
             kept=len(changes.to_keep),
-            unchecked=sum(1 for entry in entries if not entry.checked),
+            unchecked=version.unchecked_count,
             skipped=parsed.skipped,
         )
 

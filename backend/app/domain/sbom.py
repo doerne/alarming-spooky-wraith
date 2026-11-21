@@ -58,3 +58,11 @@ class SbomVersion:
     is_current: bool
     entries: tuple[SbomEntry, ...]
     id: int | None = None
+
+    @property
+    def component_count(self) -> int:
+        return len(self.entries)
+
+    @property
+    def unchecked_count(self) -> int:
+        return sum(1 for entry in self.entries if not entry.checked)
