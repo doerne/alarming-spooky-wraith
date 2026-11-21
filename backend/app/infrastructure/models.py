@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from sqlalchemy import JSON, DateTime, ForeignKey, String, Text, UniqueConstraint, true
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.domain.inventory import COMPONENT_NAME_MAX_LENGTH, COMPONENT_VERSION_MAX_LENGTH
 from app.domain.sbom import SBOM_LABEL_MAX_LENGTH, SBOM_NAME_MAX_LENGTH, SBOM_SERIAL_MAX_LENGTH
 from app.domain.vulnerability import (
     ADVISORY_ID_MAX_LENGTH,
@@ -27,8 +28,8 @@ class ComponentModel(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     application_id: Mapped[int] = mapped_column(ForeignKey("application.id"))
-    name: Mapped[str] = mapped_column(String(200))
-    version: Mapped[str] = mapped_column(String(100))
+    name: Mapped[str] = mapped_column(String(COMPONENT_NAME_MAX_LENGTH))
+    version: Mapped[str] = mapped_column(String(COMPONENT_VERSION_MAX_LENGTH))
     category: Mapped[str] = mapped_column(String(20))
     ecosystem: Mapped[str | None] = mapped_column(String(20), nullable=True)
     direct: Mapped[bool] = mapped_column(default=True)

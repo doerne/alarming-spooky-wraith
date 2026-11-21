@@ -3,6 +3,9 @@
 from dataclasses import dataclass, field
 from enum import StrEnum
 
+COMPONENT_NAME_MAX_LENGTH = 200
+COMPONENT_VERSION_MAX_LENGTH = 100
+
 
 class Category(StrEnum):
     """Art einer Komponente."""
