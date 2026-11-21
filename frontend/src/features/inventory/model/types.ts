@@ -18,7 +18,14 @@ export interface Component {
 
 export interface ApplicationDetail extends Application {
   components: Component[];
+  githubRepository: string | null;
+  autoIssueMinLevel: GitHubLevel | null;
+  githubSyncedAt: string | null;
+  githubSyncMessage: string;
 }
+
+/** Risikostufen für GitHub-Automatik und Issue-Anlage (wie im Backend). */
+export type GitHubLevel = "kritisch" | "hoch" | "mittel" | "niedrig";
 
 export interface ApplicationFinding {
   advisoryId: string;
@@ -32,4 +39,5 @@ export interface ApplicationFinding {
   riskLevel: string;
   fixVersion: string | null;
   status: string;
+  issueUrl: string | null;
 }

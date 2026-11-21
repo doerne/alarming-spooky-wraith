@@ -6,21 +6,21 @@ import { type CveFilters, EMPTY_CVE_FILTERS } from "../model/cve-filters";
 import type { ApplicationFinding } from "../model/types";
 import { ApplicationCves } from "./application-cves";
 
-const findings: ApplicationFinding[] = [
-  {
-    advisoryId: "CVE-2024-123",
-    cveId: "CVE-2024-123",
-    title: "XSS in react",
-    componentId: 3,
-    componentName: "react",
-    componentVersion: "18.2.0",
-    ecosystem: "npm",
-    riskScore: 98,
-    riskLevel: "kritisch",
-    fixVersion: "18.2.1",
-    status: "offen",
-  },
-];
+const baseFinding: ApplicationFinding = {
+  advisoryId: "CVE-2024-123",
+  cveId: "CVE-2024-123",
+  title: "XSS in react",
+  componentId: 3,
+  componentName: "react",
+  componentVersion: "18.2.0",
+  ecosystem: "npm",
+  riskScore: 98,
+  riskLevel: "kritisch",
+  fixVersion: "18.2.1",
+  status: "offen",
+  issueUrl: null,
+};
+const findings: ApplicationFinding[] = [baseFinding];
 
 function renderTable(rows = findings, filters: CveFilters = EMPTY_CVE_FILTERS) {
   const props = { onFiltersChange: vi.fn(), onReset: vi.fn(), onSelect: vi.fn() };
@@ -73,5 +73,23 @@ describe("ApplicationCves", () => {
     expect(screen.getByTestId("inventory-select-severity")).toBeInTheDocument();
     await userEvent.click(screen.getByTestId("inventory-btn-reset-no-results"));
     expect(onReset).toHaveBeenCalled();
+  });
+});
+
+describe("Issue-Spalte", () => {
+  it("verlinkt ein https-Issue in neuem Tab", () => {
+    const linked = [{ ...baseFinding, issueUrl: "https://github.com/acme/shop/issues/7" }];
+    renderTable(linked);
+
+    const link = screen.getByTestId("inventory-link-github-issue-CVE-2024-123");
+    expect(link).toHaveAttribute("href", "https://github.com/acme/shop/issues/7");
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+  });
+
+  it("zeigt keinen Link für fremde Schemata oder ohne Issue", () => {
+    renderTable([{ ...baseFinding, issueUrl: "javascript:alert(1)" }]);
+
+    expect(screen.queryByTestId("inventory-link-github-issue-CVE-2024-123")).toBeNull();
   });
 });

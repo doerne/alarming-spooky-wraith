@@ -38,6 +38,7 @@ class FindingResponse(ApiModel):
     risk_level: Severity
     fix_version: str | None
     status: FindingStatus
+    issue_url: str | None = None
 
 
 class FindingsPage(ApiModel):
@@ -94,6 +95,7 @@ def list_cves(uow: UnitOfWorkDep, finding_filter: FindingFilterDep) -> FindingsP
             risk_level=view.risk_level,
             fix_version=view.fix_version,
             status=view.status,
+            issue_url=view.issue_url,
         )
         for view in result.items
     ]

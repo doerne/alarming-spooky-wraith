@@ -95,6 +95,7 @@ export function ApplicationCvesHeader({ filters, onChange, options }: Applicatio
           options={CVE_STATUS_OPTIONS}
           name="status"
         />
+        <TableHead>Issue</TableHead>
       </TableRow>
     </TableHeader>
   );

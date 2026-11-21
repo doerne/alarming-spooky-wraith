@@ -4,7 +4,8 @@ from datetime import UTC, datetime
 
 from fastapi.testclient import TestClient
 
-from app.domain.vulnerability import Severity
+from app.domain.inventory import Category, Component, Ecosystem
+from app.domain.vulnerability import Advisory, Finding, RiskScore, Severity
 from app.presentation.app_factory import AppServices, create_app
 from tests.fakes import FakeIssueTracker, FakeSyncRunner, InMemoryUnitOfWork
 
@@ -141,3 +142,28 @@ def test_sync_for_unknown_application_is_not_found() -> None:
     response = client.post("/api/applications/999/github/sync", json={"createIssues": False})
 
     assert response.status_code == 404
+
+
+def test_cve_list_carries_the_linked_issue_url() -> None:
+    uow = InMemoryUnitOfWork()
+    client = _client(uow)
+    application_id = _application(client)
+    component = uow.components.add(
+        application_id, Component("react", "18.2.0", Category.LIBRARY, Ecosystem.NPM, True)
+    )
+    assert component.id is not None
+    uow.advisories.upsert(Advisory("CVE-2024-1", "CVE-2024-1", "XSS", "d", 9.8, "18.2.1", [], ""))
+    uow.findings.upsert(
+        Finding(
+            "CVE-2024-1",
+            component.id,
+            application_id,
+            "18.2.0",
+            RiskScore(value=98, level=Severity.KRITISCH, rationale=""),
+            issue_url="https://github.com/acme/shop/issues/7",
+        )
+    )
+
+    items = client.get(f"/api/cves?application_id={application_id}").json()["items"]
+
+    assert items[0]["issueUrl"] == "https://github.com/acme/shop/issues/7"
