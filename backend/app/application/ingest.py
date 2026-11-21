@@ -231,10 +231,10 @@ class RunIngest:
             results.append(result)
             hits.extend(source_hits)
         found = self._persist(hits)
-        # Ausgebaute Komponenten nur auflösen, wenn alle Quellen geliefert haben -
-        # sonst sähe eine ausgefallene Quelle wie eine behobene Lücke aus.
-        if all(result.status != RunStatus.ERROR for result in results):
-            ResolveRetiredFindings(self._uow, self._clock).execute()
+        failed = frozenset(
+            result.source_key for result in results if result.status == RunStatus.ERROR
+        )
+        ResolveRetiredFindings(self._uow, self._store, self._clock).execute(failed)
         self._uow.commit()
         return IngestResult(len(components), found, results)
 

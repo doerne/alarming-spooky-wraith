@@ -7,7 +7,13 @@ from app.application.inventory_use_cases import AddComponent, CreateApplication
 from app.application.source_registry import SourceRegistry
 from app.domain.errors import SourceAccessError
 from app.domain.inventory import Category, Component, Ecosystem
-from app.domain.ports import AffectedPackage, RangeEvent, SourceVuln
+from app.domain.ports import (
+    AdvisoryDocument,
+    AffectedPackage,
+    RangeEvent,
+    SourceReference,
+    SourceVuln,
+)
 from app.domain.sbom import Sbom, SbomVersion
 from app.domain.sources import (
     ApiKeyRequirement,
@@ -479,17 +485,33 @@ def _retired_world() -> InMemoryUnitOfWork:
     return uow
 
 
+def _store_reported_by(source_key: str) -> FakeAdvisoryStore:
+    store = FakeAdvisoryStore()
+    store.documents["CVE-9"] = AdvisoryDocument(
+        "d", "", [], [SourceReference(source_key, "https://example.org/CVE-9")]
+    )
+    return store
+
+
 def test_ingest_resolves_after_successful_run() -> None:
     uow = _retired_world()
-    _run(uow, FakePackageSource(descriptor("osv"), {}))
+    _run(uow, FakePackageSource(descriptor("osv"), {}), store=_store_reported_by("osv"))
     assert uow.findings.list()[0].status == FindingStatus.FIXED
 
 
-def test_ingest_does_not_resolve_when_a_source_failed() -> None:
+def test_ingest_does_not_resolve_when_reporting_source_failed() -> None:
     uow = _retired_world()
     failing = FakePackageSource(descriptor("osv"), error=SourceAccessError("down"))
-    _run(uow, failing)
+    _run(uow, failing, store=_store_reported_by("osv"))
     assert uow.findings.list()[0].status == FindingStatus.OPEN
+
+
+def test_ingest_resolves_when_unrelated_source_failed() -> None:
+    uow = _retired_world()
+    failing = FakePackageSource(descriptor("ghsa"), error=SourceAccessError("Key"))
+    working = FakePackageSource(descriptor("osv"), {})
+    _run(uow, failing, working, store=_store_reported_by("osv"))
+    assert uow.findings.list()[0].status == FindingStatus.FIXED
 
 
 class _RetiringSource(FakePackageSource):

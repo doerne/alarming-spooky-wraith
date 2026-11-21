@@ -3,9 +3,10 @@ from datetime import UTC, datetime
 
 from app.application.retired_findings import ResolveRetiredFindings
 from app.domain.inventory import Application, Category, Component, Ecosystem
+from app.domain.ports import AdvisoryDocument, SourceReference
 from app.domain.sbom import Sbom, SbomVersion
 from app.domain.vulnerability import Advisory, Finding, FindingStatus, RiskScore, Severity
-from tests.fakes import InMemoryUnitOfWork
+from tests.fakes import FakeAdvisoryStore, InMemoryUnitOfWork
 
 _NOW = datetime(2026, 11, 22, 3, 0, tzinfo=UTC)
 
@@ -20,6 +21,10 @@ class _World:
         assert sbom.id is not None
         self.sbom_id = sbom.id
         self.uow.advisories.upsert(Advisory("CVE-1", "CVE-1", "t", "d", 7.5, "3.1.6", [], ""))
+        self.store = FakeAdvisoryStore()
+        self.store.documents["CVE-1"] = AdvisoryDocument(
+            "d", "", [], [SourceReference("osv", "https://osv.dev/CVE-1")]
+        )
 
     def version(self, label: str) -> int:
         version = self.uow.sbom_versions.add(SbomVersion(self.sbom_id, label, _NOW, None, True, ()))
@@ -50,8 +55,8 @@ class _World:
             )
         )
 
-    def resolve(self) -> int:
-        return ResolveRetiredFindings(self.uow, lambda: _NOW).execute()
+    def resolve(self, failed: frozenset[str] = frozenset()) -> int:
+        return ResolveRetiredFindings(self.uow, self.store, lambda: _NOW).execute(failed)
 
 
 def test_resolves_to_fixed_when_cve_gone() -> None:
@@ -125,3 +130,28 @@ def test_mentions_retiring_version_and_skips_resolved() -> None:
         "Komponente ausgebaut mit SBOM backend-image v1.4.0",
         "Komponente ausgebaut mit SBOM backend-image v1.5.0",
     ]
+
+
+def test_waits_when_reporting_source_failed() -> None:
+    world = _World()
+    old = world.component("3.1.4", retired_in=world.version("v1.5.0"))
+    world.finding(old)
+    assert world.resolve(frozenset({"osv"})) == 0
+    assert world.uow.findings.list()[0].status == FindingStatus.OPEN
+    assert world.uow.components.get(old.id or 0).is_retired
+
+
+def test_resolves_when_only_unrelated_source_failed() -> None:
+    world = _World()
+    old = world.component("3.1.4", retired_in=world.version("v1.5.0"))
+    world.finding(old)
+    assert world.resolve(frozenset({"ghsa", "symfony"})) == 1
+
+
+def test_waits_on_any_failure_without_known_origin() -> None:
+    world = _World()
+    del world.store.documents["CVE-1"]
+    old = world.component("3.1.4", retired_in=world.version("v1.5.0"))
+    world.finding(old)
+    assert world.resolve(frozenset({"ghsa"})) == 0
+    assert world.resolve() == 1

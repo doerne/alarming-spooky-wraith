@@ -29,13 +29,18 @@ dass Issues später automatisch geschlossen werden.
   „Komponente ausgebaut mit SBOM backend-image v1.5.0“).
 - **Upload:** verschwundene Komponenten mit Treffern → ausgebaut (Treffer bleiben);
   verschwundene ohne Treffer → gelöscht wie bisher.
-- **Ende des Scans** (nach dem Speichern der Treffer, vor dem Commit), nur wenn **keine
-  Quelle mit Fehler** endete (sonst könnte eine ausgefallene Quelle Lücken als behoben
-  erscheinen lassen): für jeden noch nicht aufgelösten Treffer an einer ausgebauten Komponente
+- **Ende jedes Scans** (nach dem Speichern der Treffer, vor dem Commit): für jeden noch nicht
+  aufgelösten Treffer an einer ausgebauten Komponente
   - gibt es für dieselbe Anwendung und Advisory einen Treffer an einer Live-Komponente:
     dieser übernimmt Status (falls er `offen` ist) und Kommentar, der alte Treffer wird gelöscht;
   - sonst: Status `behoben` (außer `false_positive`), `resolved_at` = Scan-Zeit,
-    `resolution` mit SBOM-Name und Versionsbezeichnung.
+    `resolution` mit SBOM-Name und Versionsbezeichnung –
+  - **außer** eine Quelle, die diese Advisory bisher gemeldet hat (Quellen im OKF-File), ist im
+    Lauf mit Fehler ausgefallen; ohne bekannte Herkunft sperrt jeder Quellenfehler. Dann bleibt
+    der Treffer bis zum nächsten Lauf vorgemerkt.
+  - (Änderung 2026-11-21 nach echtem Lauf: „ein Quellenfehler sperrt alles“ hätte wegen
+    dauerhaft fehlerhafter Quellen – abgelehnter GHSA-Key, Rate-Limits – nie aufgelöst. Vom
+    Nutzer als Empfehlung freigegeben, verfeinert von „nach Ökosystem“ auf „nach Herkunft“.)
   - Ausgebaute Komponenten ohne verbleibende Treffer werden gelöscht.
 - Export: Treffer ausgebauter, noch nicht aufgelöster Komponenten bleiben bis zum Scan drin
   (vorsichtig). `behoben` ist ohnehin nicht im Export.

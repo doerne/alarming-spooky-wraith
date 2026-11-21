@@ -1,8 +1,9 @@
 """Use Case: Treffer ausgebauter SBOM-Komponenten nach einem Scan auflösen.
 
-Läuft am Ende eines Scans ohne Quellenfehler. Gibt es für dieselbe Anwendung und
-Advisory einen Treffer an einer Live-Komponente (z. B. Upgrade ohne Fix), übernimmt
-dieser die Triage; sonst gilt die Lücke als behoben.
+Läuft am Ende jedes Scans. Gibt es für dieselbe Anwendung und Advisory einen Treffer an
+einer Live-Komponente (z. B. Upgrade ohne Fix), übernimmt dieser die Triage; sonst gilt
+die Lücke als behoben - außer eine Quelle, die sie bisher gemeldet hat, ist in diesem Lauf
+ausgefallen (dann wird bis zum nächsten Lauf gewartet).
 """
 
 from collections.abc import Callable, Iterable
@@ -10,6 +11,7 @@ from datetime import datetime
 
 from app.application.unit_of_work import UnitOfWork
 from app.domain.inventory import Component
+from app.domain.ports import AdvisoryStore
 from app.domain.vulnerability import Finding, FindingStatus
 
 _COMMENT_SEPARATOR = "\n\n"
@@ -21,11 +23,14 @@ def _merged_comment(first: str, second: str) -> str:
 
 
 class ResolveRetiredFindings:
-    def __init__(self, uow: UnitOfWork, clock: Callable[[], datetime]) -> None:
+    def __init__(
+        self, uow: UnitOfWork, store: AdvisoryStore, clock: Callable[[], datetime]
+    ) -> None:
         self._uow = uow
+        self._store = store
         self._clock = clock
 
-    def execute(self) -> int:
+    def execute(self, failed_sources: frozenset[str] = frozenset()) -> int:
         """Löst offene Treffer ausgebauter Komponenten auf; Anzahl behobener. Kein Commit."""
         components = {
             component.id: component
@@ -45,13 +50,22 @@ class ResolveRetiredFindings:
             if not component.is_retired or finding.resolved_at is not None:
                 continue
             successor = live.get((finding.application_id, finding.advisory_id))
-            if successor is None:
+            if successor is not None:
+                self._transfer(finding, successor)
+            elif not self._reporter_failed(finding.advisory_id, failed_sources):
                 self._mark_fixed(finding, component, now)
                 resolved += 1
-            else:
-                self._transfer(finding, successor)
         self._remove_empty(components.values())
         return resolved
+
+    def _reporter_failed(self, advisory_id: str, failed_sources: frozenset[str]) -> bool:
+        """Ob eine Quelle ausfiel, die diese Lücke melden könnte (unbekannte Herkunft: jede)."""
+        if not failed_sources:
+            return False
+        document = self._store.read_document(advisory_id)
+        if document is None or not document.sources:
+            return True
+        return any(source.source_key in failed_sources for source in document.sources)
 
     def _mark_fixed(self, finding: Finding, component: Component, now: datetime) -> None:
         assert finding.id is not None

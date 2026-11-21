@@ -180,6 +180,11 @@ vorbelegt.
   behalten ihre Treffer samt Status und Kommentar; weggefallene verlieren sie.
 - Pakete ohne passendes Ökosystem (z. B. `pkg:deb`, `pkg:apk` aus Image-SBOMs) erscheinen als
   „nicht geprüft“ und werden nicht abgeglichen.
+- Fällt eine Komponente mit Treffern aus einer neuen Version heraus (entfernt oder neue
+  Version), wird sie „ausgebaut“. Der **nächste Scan** markiert ihre Treffer als „behoben“ –
+  oder überträgt Status und Kommentar auf den Treffer der neuen Version, wenn die Lücke dort
+  noch besteht. Ist eine Quelle ausgefallen, die die Lücke gemeldet hat, wartet er einen
+  weiteren Lauf.
 - SBOM-Komponenten sind nicht von Hand bearbeitbar. Neue Treffer erscheinen beim nächsten
   Scan (täglich oder *Scan starten* auf der Schwachstellen-Seite).
 
