@@ -1,10 +1,8 @@
 """Router zum Hinterlegen von SBOMs an einer Anwendung. Enthaelt keine Logik.
 
-Parser und Uhr setzt der Composition Root (app/main.py) als ``app.state.sbom_parser``
-bzw. ``app.state.clock``.
+Den Parser setzt der Composition Root (app/main.py) als ``app.state.sbom_parser``.
 """
 
-from collections.abc import Callable
 from datetime import datetime
 from typing import Annotated
 
@@ -22,12 +20,10 @@ from app.application.sbom_use_cases import (
 from app.domain.inventory import Category, Ecosystem
 from app.domain.ports import SbomParser
 from app.domain.sbom import SBOM_LABEL_MAX_LENGTH, SBOM_NAME_MAX_LENGTH, SbomEntry, SbomVersion
-from app.presentation.dependencies import UnitOfWorkDep
+from app.presentation.dependencies import ClockDep, UnitOfWorkDep
 from app.presentation.schemas import ApiModel
 
 router = APIRouter(prefix="/api/applications/{application_id}/sboms", tags=["sbom"])
-
-Clock = Callable[[], datetime]
 
 
 def get_sbom_parser(request: Request) -> SbomParser:
@@ -35,13 +31,7 @@ def get_sbom_parser(request: Request) -> SbomParser:
     return parser
 
 
-def get_clock(request: Request) -> Clock:
-    clock: Clock = request.app.state.clock
-    return clock
-
-
 ParserDep = Annotated[SbomParser, Depends(get_sbom_parser)]
-ClockDep = Annotated[Clock, Depends(get_clock)]
 
 
 class UploadSbomRequest(ApiModel):

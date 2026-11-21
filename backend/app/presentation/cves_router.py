@@ -2,15 +2,17 @@
 
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Query, Request, Response
 from pydantic import BaseModel
 
 from app.application.advisory_detail import AdvisoryDetail, GetAdvisoryDetail
+from app.application.issue_export import ExportApplicationIssues
 from app.application.list_findings import FindingFilter, ListFindings
 from app.domain.inventory import Ecosystem
 from app.domain.ports import AdvisoryStore
 from app.domain.vulnerability import FindingStatus, Severity
-from app.presentation.dependencies import UnitOfWorkDep
+from app.presentation.dependencies import ClockDep, UnitOfWorkDep
+from app.presentation.issue_export_markdown import export_filename, render_issue_export
 from app.presentation.schemas import ApiModel
 
 router = APIRouter(prefix="/api", tags=["cves"])
@@ -151,3 +153,19 @@ def _to_detail_response(detail: AdvisoryDetail) -> CveDetailResponse:
 @router.get("/cves/{advisory_id}")
 def get_cve(advisory_id: str, uow: UnitOfWorkDep, store: StoreDep) -> CveDetailResponse:
     return _to_detail_response(GetAdvisoryDetail(uow, store).execute(advisory_id))
+
+
+MARKDOWN_MEDIA_TYPE = "text/markdown; charset=utf-8"
+
+
+@router.get("/applications/{application_id}/cves/export")
+def export_application_issues(
+    application_id: int, uow: UnitOfWorkDep, store: StoreDep, clock: ClockDep
+) -> Response:
+    """Offene CVEs als Markdown-Vorlagen für GitHub-Issues (Download)."""
+    export = ExportApplicationIssues(uow, store, clock).execute(application_id)
+    return Response(
+        content=render_issue_export(export),
+        media_type=MARKDOWN_MEDIA_TYPE,
+        headers={"Content-Disposition": f'attachment; filename="{export_filename(export)}"'},
+    )

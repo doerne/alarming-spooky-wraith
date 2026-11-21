@@ -44,7 +44,12 @@ CVE-Radar legt Issues selbst an und gleicht ihren Status ab).
 - **Reihenfolge:** Score absteigend, bei Gleichstand Advisory-ID.
 - **Kopf der Datei:** Anwendung, Erzeugungszeitpunkt (UTC), Anzahl, und eine Anleitung:
   - pro Abschnitt genau ein Issue; Titel und Labels aus dem Abschnitt übernehmen;
-  - vor dem Anlegen nach dem Marker suchen (`gh issue list --search "<marker>" --state all`)
+  - vor dem Anlegen vorhandene Issues mit Label `security` samt Text holen
+    (`gh issue list --label security --state all --limit 1000 --json number,body`), auf den
+    Marker prüfen und vorhandene Issues nicht doppelt anlegen. (Umsetzung: Die GitHub-Suche
+    findet HTML-Kommentare nicht verlässlich.)
+  - Fremdtexte (Advisory, SBOM-Namen, Triage-Kommentare) werden entschärft: kein `<!--`, kein
+    `cve-radar:`; einzeilige Felder ohne Zeilenumbrüche, `|` in Tabellenzellen maskiert.
     und vorhandene Issues nicht doppelt anlegen;
   - Labels bei Bedarf anlegen; in Score-Reihenfolge anlegen.
 - **Pro Abschnitt:**
