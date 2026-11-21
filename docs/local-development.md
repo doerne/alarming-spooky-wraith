@@ -214,3 +214,19 @@ curl -X PATCH http://127.0.0.1:8000/api/applications/<id>/cves/<advisory-id> \
 
 Ein so gemeldetes „behoben“ ist vorläufig: Enthält die nächste SBOM-Version die Komponente
 unverändert, wird der Treffer automatisch wieder „offen“ (mit Kommentar).
+
+## GitHub-Anbindung einrichten
+
+CVE-Radar kann für offene CVEs Issues im Repo einer Anwendung anlegen und den Status abgleichen.
+Dafür braucht es eine **GitHub App** (keine persönlichen Tokens):
+
+1. In der Organisation eine GitHub App anlegen. Repository-Rechte: *Issues: Read & write*,
+   *Metadata: Read*. Webhook deaktivieren. In die gewünschten Repos installieren.
+2. App-ID in die Umgebung setzen, z. B. in `.env` für Compose: `GITHUB_APP_ID=123456`.
+3. Den privaten Schlüssel der App als `secrets/github_app_private_key.pem` ablegen.
+   `./scripts/generate-secrets.sh` legt eine leere Datei an, damit Compose ohne GitHub startet.
+   Ohne App-ID oder mit leerer Datei meldet CVE-Radar „GitHub nicht konfiguriert“.
+4. In CVE-Radar je Anwendung das Repository (`owner/repo`) unter „GitHub“ hinterlegen.
+   Optional „Neue CVEs automatisch anlegen ab“ wählen (Standard: aus).
+
+Der Schlüssel wird nur im Backend gelesen; er landet weder im Log noch in API-Antworten.
