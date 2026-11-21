@@ -18,6 +18,7 @@ from app.application.advisory_merge import (
 )
 from app.application.alias_absorber import AliasAbsorber
 from app.application.component_matching import ComponentMatcher, normalize_package_name
+from app.application.retired_findings import ResolveRetiredFindings
 from app.application.risk_score import compute_risk_score
 from app.application.source_registry import SourceRegistry
 from app.application.source_use_cases import load_setting
@@ -221,6 +222,7 @@ class RunIngest:
             if component.id is not None
             and component.application_id is not None
             and component.checked
+            and not component.is_retired
         ]
         results: list[SourceRunResult] = []
         hits: list[_Hit] = []
@@ -229,6 +231,10 @@ class RunIngest:
             results.append(result)
             hits.extend(source_hits)
         found = self._persist(hits)
+        # Ausgebaute Komponenten nur auflösen, wenn alle Quellen geliefert haben -
+        # sonst sähe eine ausgefallene Quelle wie eine behobene Lücke aus.
+        if all(result.status != RunStatus.ERROR for result in results):
+            ResolveRetiredFindings(self._uow, self._clock).execute()
         self._uow.commit()
         return IngestResult(len(components), found, results)
 
@@ -267,8 +273,12 @@ class RunIngest:
         self._uow.commit()
 
     def _persist(self, hits: Sequence[_Hit]) -> int:
-        # Während des Laufs kann ein SBOM-Upload Komponenten gelöscht haben.
-        existing = {component.id for component in self._uow.components.list_all()}
+        # Während des Laufs kann ein SBOM-Upload Komponenten gelöscht oder ausgebaut haben.
+        existing = {
+            component.id
+            for component in self._uow.components.list_all()
+            if not component.is_retired
+        }
         current = [hit for hit in hits if hit.component.id in existing]
         groups = group_by_identity(current, lambda hit: identity_ids(hit.vuln))
         order = [*MERGE_PRECEDENCE, *(d.key for d in self._registry.descriptors())]

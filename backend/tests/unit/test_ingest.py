@@ -8,6 +8,7 @@ from app.application.source_registry import SourceRegistry
 from app.domain.errors import SourceAccessError
 from app.domain.inventory import Category, Component, Ecosystem
 from app.domain.ports import AffectedPackage, RangeEvent, SourceVuln
+from app.domain.sbom import Sbom, SbomVersion
 from app.domain.sources import (
     ApiKeyRequirement,
     MatchScope,
@@ -15,7 +16,14 @@ from app.domain.sources import (
     SourceKind,
     SourceSetting,
 )
-from app.domain.vulnerability import ADVISORY_TITLE_MAX_LENGTH, FindingStatus
+from app.domain.vulnerability import (
+    ADVISORY_TITLE_MAX_LENGTH,
+    Advisory,
+    Finding,
+    FindingStatus,
+    RiskScore,
+    Severity,
+)
 from app.infrastructure.univers_matcher import UniversVersionMatcher
 from tests.fakes import (
     FakeAdvisoryStore,
@@ -439,3 +447,67 @@ def test_ingest_keeps_known_values_of_absorbed_alias() -> None:
     _run(uow, FakePackageSource(descriptor("osv"), {"certifi": [later]}), store=store)
     advisory = uow.advisories.get("CVE-2026-1111")
     assert (advisory.cvss_base, advisory.fixed_version) == (9.1, "2026.10.18")
+
+
+def test_ingest_skips_retired_components() -> None:
+    retired = replace(_component("vue", Ecosystem.NPM), retired_in_version_id=3)
+    uow = _uow(_REACT, retired)
+    source = FakePackageSource(descriptor("osv"), {})
+    _run(uow, source)
+    assert [name for name, _ in source.calls] == ["react"]
+
+
+def _retired_world() -> InMemoryUnitOfWork:
+    uow = _uow(_REACT, _component("vue", Ecosystem.NPM))
+    retired = uow.components.list_all()[0]
+    assert retired.id is not None
+    sbom = uow.sboms.add(Sbom(application_id=retired.application_id or 0, name="img"))
+    assert sbom.id is not None
+    version = uow.sbom_versions.add(SbomVersion(sbom.id, "v2", _NOW, None, True, ()))
+    assert version.id is not None
+    uow.components.update(replace(retired, sbom_id=sbom.id, retired_in_version_id=version.id))
+    uow.advisories.upsert(Advisory("CVE-9", "CVE-9", "t", "d", 7.5, None, [], ""))
+    uow.findings.upsert(
+        Finding(
+            "CVE-9",
+            retired.id,
+            retired.application_id or 0,
+            "18.2.0",
+            RiskScore(value=75, level=Severity.HOCH, rationale=""),
+        )
+    )
+    return uow
+
+
+def test_ingest_resolves_after_successful_run() -> None:
+    uow = _retired_world()
+    _run(uow, FakePackageSource(descriptor("osv"), {}))
+    assert uow.findings.list()[0].status == FindingStatus.FIXED
+
+
+def test_ingest_does_not_resolve_when_a_source_failed() -> None:
+    uow = _retired_world()
+    failing = FakePackageSource(descriptor("osv"), error=SourceAccessError("down"))
+    _run(uow, failing)
+    assert uow.findings.list()[0].status == FindingStatus.OPEN
+
+
+class _RetiringSource(FakePackageSource):
+    """Simuliert einen parallelen SBOM-Upload, der während der Abfrage eine Komponente ausbaut."""
+
+    def __init__(self, uow: InMemoryUnitOfWork, doomed: Component, vuln: SourceVuln) -> None:
+        super().__init__(descriptor("osv"), {"vue": [vuln]})
+        self._uow = uow
+        self._doomed = doomed
+
+    def query(self, component: Component, api_key: str | None) -> list[SourceVuln]:
+        self._uow.components.update(replace(self._doomed, retired_in_version_id=99))
+        return super().query(component, api_key)
+
+
+def test_ingest_drops_findings_of_components_retired_meanwhile() -> None:
+    uow = _uow(_REACT, _component("vue", Ecosystem.NPM))
+    _, vue = uow.components.list_all()
+    vuln = _vuln(affected=[AffectedPackage("npm", "vue", _REACT_RANGE)])
+    _run(uow, _RetiringSource(uow, vue, vuln))
+    assert uow.findings.list() == []

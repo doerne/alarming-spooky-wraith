@@ -60,5 +60,9 @@ class GetApplication:
 
     def execute(self, application_id: int) -> Application:
         application = self._uow.applications.get(application_id)  # EntityNotFoundError
-        application.components = self._uow.components.list_for_application(application_id)
+        application.components = [
+            component
+            for component in self._uow.components.list_for_application(application_id)
+            if not component.is_retired
+        ]
         return application

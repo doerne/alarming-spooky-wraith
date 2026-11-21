@@ -128,3 +128,14 @@ def test_delete_sbom_removes_components_findings_versions() -> None:
     assert uow.sbom_versions.list_for_sbom(sbom_id) == []
     with pytest.raises(EntityNotFoundError):
         uow.sboms.get(sbom_id)
+
+
+def test_delete_sbom_removes_retired_components() -> None:
+    uow = InMemoryUnitOfWork()
+    application_id = _application(uow)
+    sbom_id = _upload(uow, application_id, "backend", "1.0", _REACT)
+    react = uow.components.list_for_sbom(sbom_id)[0]
+    assert react.id is not None
+    uow.components.retire_many([react.id], 1)
+    DeleteSbom(uow).execute(application_id=application_id, sbom_id=sbom_id)
+    assert uow.components.list_for_application(application_id) == []

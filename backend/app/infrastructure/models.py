@@ -37,6 +37,9 @@ class ComponentModel(Base):
         ForeignKey("sbom.id", name="fk_component_sbom"), nullable=True
     )
     checked: Mapped[bool] = mapped_column(default=True, server_default=true())
+    retired_in_version_id: Mapped[int | None] = mapped_column(
+        ForeignKey("sbom_version.id", name="fk_component_retired_version"), nullable=True
+    )
 
 
 class SbomModel(Base):
@@ -90,6 +93,9 @@ class FindingModel(Base):
     risk_level: Mapped[str] = mapped_column(String(20))
     status: Mapped[str] = mapped_column(String(20), default="offen")
     comment: Mapped[str] = mapped_column(Text, default="")
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # nullable, weil MariaDB-TEXT-Spalten ohne Default in Bestandszeilen leer sind
+    resolution: Mapped[str | None] = mapped_column(Text, nullable=True, default="")
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC),

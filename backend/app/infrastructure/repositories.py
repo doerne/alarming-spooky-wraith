@@ -47,6 +47,7 @@ def _component_values(application_id: int, component: Component) -> dict[str, ob
         "direct": component.direct,
         "sbom_id": component.sbom_id,
         "checked": component.checked,
+        "retired_in_version_id": component.retired_in_version_id,
     }
 
 
@@ -65,6 +66,7 @@ def _to_component(model: ComponentModel) -> Component:
         application_id=model.application_id,
         sbom_id=model.sbom_id,
         checked=model.checked,
+        retired_in_version_id=model.retired_in_version_id,
     )
 
 
@@ -91,6 +93,8 @@ def _to_finding(model: FindingModel) -> Finding:
         status=FindingStatus(model.status),
         comment=model.comment,
         id=model.id,
+        resolved_at=_as_utc(model.resolved_at) if model.resolved_at else None,
+        resolution=model.resolution or "",
     )
 
 
@@ -130,6 +134,7 @@ class SqlAlchemyComponentRepository:
             direct=component.direct,
             sbom_id=component.sbom_id,
             checked=component.checked,
+            retired_in_version_id=component.retired_in_version_id,
         )
         self._session.add(model)
         self._session.flush()
@@ -153,6 +158,7 @@ class SqlAlchemyComponentRepository:
         model.direct = component.direct
         model.sbom_id = component.sbom_id
         model.checked = component.checked
+        model.retired_in_version_id = component.retired_in_version_id
         self._session.flush()
         return _to_component(model)
 
@@ -184,6 +190,14 @@ class SqlAlchemyComponentRepository:
     def delete_many(self, component_ids: Sequence[int]) -> None:
         for chunk in _chunks(component_ids):
             self._session.execute(delete(ComponentModel).where(ComponentModel.id.in_(chunk)))
+
+    def retire_many(self, component_ids: Sequence[int], version_id: int) -> None:
+        for chunk in _chunks(component_ids):
+            self._session.execute(
+                update(ComponentModel)
+                .where(ComponentModel.id.in_(chunk))
+                .values(retired_in_version_id=version_id)
+            )
 
 
 class SqlAlchemyAdvisoryRepository:
@@ -283,6 +297,18 @@ class SqlAlchemyFindingRepository:
             raise EntityNotFoundError("Fund", finding_id)
         return model
 
+    def components_with_findings(self, component_ids: Sequence[int]) -> set[int]:
+        found: set[int] = set()
+        for chunk in _chunks(component_ids):
+            found.update(
+                self._session.scalars(
+                    select(FindingModel.component_id)
+                    .where(FindingModel.component_id.in_(chunk))
+                    .distinct()
+                ).all()
+            )
+        return found
+
     def list_for_advisory(self, advisory_id: str) -> builtins.list[Finding]:
         models = self._session.scalars(
             select(FindingModel).where(FindingModel.advisory_id == advisory_id)
@@ -297,6 +323,15 @@ class SqlAlchemyFindingRepository:
         model = self._model(finding_id)
         model.status = status.value
         model.comment = comment
+        self._session.flush()
+
+    def resolve(
+        self, finding_id: int, status: FindingStatus, resolved_at: datetime, resolution: str
+    ) -> None:
+        model = self._model(finding_id)
+        model.status = status.value
+        model.resolved_at = resolved_at
+        model.resolution = resolution
         self._session.flush()
 
     def delete(self, finding_id: int) -> None:

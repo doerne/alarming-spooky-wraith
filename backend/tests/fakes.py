@@ -3,6 +3,7 @@
 import builtins
 from collections.abc import Mapping, Sequence
 from dataclasses import replace
+from datetime import datetime
 
 from app.application.ingest_runner import IngestRunState
 from app.domain.errors import EntityNotFoundError
@@ -81,6 +82,18 @@ class InMemoryComponentRepository:
         doomed = set(component_ids)
         self._items = [item for item in self._items if item[1].id not in doomed]
 
+    def retire_many(self, component_ids: Sequence[int], version_id: int) -> None:
+        retired = set(component_ids)
+        self._items = [
+            (
+                application_id,
+                replace(component, retired_in_version_id=version_id)
+                if component.id in retired
+                else component,
+            )
+            for application_id, component in self._items
+        ]
+
     def application_id_of(self, component_id: int) -> int:
         for application_id, component in self._items:
             if component.id == component_id:
@@ -100,6 +113,8 @@ class InMemoryFindingRepository:
             finding.id = existing.id
             finding.status = existing.status
             finding.comment = existing.comment
+            finding.resolved_at = existing.resolved_at
+            finding.resolution = existing.resolution
         else:
             finding.id = self._next_id
             self._next_id += 1
@@ -115,6 +130,14 @@ class InMemoryFindingRepository:
                 return key
         raise EntityNotFoundError("Fund", finding_id)
 
+    def components_with_findings(self, component_ids: Sequence[int]) -> set[int]:
+        wanted = set(component_ids)
+        return {
+            finding.component_id
+            for finding in self._items.values()
+            if finding.component_id in wanted
+        }
+
     def list_for_advisory(self, advisory_id: str) -> builtins.list[Finding]:
         return [finding for finding in self._items.values() if finding.advisory_id == advisory_id]
 
@@ -127,6 +150,14 @@ class InMemoryFindingRepository:
         finding = self._items[self._key_of(finding_id)]
         finding.status = status
         finding.comment = comment
+
+    def resolve(
+        self, finding_id: int, status: FindingStatus, resolved_at: datetime, resolution: str
+    ) -> None:
+        finding = self._items[self._key_of(finding_id)]
+        finding.status = status
+        finding.resolved_at = resolved_at
+        finding.resolution = resolution
 
     def delete(self, finding_id: int) -> None:
         del self._items[self._key_of(finding_id)]

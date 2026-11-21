@@ -37,6 +37,7 @@ class Component:
     """Eine Position im Inventar. ``ecosystem`` None → Produkt/CPE-Matching.
 
     ``sbom_id`` None → manuell gepflegt. ``checked`` False → wird nicht abgeglichen.
+    ``retired_in_version_id`` gesetzt → ausgebaut, nicht mehr im Scan.
     """
 
     name: str
@@ -48,6 +49,12 @@ class Component:
     application_id: int | None = None
     sbom_id: int | None = None
     checked: bool = True
+    retired_in_version_id: int | None = None
+
+    @property
+    def is_retired(self) -> bool:
+        """Mit einer SBOM-Version ausgebaut; Treffer warten auf die Auflösung im Scan."""
+        return self.retired_in_version_id is not None
 
 
 @dataclass

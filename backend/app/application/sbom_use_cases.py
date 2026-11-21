@@ -102,8 +102,13 @@ class UploadSbomVersion:
                 entries=entries,
             )
         )
-        changes = reconcile(self._uow.components.list_for_sbom(sbom.id), entries)
-        self._apply(application_id, sbom.id, changes)
+        live = [
+            component
+            for component in self._uow.components.list_for_sbom(sbom.id)
+            if not component.is_retired
+        ]
+        changes = reconcile(live, entries)
+        self._apply(application_id, version, changes)
         self._uow.commit()
         return SbomUploadResult(
             sbom=sbom,
@@ -132,7 +137,8 @@ class UploadSbomVersion:
             self._uow.sbom_versions.archive(current.id)
         return self._uow.sbom_versions.add(version)
 
-    def _apply(self, application_id: int, sbom_id: int, changes: Reconciliation) -> None:
+    def _apply(self, application_id: int, version: SbomVersion, changes: Reconciliation) -> None:
+        assert version.id is not None
         for component, entry in changes.to_keep:
             if _is_unchanged(component, entry):
                 continue
@@ -141,9 +147,21 @@ class UploadSbomVersion:
                     component, category=entry.category, direct=entry.direct, checked=entry.checked
                 )
             )
-        _remove_components(self._uow, changes.to_remove)
+        self._retire_or_remove(changes.to_remove, version.id)
         self._uow.components.add_many(
-            application_id, [_component_from(entry, sbom_id) for entry in changes.to_add]
+            application_id,
+            [_component_from(entry, version.sbom_id) for entry in changes.to_add],
+        )
+
+    def _retire_or_remove(self, components: Sequence[Component], version_id: int) -> None:
+        """Mit Treffern: ausbauen (der nächste Scan löst auf); ohne: löschen."""
+        ids = [component.id for component in components if component.id is not None]
+        with_findings = self._uow.findings.components_with_findings(ids)
+        self._uow.components.retire_many(
+            [component_id for component_id in ids if component_id in with_findings], version_id
+        )
+        self._uow.components.delete_many(
+            [component_id for component_id in ids if component_id not in with_findings]
         )
 
 

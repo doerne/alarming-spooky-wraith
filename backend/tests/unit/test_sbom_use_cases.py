@@ -112,17 +112,6 @@ def test_kept_component_keeps_finding_status() -> None:
     assert finding.comment == "geprüft"
 
 
-def test_removed_component_drops_findings() -> None:
-    uow = InMemoryUnitOfWork()
-    application_id = _application(uow)
-    _upload(uow, application_id, _parsed(_REACT))
-    _finding_for(uow, uow.components.list_for_application(application_id)[0])
-    result = _upload(uow, application_id, _parsed(_LODASH, label="1.1.0"))
-    assert result.removed == 1
-    assert uow.findings.list() == []
-    assert [c.name for c in uow.components.list_for_application(application_id)] == ["lodash"]
-
-
 def test_manual_components_untouched() -> None:
     uow = InMemoryUnitOfWork()
     application_id = _application(uow)
@@ -224,3 +213,40 @@ def test_unchanged_kept_components_are_not_rewritten() -> None:
     changed_lodash = SbomEntry("lodash", "4.17.21", Category.LIBRARY, Ecosystem.NPM, True, None)
     _upload(uow, application_id, _parsed(_REACT, changed_lodash, label="1.1.0"))
     assert [component.name for component in updates] == ["lodash"]
+
+
+def test_removed_component_with_findings_is_retired() -> None:
+    uow = InMemoryUnitOfWork()
+    application_id = _application(uow)
+    _upload(uow, application_id, _parsed(_REACT))
+    react = uow.components.list_for_application(application_id)[0]
+    _finding_for(uow, react)
+    result = _upload(uow, application_id, _parsed(_LODASH, label="1.1.0"))
+    retired = uow.components.get(react.id or 0)
+    assert retired.retired_in_version_id == result.version.id
+    assert retired.is_retired
+    [finding] = uow.findings.list()
+    assert finding.component_id == react.id
+    assert finding.status == FindingStatus.ACCEPTED
+    assert result.removed == 1
+
+
+def test_removed_component_without_findings_is_deleted() -> None:
+    uow = InMemoryUnitOfWork()
+    application_id = _application(uow)
+    _upload(uow, application_id, _parsed(_REACT))
+    _upload(uow, application_id, _parsed(_LODASH, label="1.1.0"))
+    assert [c.name for c in uow.components.list_for_application(application_id)] == ["lodash"]
+
+
+def test_reconcile_ignores_retired_components() -> None:
+    uow = InMemoryUnitOfWork()
+    application_id = _application(uow)
+    _upload(uow, application_id, _parsed(_REACT))
+    react = uow.components.list_for_application(application_id)[0]
+    _finding_for(uow, react)
+    _upload(uow, application_id, _parsed(_LODASH, label="1.1.0"))
+    back = _upload(uow, application_id, _parsed(_REACT, _LODASH, label="1.2.0"))
+    assert (back.added, back.kept, back.removed) == (1, 1, 0)
+    live = [c for c in uow.components.list_for_application(application_id) if not c.is_retired]
+    assert sorted(c.name for c in live) == ["lodash", "react"]
