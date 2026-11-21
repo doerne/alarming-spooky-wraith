@@ -8,6 +8,7 @@ from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 
 from app.domain.ports import SourceReference, SourceVuln
+from app.domain.vulnerability import is_valid_advisory_id
 
 _CVE_PREFIX = "CVE-"
 _GHSA_PREFIX = "GHSA-"
@@ -28,8 +29,15 @@ class MergedAdvisory:
 
 
 def identity_ids(vuln: SourceVuln) -> frozenset[str]:
-    """Alle IDs, unter denen eine Quelle die Schwachstelle führt."""
-    return frozenset([vuln.id, *vuln.aliases])
+    """Alle zulässigen IDs, unter denen eine Quelle die Schwachstelle führt.
+
+    Fremd-IDs werden geprüft, damit kein unzulässiger Alias kanonisch wird oder beim
+    Speichern den ganzen Lauf abbricht. Ohne zulässige ID bleibt die eigene ID stehen
+    (der Store verwirft sie dann wie bisher).
+    """
+    candidates = (vuln.id, *vuln.aliases)
+    valid = frozenset(identifier for identifier in candidates if is_valid_advisory_id(identifier))
+    return valid or frozenset([vuln.id])
 
 
 def canonical_key(ids: Iterable[str]) -> tuple[str, str | None]:

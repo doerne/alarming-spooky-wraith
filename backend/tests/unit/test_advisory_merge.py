@@ -120,3 +120,17 @@ def test_zero_cvss_is_a_value() -> None:
 def test_same_source_is_listed_once() -> None:
     merged = merge_vulns([_vuln("osv"), _vuln("osv")], _ORDER)
     assert merged.sources == [SourceReference("osv", "https://osv.example.org/CVE-2024-1")]
+
+
+def test_invalid_aliases_are_ignored() -> None:
+    too_long = "GHSA-" + "x" * 80
+    vuln = _vuln("osv", id="PYSEC-2026-1", aliases=[too_long, "../etc/passwd", "GHSA-ok"])
+    assert identity_ids(vuln) == frozenset({"PYSEC-2026-1", "GHSA-ok"})
+    merged = merge_vulns([vuln], _ORDER)
+    assert merged.advisory_id == "GHSA-ok"
+    assert merged.aliases == ("PYSEC-2026-1",)
+
+
+def test_invalid_own_id_falls_back_to_valid_alias() -> None:
+    vuln = _vuln("osv", id="bad/id", aliases=["CVE-2026-7"])
+    assert identity_ids(vuln) == frozenset({"CVE-2026-7"})

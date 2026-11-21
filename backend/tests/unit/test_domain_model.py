@@ -9,7 +9,13 @@ from app.domain.errors import (
 )
 from app.domain.inventory import Application, Category, Component, Ecosystem
 from app.domain.sbom import SbomEntry, SbomVersion
-from app.domain.vulnerability import Finding, FindingStatus, RiskScore, Severity
+from app.domain.vulnerability import (
+    Finding,
+    FindingStatus,
+    RiskScore,
+    Severity,
+    is_valid_advisory_id,
+)
 
 
 def test_application_defaults_to_no_components() -> None:
@@ -89,3 +95,11 @@ def test_sbom_version_counts_entries() -> None:
     )
     assert version.component_count == 2
     assert version.unchecked_count == 1
+
+
+def test_advisory_id_rule() -> None:
+    assert is_valid_advisory_id("CVE-2024-1")
+    assert is_valid_advisory_id("GHSA-6q48-6c7w-9gw2")
+    assert not is_valid_advisory_id("../etc")
+    assert not is_valid_advisory_id("X" * 65)
+    assert not is_valid_advisory_id("")
