@@ -17,6 +17,7 @@ from app.domain.vulnerability import (
     RiskScore,
     Severity,
     is_valid_advisory_id,
+    severity_rank,
 )
 
 
@@ -174,3 +175,29 @@ def test_finding_absorb_keeps_own_status_and_issue_when_triaged() -> None:
         FindingStatus.ACCEPTED,
         "https://github.com/a/b/issues/2",
     )
+
+
+def test_severity_rank_orders_niedrig_below_kritisch() -> None:
+    levels = (Severity.NIEDRIG, Severity.MITTEL, Severity.HOCH, Severity.KRITISCH)
+    assert [severity_rank(level) for level in levels] == [0, 1, 2, 3]
+
+
+def test_finding_has_no_issue_state_or_first_seen_by_default() -> None:
+    finding = Finding(
+        advisory_id="CVE-2024-0001",
+        component_id=1,
+        application_id=1,
+        found_version="1.0",
+        risk=RiskScore(value=50, level=Severity.MITTEL, rationale="x"),
+    )
+    assert finding.issue_state is None
+    assert finding.first_seen_at is None
+
+
+def test_application_github_fields_default_to_unset() -> None:
+    app = Application(name="Shop")
+    assert app.github_repository is None
+    assert app.auto_issue_min_level is None
+    assert app.auto_issue_enabled_at is None
+    assert app.github_synced_at is None
+    assert app.github_sync_message == ""

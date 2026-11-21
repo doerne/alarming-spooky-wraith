@@ -35,3 +35,7 @@ class ComponentManagedBySbomError(ConflictError):
         super().__init__(
             f"Komponente {component_id} stammt aus einer SBOM und kann nicht bearbeitet werden"
         )
+
+
+class IssueTrackerError(DomainError):
+    """Der Issue-Tracker (GitHub) ist nicht erreichbar, nicht konfiguriert oder lehnt ab."""

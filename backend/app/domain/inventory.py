@@ -1,7 +1,10 @@
 """Inventar-Domäne: Anwendungen und ihre manuell gepflegten Komponenten."""
 
 from dataclasses import dataclass, field
+from datetime import datetime
 from enum import StrEnum
+
+from app.domain.vulnerability import Severity
 
 COMPONENT_NAME_MAX_LENGTH = 200
 COMPONENT_VERSION_MAX_LENGTH = 100
@@ -65,3 +68,8 @@ class Application:
     description: str = ""
     id: int | None = None
     components: list[Component] = field(default_factory=list)
+    github_repository: str | None = None
+    auto_issue_min_level: Severity | None = None
+    auto_issue_enabled_at: datetime | None = None
+    github_synced_at: datetime | None = None
+    github_sync_message: str = ""

@@ -16,6 +16,42 @@ from app.domain.vulnerability import (
 )
 
 
+@dataclass(frozen=True)
+class TrackedIssue:
+    """Ein Issue beim Tracker, aus Sicht von CVE-Radar."""
+
+    number: int
+    url: str
+    is_open: bool
+    not_planned: bool = False  # geschlossen mit state_reason "not_planned"
+
+
+@dataclass(frozen=True)
+class IssueContent:
+    """Inhalt eines anzulegenden Issues; ``marker`` identifiziert CVE und Anwendung."""
+
+    title: str
+    body: str
+    labels: tuple[str, ...]
+    marker: str
+
+
+class IssueTracker(Protocol):
+    def is_configured(self) -> bool: ...
+    def existing_markers(self, repository: str) -> dict[str, TrackedIssue]:
+        """Marker-Zeile → Issue für alle Issues mit Label `security` (alle Zustände)."""
+        ...
+
+    def get(self, repository: str, number: int) -> TrackedIssue | None:
+        """None, wenn das Issue nicht (mehr) existiert."""
+        ...
+
+    def create(self, repository: str, content: IssueContent) -> TrackedIssue: ...
+    def set_open(
+        self, repository: str, number: int, is_open: bool, comment: str, not_planned: bool = False
+    ) -> None: ...
+
+
 class ApplicationRepository(Protocol):
     def add(self, application: Application) -> Application: ...
     def get(self, application_id: int) -> Application: ...
