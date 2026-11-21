@@ -261,8 +261,10 @@ class RunIngest:
         self._uow.commit()
 
     def _persist(self, hits: Sequence[_Hit]) -> int:
+        # Während des Laufs kann ein SBOM-Upload Komponenten gelöscht haben.
+        existing = {component.id for component in self._uow.components.list_all()}
         groups: dict[str, list[_Hit]] = {}
-        for hit in hits:
+        for hit in (hit for hit in hits if hit.component.id in existing):
             groups.setdefault(advisory_key(hit.vuln)[0], []).append(hit)
         order = [*MERGE_PRECEDENCE, *(d.key for d in self._registry.descriptors())]
         return sum(self._persist_advisory(group, order) for group in groups.values())

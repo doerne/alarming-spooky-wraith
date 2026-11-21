@@ -1,6 +1,6 @@
 """Use Cases zum Hinterlegen von SBOMs an einer Anwendung."""
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import datetime
 
@@ -44,11 +44,19 @@ def _label(label: str | None, parsed: ParsedSbom, now: datetime) -> str:
     return (chosen or now.strftime(_CLOCK_LABEL_FORMAT))[:SBOM_LABEL_MAX_LENGTH]
 
 
-def _remove_component(uow: UnitOfWork, component: Component) -> None:
-    """Entfernt eine SBOM-Komponente samt ihrer Treffer."""
-    assert component.id is not None
-    uow.findings.delete_for_component(component.id)
-    uow.components.delete(component.id)
+def _remove_components(uow: UnitOfWork, components: Sequence[Component]) -> None:
+    """Entfernt SBOM-Komponenten samt ihrer Treffer (Treffer zuerst wegen Fremdschlüssel)."""
+    ids = [component.id for component in components if component.id is not None]
+    uow.findings.delete_for_components(ids)
+    uow.components.delete_many(ids)
+
+
+def _is_unchanged(component: Component, entry: SbomEntry) -> bool:
+    return (component.category, component.direct, component.checked) == (
+        entry.category,
+        entry.direct,
+        entry.checked,
+    )
 
 
 def _component_from(entry: SbomEntry, sbom_id: int) -> Component:
@@ -126,15 +134,17 @@ class UploadSbomVersion:
 
     def _apply(self, application_id: int, sbom_id: int, changes: Reconciliation) -> None:
         for component, entry in changes.to_keep:
+            if _is_unchanged(component, entry):
+                continue
             self._uow.components.update(
                 replace(
                     component, category=entry.category, direct=entry.direct, checked=entry.checked
                 )
             )
-        for component in changes.to_remove:
-            _remove_component(self._uow, component)
-        for entry in changes.to_add:
-            self._uow.components.add(application_id, _component_from(entry, sbom_id))
+        _remove_components(self._uow, changes.to_remove)
+        self._uow.components.add_many(
+            application_id, [_component_from(entry, sbom_id) for entry in changes.to_add]
+        )
 
 
 @dataclass(frozen=True)
@@ -198,7 +208,6 @@ class DeleteSbom:
 
     def execute(self, *, application_id: int, sbom_id: int) -> None:
         _owned_sbom(self._uow, application_id, sbom_id)
-        for component in self._uow.components.list_for_sbom(sbom_id):
-            _remove_component(self._uow, component)
+        _remove_components(self._uow, self._uow.components.list_for_sbom(sbom_id))
         self._uow.sboms.delete(sbom_id)
         self._uow.commit()

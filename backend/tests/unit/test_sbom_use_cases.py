@@ -207,3 +207,20 @@ def test_clock_is_read_once_per_upload() -> None:
     )
     assert result.version.label == "2026-11-21 09:30"
     assert result.version.uploaded_at.minute == 30
+
+
+def test_unchanged_kept_components_are_not_rewritten() -> None:
+    uow = InMemoryUnitOfWork()
+    application_id = _application(uow)
+    _upload(uow, application_id, _parsed(_REACT, _LODASH))
+    updates: list[Component] = []
+    original_update = uow.components.update
+
+    def counting_update(component: Component) -> Component:
+        updates.append(component)
+        return original_update(component)
+
+    uow.components.update = counting_update  # type: ignore[method-assign]
+    changed_lodash = SbomEntry("lodash", "4.17.21", Category.LIBRARY, Ecosystem.NPM, True, None)
+    _upload(uow, application_id, _parsed(_REACT, changed_lodash, label="1.1.0"))
+    assert [component.name for component in updates] == ["lodash"]

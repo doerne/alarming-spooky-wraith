@@ -85,13 +85,13 @@ def test_fake_version_repository_lists_newest_first_and_archives() -> None:
     assert uow.sbom_versions.get(first.id).is_current is False
 
 
-def test_fake_finding_delete_for_component() -> None:
+def test_fake_finding_delete_for_components() -> None:
     repository = InMemoryFindingRepository()
     repository.upsert(_finding())
     other = _finding()
     other.component_id = 2
     repository.upsert(other)
-    repository.delete_for_component(1)
+    repository.delete_for_components([1])
     assert [finding.component_id for finding in repository.list()] == [2]
 
 
@@ -104,5 +104,5 @@ def test_fake_component_delete_and_list_for_sbom() -> None:
     from_sbom = repository.add(1, replace(base, sbom_id=7))
     assert [component.id for component in repository.list_for_sbom(7)] == [from_sbom.id]
     assert manual.id is not None
-    repository.delete(manual.id)
+    repository.delete_many([manual.id])
     assert [component.id for component in repository.list_all()] == [from_sbom.id]

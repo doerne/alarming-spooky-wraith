@@ -1,6 +1,6 @@
 """In-Memory-Adapter für schnelle Tests ohne Datenbank."""
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import replace
 
 from app.application.ingest_runner import IngestRunState
@@ -72,8 +72,13 @@ class InMemoryComponentRepository:
     def list_for_sbom(self, sbom_id: int) -> list[Component]:
         return [component for _, component in self._items if component.sbom_id == sbom_id]
 
-    def delete(self, component_id: int) -> None:
-        self._items = [item for item in self._items if item[1].id != component_id]
+    def add_many(self, application_id: int, components: Sequence[Component]) -> None:
+        for component in components:
+            self.add(application_id, component)
+
+    def delete_many(self, component_ids: Sequence[int]) -> None:
+        doomed = set(component_ids)
+        self._items = [item for item in self._items if item[1].id not in doomed]
 
     def application_id_of(self, component_id: int) -> int:
         for application_id, component in self._items:
@@ -103,11 +108,12 @@ class InMemoryFindingRepository:
     def list(self) -> list[Finding]:
         return list(self._items.values())
 
-    def delete_for_component(self, component_id: int) -> None:
+    def delete_for_components(self, component_ids: Sequence[int]) -> None:
+        doomed = set(component_ids)
         self._items = {
             key: finding
             for key, finding in self._items.items()
-            if finding.component_id != component_id
+            if finding.component_id not in doomed
         }
 
 

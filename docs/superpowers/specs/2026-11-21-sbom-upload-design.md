@@ -123,7 +123,7 @@ erscheinen beim nächsten Ingest-Lauf (täglich oder manuell ausgelöst); der Up
 - Das Frontend liest die Datei (`File.text()`, `JSON.parse`) und schickt JSON. Kein Multipart, also
   keine neue Abhängigkeit (`python-multipart` fehlt).
 - nginx: `client_max_body_size 1m` bleibt global; eigener `location` für
-  `/api/applications/…/sboms/versions` mit **25m** (Sicherheits-Header dort wiederholen, siehe Kommentar
+  `/api/applications/…/sboms/versions` mit **25m** und `proxy_read_timeout 120s` (Umsetzung: Massen-INSERT/DELETE, 50 000 Komponenten gegen MariaDB in ca. 3 s) (Sicherheits-Header dort wiederholen, siehe Kommentar
   in `nginx.conf`).
 - Backend: höchstens 50 000 Komponenten je Dokument, sonst 422.
 

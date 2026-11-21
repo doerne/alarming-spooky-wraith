@@ -1,6 +1,9 @@
 """SQLAlchemy-Repositories: Abbildung zwischen Domaene und Modellen."""
 
-from sqlalchemy import delete, select
+from collections.abc import Iterator, Sequence
+from datetime import UTC, datetime
+
+from sqlalchemy import delete, insert, select
 from sqlalchemy.orm import Session
 
 from app.domain.errors import EntityNotFoundError
@@ -17,6 +20,32 @@ from app.infrastructure.models import (
     SbomVersionModel,
     SourceSettingModel,
 )
+
+# Grenze für IN-Listen, damit einzelne Statements überschaubar bleiben.
+_IN_CLAUSE_CHUNK = 1_000
+
+
+def _chunks(ids: Sequence[int]) -> Iterator[Sequence[int]]:
+    for start in range(0, len(ids), _IN_CLAUSE_CHUNK):
+        yield ids[start : start + _IN_CLAUSE_CHUNK]
+
+
+def _as_utc(value: datetime) -> datetime:
+    """MariaDB speichert DATETIME ohne Zone; geschrieben wird immer UTC."""
+    return value if value.tzinfo else value.replace(tzinfo=UTC)
+
+
+def _component_values(application_id: int, component: Component) -> dict[str, object]:
+    return {
+        "application_id": application_id,
+        "name": component.name,
+        "version": component.version,
+        "category": component.category.value,
+        "ecosystem": component.ecosystem.value if component.ecosystem else None,
+        "direct": component.direct,
+        "sbom_id": component.sbom_id,
+        "checked": component.checked,
+    }
 
 
 def _to_application(model: ApplicationModel) -> Application:
@@ -141,8 +170,18 @@ class SqlAlchemyComponentRepository:
         ).all()
         return [_to_component(model) for model in models]
 
-    def delete(self, component_id: int) -> None:
-        self._session.execute(delete(ComponentModel).where(ComponentModel.id == component_id))
+    def add_many(self, application_id: int, components: Sequence[Component]) -> None:
+        """Ein INSERT für alle Komponenten (große SBOMs), ohne IDs zurückzulesen."""
+        if not components:
+            return
+        self._session.execute(
+            insert(ComponentModel),
+            [_component_values(application_id, component) for component in components],
+        )
+
+    def delete_many(self, component_ids: Sequence[int]) -> None:
+        for chunk in _chunks(component_ids):
+            self._session.execute(delete(ComponentModel).where(ComponentModel.id.in_(chunk)))
 
 
 class SqlAlchemyAdvisoryRepository:
@@ -204,8 +243,9 @@ class SqlAlchemyFindingRepository:
         models = self._session.scalars(select(FindingModel)).all()
         return [_to_finding(model) for model in models]
 
-    def delete_for_component(self, component_id: int) -> None:
-        self._session.execute(delete(FindingModel).where(FindingModel.component_id == component_id))
+    def delete_for_components(self, component_ids: Sequence[int]) -> None:
+        for chunk in _chunks(component_ids):
+            self._session.execute(delete(FindingModel).where(FindingModel.component_id.in_(chunk)))
 
 
 def _entry_to_json(entry: SbomEntry) -> dict[str, object]:
@@ -240,7 +280,7 @@ def _to_sbom_version(model: SbomVersionModel) -> SbomVersion:
     return SbomVersion(
         sbom_id=model.sbom_id,
         label=model.label,
-        uploaded_at=model.uploaded_at,
+        uploaded_at=_as_utc(model.uploaded_at),
         serial_number=model.serial_number,
         is_current=model.is_current,
         entries=tuple(_entry_from_json(raw) for raw in model.components),

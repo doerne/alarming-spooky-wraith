@@ -352,3 +352,32 @@ def test_ingest_skips_unchecked_components() -> None:
     bulk = FakeBulkSource(descriptor("cve-org", kind=SourceKind.BULK, scope=MatchScope.PRODUCT))
     _run(uow, bulk)
     assert bulk.names == [frozenset({"curl"})]
+
+
+class _DeletingSource(FakePackageSource):
+    """Simuliert ein paralleles Löschen: während der Abfrage verschwindet eine Komponente."""
+
+    def __init__(self, uow: InMemoryUnitOfWork, doomed_id: int, vuln: SourceVuln) -> None:
+        super().__init__(descriptor("osv"), {"react": [vuln], "vue": [vuln]})
+        self._uow = uow
+        self._doomed_id = doomed_id
+
+    def query(self, component: Component, api_key: str | None) -> list[SourceVuln]:
+        self._uow.components.delete_many([self._doomed_id])
+        return super().query(component, api_key)
+
+
+def test_ingest_drops_findings_of_components_deleted_meanwhile() -> None:
+    vue = _component("vue", Ecosystem.NPM)
+    uow = _uow(_REACT, vue)
+    react_id, vue_id = (c.id for c in uow.components.list_all())
+    assert react_id is not None
+    assert vue_id is not None
+    vuln = _vuln(
+        affected=[
+            AffectedPackage("npm", "react", _REACT_RANGE),
+            AffectedPackage("npm", "vue", _REACT_RANGE),
+        ]
+    )
+    _run(uow, _DeletingSource(uow, vue_id, vuln))
+    assert [finding.component_id for finding in uow.findings.list()] == [react_id]

@@ -237,8 +237,8 @@ def test_delete_component_and_findings_for_component(uow: SqlAlchemyUnitOfWork) 
     assert component.id is not None
     uow.advisories.upsert(_advisory())
     uow.findings.upsert(_finding(component.id, application_id))
-    uow.findings.delete_for_component(component.id)
-    uow.components.delete(component.id)
+    uow.findings.delete_for_components([component.id])
+    uow.components.delete_many([component.id])
     uow.commit()
     assert uow.findings.list() == []
     assert uow.components.list_all() == []
@@ -252,3 +252,34 @@ def test_delete_sbom_removes_versions(uow: SqlAlchemyUnitOfWork) -> None:
     assert uow.sbom_versions.list_for_sbom(sbom_id) == []
     with pytest.raises(EntityNotFoundError):
         uow.sboms.get(sbom_id)
+
+
+def test_bulk_add_and_delete_components_with_findings(uow: SqlAlchemyUnitOfWork) -> None:
+    application_id, sbom_id = _app_with_sbom(uow)
+    react = Component("react", "18.2.0", Category.LIBRARY, Ecosystem.NPM, True, sbom_id=sbom_id)
+    openssl = Component(
+        "openssl", "3.0.11", Category.LIBRARY, None, False, sbom_id=sbom_id, checked=False
+    )
+    uow.components.add_many(application_id, [react, openssl])
+    stored = {c.name: c for c in uow.components.list_for_sbom(sbom_id)}
+    assert stored["openssl"].checked is False
+    react_id = stored["react"].id
+    assert react_id is not None
+    uow.advisories.upsert(_advisory())
+    uow.findings.upsert(_finding(react_id, application_id))
+    uow.findings.delete_for_components([react_id])
+    uow.components.delete_many([react_id])
+    uow.commit()
+    assert uow.findings.list() == []
+    assert [c.name for c in uow.components.list_for_sbom(sbom_id)] == ["openssl"]
+
+
+def test_sbom_version_uploaded_at_is_utc_aware(uow: SqlAlchemyUnitOfWork) -> None:
+    _, sbom_id = _app_with_sbom(uow)
+    saved = uow.sbom_versions.add(_sbom_version(sbom_id, "v1"))
+    uow.commit()
+    uow._session.expire_all()
+    assert saved.id is not None
+    loaded = uow.sbom_versions.get(saved.id)
+    assert loaded.uploaded_at.tzinfo is not None
+    assert loaded.uploaded_at == datetime(2026, 11, 21, 12, 0, tzinfo=UTC)
