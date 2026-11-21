@@ -6,9 +6,16 @@ from dataclasses import replace
 from datetime import UTC, datetime
 
 from app.application.ingest_runner import IngestRunState
-from app.domain.errors import EntityNotFoundError
+from app.application.issue_export import IssueDraft
+from app.domain.errors import EntityNotFoundError, IssueTrackerError
 from app.domain.inventory import Application, Component
-from app.domain.ports import AdvisoryDocument, SourceReference, SourceVuln
+from app.domain.ports import (
+    AdvisoryDocument,
+    IssueContent,
+    SourceReference,
+    SourceVuln,
+    TrackedIssue,
+)
 from app.domain.sbom import ParsedSbom, Sbom, SbomVersion
 from app.domain.sources import (
     ApiKeyRequirement,
@@ -331,9 +338,78 @@ class InMemorySourceSettingRepository:
         self._items[setting.source_key] = replace(setting)
 
 
+class FakeIssueTracker:
+    """Speicher-Tracker: Issues je Repo, Marker-Index, Aufzeichnung der Schreibzugriffe."""
+
+    def __init__(self, *, configured: bool = True) -> None:
+        self.configured = configured
+        self.issues: dict[tuple[str, int], TrackedIssue] = {}
+        self.markers: dict[str, dict[str, TrackedIssue]] = {}
+        self.created: list[tuple[str, IssueContent]] = []
+        self.set_open_calls: list[tuple[str, int, bool, str, bool]] = []
+        self.failing_repos: set[str] = set()
+        self._next_number = 1
+
+    def is_configured(self) -> bool:
+        return self.configured
+
+    def existing_markers(self, repository: str) -> dict[str, TrackedIssue]:
+        self._guard(repository)
+        return dict(self.markers.get(repository, {}))
+
+    def get(self, repository: str, number: int) -> TrackedIssue | None:
+        self._guard(repository)
+        return self.issues.get((repository, number))
+
+    def create(self, repository: str, content: IssueContent) -> TrackedIssue:
+        self._guard(repository)
+        issue = self._track(repository, self._next_number, is_open=True)
+        self._next_number += 1
+        self.markers.setdefault(repository, {})[content.marker] = issue
+        self.created.append((repository, content))
+        return issue
+
+    def set_open(
+        self, repository: str, number: int, is_open: bool, comment: str, not_planned: bool = False
+    ) -> None:
+        self._guard(repository)
+        self.set_open_calls.append((repository, number, is_open, comment, not_planned))
+        self._track(repository, number, is_open=is_open, not_planned=not_planned)
+
+    def add_issue(
+        self, repository: str, number: int, *, is_open: bool, not_planned: bool = False
+    ) -> None:
+        self._track(repository, number, is_open=is_open, not_planned=not_planned)
+
+    def _track(
+        self, repository: str, number: int, *, is_open: bool, not_planned: bool = False
+    ) -> TrackedIssue:
+        issue = TrackedIssue(
+            number=number,
+            url=f"https://github.com/{repository}/issues/{number}",
+            is_open=is_open,
+            not_planned=not_planned,
+        )
+        self.issues[(repository, number)] = issue
+        return issue
+
+    def _guard(self, repository: str) -> None:
+        if repository in self.failing_repos:
+            raise IssueTrackerError("GitHub ist nicht erreichbar")
+
+
+class FakeIssueFormatter:
+    def format(self, application_id: int, draft: IssueDraft) -> IssueContent:
+        marker = f"<!-- cve-radar:application={application_id};advisory={draft.advisory_id} -->"
+        return IssueContent(
+            title=draft.title, body=f"Text {marker}", labels=("security",), marker=marker
+        )
+
+
 class InMemoryUnitOfWork:
     def __init__(self) -> None:
         self.commits = 0
+        self.rollbacks = 0
         self.applications = InMemoryApplicationRepository()
         self.components = InMemoryComponentRepository()
         self.findings = InMemoryFindingRepository()
@@ -342,6 +418,9 @@ class InMemoryUnitOfWork:
         self.source_settings = InMemorySourceSettingRepository()
         self.sbom_versions = InMemorySbomVersionRepository()
         self.sboms = InMemorySbomRepository(self.sbom_versions)
+
+    def rollback(self) -> None:
+        self.rollbacks += 1
 
     def commit(self) -> None:
         self.commits += 1

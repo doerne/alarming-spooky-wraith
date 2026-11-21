@@ -32,6 +32,9 @@ class SqlAlchemyUnitOfWork:
     def commit(self) -> None:
         self._session.commit()
 
+    def rollback(self) -> None:
+        self._session.rollback()
+
 
 @contextmanager
 def sqlalchemy_unit_of_work(
