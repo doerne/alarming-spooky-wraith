@@ -13,6 +13,8 @@ const component: Component = {
   category: "library",
   ecosystem: "npm",
   direct: true,
+  sbomId: null,
+  checked: true,
 };
 
 function renderTab(editing: Component | null) {

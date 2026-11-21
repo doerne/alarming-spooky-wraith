@@ -12,6 +12,8 @@ export interface Component {
   category: string;
   ecosystem: string | null;
   direct: boolean;
+  sbomId: number | null;
+  checked: boolean;
 }
 
 export interface ApplicationDetail extends Application {

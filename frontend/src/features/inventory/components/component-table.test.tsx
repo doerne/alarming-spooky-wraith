@@ -14,6 +14,8 @@ const components: Component[] = [
     category: "library",
     ecosystem: "npm",
     direct: true,
+    sbomId: null,
+    checked: true,
   },
 ];
 

@@ -48,6 +48,18 @@ if (typeof globalThis.ResizeObserver === "undefined") {
   globalThis.ResizeObserver = ResizeObserverStub as unknown as typeof ResizeObserver;
 }
 
+// jsdom kennt Blob.text() nicht; Browser schon. Polyfill über FileReader.
+if (typeof Blob.prototype.text !== "function") {
+  Blob.prototype.text = function text(this: Blob): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(reader.error ?? new Error("Lesen fehlgeschlagen"));
+      reader.readAsText(this);
+    });
+  };
+}
+
 afterEach(() => {
   cleanup();
   document.documentElement.classList.remove("dark");
