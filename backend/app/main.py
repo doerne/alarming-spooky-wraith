@@ -11,6 +11,7 @@ from app.application.component_matching import ComponentMatcher
 from app.application.github_sync import GitHubSyncServices, SyncRequest, run_github_sync
 from app.application.ingest import IngestServices, run_ingest_job, run_scan_then_sync
 from app.application.ingest_runner import IngestRunner
+from app.application.scan_progress import initial_steps
 from app.application.scan_runs import reset_interrupted_runs, run_recorded_scan
 from app.application.scan_schedule import parse_scan_schedule, start_catch_up_if_due
 from app.application.source_registry import SourceRegistry
@@ -21,6 +22,7 @@ from app.infrastructure.github.app_client import GitHubAppIssueTracker
 from app.infrastructure.job_gate import JobGate
 from app.infrastructure.okf_store import FileAdvisoryStore
 from app.infrastructure.sbom.cyclonedx import CycloneDxParser
+from app.infrastructure.scan_progress_tracker import ScanProgressTracker
 from app.infrastructure.scan_scheduler import ApsScanScheduler
 from app.infrastructure.sources.catalog import build_sources
 from app.infrastructure.sources.http_cache import HttpCache
@@ -71,12 +73,15 @@ def build_app() -> FastAPI:
     tracker = GitHubAppIssueTracker(settings)
     github = GitHubSyncServices(tracker, MarkdownIssueFormatter(), store, _now)
     sync_job = partial(run_github_sync, uow_factory, github)
-    scan = partial(run_ingest_job, uow_factory, IngestServices(registry, matcher, store, _now))
+    progress = ScanProgressTracker()
+    services = IngestServices(registry, matcher, store, _now)
+    scan = partial(run_ingest_job, uow_factory, services, progress)
     automatic_sync = partial(sync_job, SyncRequest(None, create_issues=False, min_level=None))
-    job = partial(
-        run_recorded_scan, uow_factory, _now, partial(run_scan_then_sync, scan, automatic_sync)
+    scan_then_sync = partial(run_scan_then_sync, scan, automatic_sync, progress)
+    job = partial(run_recorded_scan, uow_factory, _now, scan_then_sync)
+    runner = ThreadIngestRunner(
+        job, _now, gate, progress, steps=lambda: initial_steps(registry.descriptors())
     )
-    runner = ThreadIngestRunner(job, _now, gate)
     on_startup, on_shutdown = _lifecycle(settings, uow_factory, runner)
     return create_app(
         uow_factory,

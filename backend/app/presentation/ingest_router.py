@@ -9,6 +9,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from app.application.ingest_runner import IngestRunner, IngestRunState
+from app.application.scan_progress import ScanStep, StepState
 from app.application.scan_runs import GetScanHistory, ScanHistory
 from app.domain.scan_run import ScanOutcome, ScanRun, ScanTrigger
 from app.presentation.dependencies import UnitOfWorkDep
@@ -38,6 +39,17 @@ class ScanRunResponse(ApiModel):
     message: str
 
 
+class ScanStepResponse(ApiModel):
+    key: str
+    label: str
+    state: StepState
+    detail: str
+
+
+def _step_response(step: ScanStep) -> ScanStepResponse:
+    return ScanStepResponse(key=step.key, label=step.label, state=step.state, detail=step.detail)
+
+
 class IngestStateResponse(ApiModel):
     running: bool
     started_at: datetime | None
@@ -47,6 +59,7 @@ class IngestStateResponse(ApiModel):
     error: str | None
     last_run: ScanRunResponse | None
     last_usable_run: ScanRunResponse | None
+    steps: list[ScanStepResponse]
 
 
 def _run_response(run: ScanRun | None) -> ScanRunResponse | None:
@@ -74,6 +87,7 @@ def _to_response(state: IngestRunState, history: ScanHistory) -> IngestStateResp
         error=state.error,
         last_run=_run_response(history.last_run),
         last_usable_run=_run_response(history.last_usable_run),
+        steps=[_step_response(step) for step in state.steps],
     )
 
 

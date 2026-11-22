@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 from app.application.component_matching import ComponentMatcher
 from app.application.ingest import IngestServices, run_ingest_job
 from app.application.ingest_runner import IngestRunState
+from app.application.scan_progress import ScanStep, StepState
 from app.application.source_registry import SourceRegistry
 from app.domain.ports import SourceVuln
 from app.domain.scan_run import ScanCounts, ScanOutcome, ScanRun, ScanTrigger
@@ -303,6 +304,17 @@ def test_status_endpoint() -> None:
     assert body["componentsScanned"] == 4
     assert body["findingsFound"] == 2
     assert body["finishedAt"].startswith("2026-11-01T12:00:00")
+
+
+def test_status_lists_scan_steps() -> None:
+    state = IngestRunState(
+        running=True,
+        steps=(ScanStep("nvd", "NVD", StepState.SKIPPED, "API-Key fehlt"),),
+    )
+    body = _client(_app_with_runner(FakeIngestRunner(state))).get("/api/ingest/status").json()
+    assert body["steps"] == [
+        {"key": "nvd", "label": "NVD", "state": "skipped", "detail": "API-Key fehlt"}
+    ]
 
 
 def test_status_reports_stored_runs_after_restart() -> None:

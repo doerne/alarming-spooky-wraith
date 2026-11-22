@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from app.application.github_sync import SyncRequest, SyncRunState
 from app.application.ingest_runner import IngestRunState
 from app.application.issue_export import IssueDraft
+from app.application.scan_progress import ScanStep, StepState
 from app.application.unit_of_work import UnitOfWork, UnitOfWorkFactory
 from app.domain.errors import EntityNotFoundError, IssueTrackerError
 from app.domain.inventory import Application, Component
@@ -650,3 +651,17 @@ class FakeJobActivity:
 
     def release(self) -> None:
         self.held = False
+
+
+class RecordingProgress:
+    """Ersatz für den Scan-Fortschritt: merkt sich jeden Aufruf in Reihenfolge."""
+
+    def __init__(self) -> None:
+        self.begun: list[ScanStep] = []
+        self.updates: list[tuple[str, StepState, str]] = []
+
+    def begin(self, steps: Sequence[ScanStep]) -> None:
+        self.begun = list(steps)
+
+    def update(self, key: str, state: StepState, detail: str = "") -> None:
+        self.updates.append((key, state, detail))

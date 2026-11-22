@@ -5,14 +5,16 @@ Der Zustand liegt im Speicher des Prozesses (ein uvicorn-Worker).
 
 import logging
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import replace
 from datetime import datetime
 
 from app.application.ingest import IngestResult
 from app.application.ingest_runner import IngestRunState
+from app.application.scan_progress import ScanStep
 from app.domain.scan_run import ScanTrigger
 from app.infrastructure.job_gate import JobGate
+from app.infrastructure.scan_progress_tracker import ScanProgressTracker
 
 _logger = logging.getLogger(__name__)
 
@@ -23,10 +25,14 @@ class ThreadIngestRunner:
         job: Callable[[ScanTrigger], IngestResult],
         clock: Callable[[], datetime],
         gate: JobGate | None = None,
+        progress: ScanProgressTracker | None = None,
+        steps: Callable[[], Sequence[ScanStep]] = list,
     ) -> None:
         self._job = job
         self._clock = clock
         self._gate = gate or JobGate()
+        self._progress = progress or ScanProgressTracker()
+        self._steps = steps
         self._lock = threading.Lock()
         self._state = IngestRunState(running=False)
         self._thread: threading.Thread | None = None
@@ -36,6 +42,7 @@ class ThreadIngestRunner:
             if self._state.running or not self._gate.try_acquire():
                 return False
             previous = self._state
+            self._progress.begin(self._steps())
             self._state = IngestRunState(running=True, started_at=self._clock())
             self._thread = threading.Thread(
                 target=self._run, args=(trigger,), name="ingest", daemon=True
@@ -51,7 +58,7 @@ class ThreadIngestRunner:
 
     def state(self) -> IngestRunState:
         with self._lock:
-            return self._state
+            return replace(self._state, steps=self._progress.snapshot())
 
     def wait(self, timeout: float) -> bool:
         """Wartet auf das Ende des Laufs (für Tests und sauberes Herunterfahren)."""

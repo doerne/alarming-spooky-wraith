@@ -28,8 +28,8 @@ def test_scan_is_refused_while_sync_holds_the_gate() -> None:
     release = threading.Event()
     gate = JobGate()
 
-    def sync_job(request: SyncRequest) -> None:
-        release.wait(_WAIT_SECONDS)
+    def sync_job(request: SyncRequest) -> bool:
+        return release.wait(_WAIT_SECONDS)
 
     sync = ThreadSyncRunner(sync_job, lambda: _NOW, gate)
     scan = ThreadIngestRunner(_result, lambda: _NOW, gate)
@@ -50,7 +50,7 @@ def test_sync_is_refused_while_scan_holds_the_gate() -> None:
         return _result()
 
     scan = ThreadIngestRunner(scan_job, lambda: _NOW, gate)
-    sync = ThreadSyncRunner(lambda _request: None, lambda: _NOW, gate)
+    sync = ThreadSyncRunner(lambda _request: True, lambda: _NOW, gate)
     assert scan.start() is True
     assert sync.start(SyncRequest(1, create_issues=True, min_level=None)) is False
     release.set()
@@ -58,7 +58,7 @@ def test_sync_is_refused_while_scan_holds_the_gate() -> None:
 
 
 def test_gate_is_released_after_sync_error() -> None:
-    def failing(request: SyncRequest) -> None:
+    def failing(request: SyncRequest) -> bool:
         raise RuntimeError("boom")
 
     gate = JobGate()

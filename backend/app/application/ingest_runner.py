@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol
 
+from app.application.scan_progress import ScanStep
 from app.domain.scan_run import ScanTrigger
 
 
@@ -17,6 +18,7 @@ class IngestRunState:
     components_scanned: int | None = None
     findings_found: int | None = None
     error: str | None = None
+    steps: tuple[ScanStep, ...] = ()
 
 
 class IngestRunner(Protocol):

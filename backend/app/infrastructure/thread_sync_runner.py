@@ -15,7 +15,7 @@ _logger = logging.getLogger(__name__)
 class ThreadSyncRunner:
     def __init__(
         self,
-        job: Callable[[SyncRequest], None],
+        job: Callable[[SyncRequest], bool],
         clock: Callable[[], datetime],
         gate: JobGate,
     ) -> None:
