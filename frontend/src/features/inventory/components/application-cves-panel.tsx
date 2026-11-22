@@ -1,4 +1,6 @@
 import { FilterSummaryBar } from "@/shared/components/filter-summary-bar";
+import { ScanFreshness } from "@/shared/components/scan-freshness";
+import type { ScanFreshnessView } from "@/shared/lib/scan-freshness";
 
 import type { ApplicationFindingsPage } from "../api/inventory-api";
 import {
@@ -13,18 +15,39 @@ interface ApplicationCvesPanelProps {
   page: ApplicationFindingsPage | undefined;
   filters: CveFilters;
   options: CveColumnOptions;
+  freshness: ScanFreshnessView | undefined;
   onFiltersChange: (filters: CveFilters) => void;
   onSelectCve: (advisoryId: string) => void;
 }
 
-/** Lädt: nichts; ohne Funde: Hinweis; sonst Zusammenfassung + Tabelle mit Kopf-Filtern. */
-export function ApplicationCvesPanel({
+function Freshness({ freshness }: { freshness: ScanFreshnessView | undefined }) {
+  if (!freshness) return null;
+  return (
+    <ScanFreshness
+      text={freshness.text}
+      warning={freshness.warning}
+      testId="inventory-text-scan-freshness"
+    />
+  );
+}
+
+/** Stand der Daten; lädt: nichts; ohne Funde: Hinweis; sonst Zusammenfassung + Tabelle. */
+export function ApplicationCvesPanel({ freshness, ...props }: ApplicationCvesPanelProps) {
+  return (
+    <>
+      <Freshness freshness={freshness} />
+      <CvesContent {...props} />
+    </>
+  );
+}
+
+function CvesContent({
   page,
   filters,
   options,
   onFiltersChange,
   onSelectCve,
-}: ApplicationCvesPanelProps) {
+}: Omit<ApplicationCvesPanelProps, "freshness">) {
   const reset = () => onFiltersChange(EMPTY_CVE_FILTERS);
   if (!page) return null;
   if (page.unfilteredTotal === 0) {

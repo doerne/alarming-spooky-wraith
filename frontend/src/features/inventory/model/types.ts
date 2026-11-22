@@ -22,6 +22,7 @@ export interface ApplicationDetail extends Application {
   autoIssueMinLevel: GitHubLevel | null;
   githubSyncedAt: string | null;
   githubSyncMessage: string;
+  inventoryChangedAt: string | null;
 }
 
 /** Risikostufen für GitHub-Automatik und Issue-Anlage (wie im Backend). */
