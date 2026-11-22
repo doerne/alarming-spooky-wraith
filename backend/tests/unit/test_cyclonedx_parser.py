@@ -108,6 +108,91 @@ def test_direct_from_dependency_graph() -> None:
     assert entries["b"].direct is False
 
 
+def _lockfile(name: str, trivy_type: str) -> dict[str, object]:
+    """Lockfile-Knoten, wie Trivy ihn schreibt: Typ application, ohne purl und Version."""
+    return {
+        "type": "application",
+        "name": name,
+        "bom-ref": name,
+        "properties": [{"name": "aquasecurity:trivy:Type", "value": trivy_type}],
+    }
+
+
+def _parsed_by_name(document: dict[str, object]) -> dict[str, SbomEntry]:
+    return {entry.name: entry for entry in CycloneDxParser().parse(document).entries}
+
+
+def test_direct_through_trivy_lockfile_node() -> None:
+    # Trivy (npm): Projektordner → package-lock.json → direkte Pakete
+    document = _document(
+        [
+            _lockfile("package-lock.json", "npm"),
+            _library("react", "19.0.0", "pkg:npm/react@19.0.0"),
+            _library("scheduler", "0.25.0", "pkg:npm/scheduler@0.25.0"),
+        ],
+        metadata={"component": {"type": "application", "name": "/src", "bom-ref": "root"}},
+        dependencies=[
+            {"ref": "root", "dependsOn": ["package-lock.json"]},
+            {"ref": "package-lock.json", "dependsOn": ["react"]},
+            {"ref": "react", "dependsOn": ["scheduler"]},
+        ],
+    )
+    entries = _parsed_by_name(document)
+    assert entries["react"].direct is True
+    assert entries["scheduler"].direct is False
+
+
+def test_direct_below_own_project_package_of_trivy_uv() -> None:
+    # Trivy (uv): Projektordner → uv.lock → eigenes Projekt → direkte Pakete
+    document = _document(
+        [
+            _lockfile("uv.lock", "uv"),
+            _library("my-backend", "0.1.0", "pkg:pypi/my-backend@0.1.0"),
+            _library("fastapi", "0.115.0", "pkg:pypi/fastapi@0.115.0"),
+            _library("starlette", "0.40.0", "pkg:pypi/starlette@0.40.0"),
+        ],
+        metadata={"component": {"type": "application", "name": "/src", "bom-ref": "root"}},
+        dependencies=[
+            {"ref": "root", "dependsOn": ["uv.lock"]},
+            {"ref": "uv.lock", "dependsOn": ["my-backend"]},
+            {"ref": "my-backend", "dependsOn": ["fastapi"]},
+            {"ref": "fastapi", "dependsOn": ["starlette"]},
+        ],
+    )
+    parsed = CycloneDxParser().parse(document)
+    entries = {entry.name: entry for entry in parsed.entries}
+    assert entries["fastapi"].direct is True
+    assert entries["starlette"].direct is False
+    # Das eigene Projekt ist keine Abhängigkeit und wird nicht importiert.
+    assert "my-backend" not in entries
+
+
+def test_all_direct_when_graph_reaches_no_package() -> None:
+    # Lockfile-Knoten ohne Kinder: der Graph liefert nichts Verwertbares → wie ohne Graph.
+    document = _document(
+        [_lockfile("package-lock.json", "npm"), _library("a", "1.0", "pkg:npm/a@1.0")],
+        metadata={"component": {"type": "application", "name": "/src", "bom-ref": "root"}},
+        dependencies=[{"ref": "root", "dependsOn": ["package-lock.json"]}],
+    )
+    assert _parsed_by_name(document)["a"].direct is True
+
+
+def test_single_npm_dependency_stays_a_direct_dependency() -> None:
+    # Nur bei uv ist das einzige Paket unter der Lockfile das eigene Projekt, nicht bei npm.
+    document = _document(
+        [
+            _lockfile("package-lock.json", "npm"),
+            _library("left-pad", "1.3.0", "pkg:npm/left-pad@1.3.0"),
+        ],
+        metadata={"component": {"type": "application", "name": "/src", "bom-ref": "root"}},
+        dependencies=[
+            {"ref": "root", "dependsOn": ["package-lock.json"]},
+            {"ref": "package-lock.json", "dependsOn": ["left-pad"]},
+        ],
+    )
+    assert _parsed_by_name(document)["left-pad"].direct is True
+
+
 def test_all_direct_without_graph() -> None:
     document = _document(
         [_library("a", "1.0", "pkg:npm/a@1.0"), _library("b", "1.0", "pkg:npm/b@1.0")],

@@ -45,6 +45,8 @@ describe("UpdateTargetsCard", () => {
     );
     expect(screen.getByTestId("cves-list-update-targets")).toHaveTextContent("npm · → 4.17.21");
     expect(screen.getByTestId("cves-item-update-target-0")).toHaveTextContent("3 Funde");
+    expect(screen.getByTestId("cves-item-update-target-1")).toHaveTextContent("1 Fund");
+    expect(screen.getByTestId("cves-item-update-target-1")).not.toHaveTextContent("1 Funde");
     expect(screen.getByTestId("cves-text-update-target-applications-0")).toHaveTextContent(
       "in 2 Anwendungen",
     );

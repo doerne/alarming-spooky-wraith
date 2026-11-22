@@ -12,6 +12,10 @@ function applicationsLabel(count: number): string {
   return count === 1 ? "in 1 Anwendung" : `in ${count} Anwendungen`;
 }
 
+function findingsLabel(count: number): string {
+  return count === 1 ? "1 Fund" : `${count} Funde`;
+}
+
 export function UpdateTargetsCard({ updates, feature, showApplications }: UpdateTargetsCardProps) {
   return (
     <Card data-testid={`${feature}-card-update-targets`}>
@@ -43,13 +47,13 @@ export function UpdateTargetsCard({ updates, feature, showApplications }: Update
                       {target.ecosystem ?? "–"} · → {target.targetVersion}
                     </p>
                   </div>
-                  <div className="flex flex-col items-end gap-1">
+                  <div className="flex shrink-0 flex-col items-end gap-1">
                     <Badge variant="secondary" className="shrink-0">
-                      {target.findings} Funde
+                      {findingsLabel(target.findings)}
                     </Badge>
                     {showApplications && (
                       <p
-                        className="text-xs text-muted-foreground"
+                        className="text-xs whitespace-nowrap text-muted-foreground"
                         data-testid={`${feature}-text-update-target-applications-${index}`}
                       >
                         {applicationsLabel(target.applications)}
