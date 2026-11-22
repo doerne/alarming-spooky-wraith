@@ -276,6 +276,16 @@ class InMemorySbomRepository:
     def list_for_application(self, application_id: int) -> list[Sbom]:
         return [sbom for sbom in self._items.values() if sbom.application_id == application_id]
 
+    def latest_upload_by_application(self) -> dict[int, datetime]:
+        latest: dict[int, datetime] = {}
+        for sbom in self._items.values():
+            assert sbom.id is not None
+            for version in self._versions.list_for_sbom(sbom.id):
+                current = latest.get(sbom.application_id)
+                if current is None or version.uploaded_at > current:
+                    latest[sbom.application_id] = version.uploaded_at
+        return latest
+
     def delete(self, sbom_id: int) -> None:
         self._items.pop(sbom_id, None)
         self._versions.delete_for_sbom(sbom_id)

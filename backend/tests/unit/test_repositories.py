@@ -406,3 +406,22 @@ def test_save_report_persists_closed_at_and_first_seen_at(uow: SqlAlchemyUnitOfW
     stored = uow.findings.list()[0]
     assert stored.closed_at == _NOW
     assert stored.first_seen_at == _EARLIER
+
+
+def test_latest_upload_by_application_takes_newest_version(uow: SqlAlchemyUnitOfWork) -> None:
+    application_id, first_sbom = _app_with_sbom(uow)
+    other = uow.applications.add(Application(name="Blog"))
+    assert other.id is not None
+    uow.sboms.add(Sbom(application_id=other.id, name="ohne-version"))
+    second = uow.sboms.add(Sbom(application_id=application_id, name="frontend-image"))
+    assert second.id is not None
+    newest = datetime(2026, 11, 20, 8, 0, tzinfo=UTC)
+    uow.sbom_versions.add(
+        SbomVersion(first_sbom, "v1", datetime(2026, 11, 1, tzinfo=UTC), None, True, ())
+    )
+    uow.sbom_versions.add(SbomVersion(second.id, "v1", newest, None, True, ()))
+
+    latest = uow.sboms.latest_upload_by_application()
+
+    assert latest == {application_id: newest}
+    assert other.id not in latest

@@ -4,7 +4,7 @@ import builtins
 from collections.abc import Iterator, Sequence
 from datetime import UTC, datetime
 
-from sqlalchemy import delete, insert, select, update
+from sqlalchemy import delete, func, insert, select, update
 from sqlalchemy.orm import Session
 
 from app.domain.errors import EntityNotFoundError
@@ -506,6 +506,14 @@ class SqlAlchemySbomRepository:
             select(SbomModel).where(SbomModel.application_id == application_id)
         ).all()
         return [_to_sbom(model) for model in models]
+
+    def latest_upload_by_application(self) -> dict[int, datetime]:
+        rows = self._session.execute(
+            select(SbomModel.application_id, func.max(SbomVersionModel.uploaded_at))
+            .join(SbomVersionModel, SbomVersionModel.sbom_id == SbomModel.id)
+            .group_by(SbomModel.application_id)
+        ).all()
+        return {application_id: as_utc(uploaded) for application_id, uploaded in rows}
 
     def delete(self, sbom_id: int) -> None:
         self._session.execute(delete(SbomVersionModel).where(SbomVersionModel.sbom_id == sbom_id))
