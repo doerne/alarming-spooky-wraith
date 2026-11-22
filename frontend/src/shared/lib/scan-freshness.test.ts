@@ -43,8 +43,32 @@ const describeFor = (value: ScanStatus, inventoryChangedAt?: string | null) =>
 
 describe("describeScanFreshness", () => {
   it("meldet einen laufenden Scan", () => {
-    const value = status({ running: true, startedAt: at(22, 4, 0), lastUsableRun: run() });
-    expect(describeFor(value)).toEqual({ text: "Scan läuft seit 04:00", warning: false });
+    const value = status({ running: true, startedAt: at(22, 9, 0), lastUsableRun: run() });
+    expect(describeFor(value)).toEqual({
+      text: "Scan läuft seit 09:00 · Stand: heute 04:12",
+      warning: false,
+    });
+  });
+
+  it("behält Warnungen des bisherigen Stands während eines Scans", () => {
+    const old = run({ startedAt: at(20, 4, 0), finishedAt: at(20, 4, 9) });
+    const value = status({ running: true, startedAt: at(22, 9, 0), lastUsableRun: old });
+    expect(describeFor(value)).toEqual({
+      text: "Scan läuft seit 09:00 · Stand: 20.11. 04:09 · älter als ein Tag",
+      warning: true,
+    });
+  });
+
+  it("meldet den ersten laufenden Scan ohne bisherigen Stand", () => {
+    const value = status({ running: true, startedAt: at(22, 9, 0) });
+    expect(describeFor(value)).toEqual({ text: "Scan läuft seit 09:00", warning: false });
+  });
+
+  it("meldet eine Anwendung ohne bisherigen Scan als nicht gescannt", () => {
+    expect(describeFor(status(), null)).toEqual({
+      text: "Noch nicht gescannt – Änderungen seit dem letzten Scan",
+      warning: true,
+    });
   });
 
   it("meldet, dass es noch keinen Scan gibt", () => {
@@ -115,6 +139,8 @@ describe("describeScanFreshness", () => {
 
   it("zeigt den laufenden Scan auch bei ungescannten Änderungen", () => {
     const value = status({ running: true, startedAt: at(22, 9, 30), lastUsableRun: run() });
-    expect(describeFor(value, at(22, 9, 0)).text).toBe("Scan läuft seit 09:30");
+    expect(describeFor(value, at(22, 9, 0)).text).toBe(
+      "Scan läuft seit 09:30 · Noch nicht gescannt – Änderungen seit dem letzten Scan",
+    );
   });
 });

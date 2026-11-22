@@ -1,8 +1,11 @@
 import threading
 from datetime import UTC, datetime
 
+import pytest
+
 from app.application.ingest import IngestResult
 from app.domain.scan_run import ScanTrigger
+from app.infrastructure.job_gate import JobGate
 from app.infrastructure.thread_ingest_runner import ThreadIngestRunner
 
 _NOW = datetime(2026, 11, 1, 12, 0, tzinfo=UTC)
@@ -83,3 +86,19 @@ def test_start_passes_trigger_to_job() -> None:
     assert runner.start() is True
     assert runner.wait(_WAIT_SECONDS)
     assert triggers == [ScanTrigger.SCHEDULE, ScanTrigger.MANUAL]
+
+
+def test_failed_thread_start_releases_runner(monkeypatch: pytest.MonkeyPatch) -> None:
+    gate = JobGate()
+    runner = ThreadIngestRunner(_result, lambda: _NOW, gate)
+
+    def refuse(_self: threading.Thread) -> None:
+        raise RuntimeError("can't start new thread")
+
+    monkeypatch.setattr(threading.Thread, "start", refuse)
+    with pytest.raises(RuntimeError):
+        runner.start()
+    assert runner.state().running is False
+    monkeypatch.undo()
+    assert runner.start() is True
+    assert runner.wait(_WAIT_SECONDS)

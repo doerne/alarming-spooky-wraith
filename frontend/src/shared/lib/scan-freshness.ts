@@ -60,20 +60,28 @@ function changedSince(inventoryChangedAt: string | null | undefined, usable: Sca
   );
 }
 
-/** Beschreibt, wie aktuell die CVE-Daten sind – global oder für eine Anwendung. */
-export function describeScanFreshness({
-  status,
-  now,
-  inventoryChangedAt,
-}: ScanFreshnessInput): ScanFreshnessView {
-  if (status.running && status.startedAt) {
-    return {
-      text: `Scan läuft seit ${timeFormat.format(new Date(status.startedAt))}`,
-      warning: false,
-    };
-  }
+/** Stand der Daten ohne Rücksicht auf einen laufenden Scan. */
+function dataState({ status, now, inventoryChangedAt }: ScanFreshnessInput): ScanFreshnessView {
   const usable = status.lastUsableRun;
+  // Mit inventoryChangedAt (auch null) geht es um eine Anwendung: ohne Scan ist sie ungeprüft.
+  const perApplication = inventoryChangedAt !== undefined;
+  if (!usable && perApplication) return { text: NOT_SCANNED, warning: true };
   if (!usable) return { text: NO_SCAN, warning: status.lastRun?.outcome === "failed" };
   if (changedSince(inventoryChangedAt, usable)) return { text: NOT_SCANNED, warning: true };
   return standFor(usable, status.lastRun, now);
+}
+
+function runningState(input: ScanFreshnessInput, startedAt: string): ScanFreshnessView {
+  const running = `Scan läuft seit ${timeFormat.format(new Date(startedAt))}`;
+  const firstGlobalScan = !input.status.lastUsableRun && input.inventoryChangedAt === undefined;
+  if (firstGlobalScan) return { text: running, warning: false };
+  const state = dataState(input);
+  return { text: [running, state.text].join(SEPARATOR), warning: state.warning };
+}
+
+/** Beschreibt, wie aktuell die CVE-Daten sind – global oder für eine Anwendung. */
+export function describeScanFreshness(input: ScanFreshnessInput): ScanFreshnessView {
+  const { running, startedAt } = input.status;
+  if (running && startedAt) return runningState(input, startedAt);
+  return dataState(input);
 }

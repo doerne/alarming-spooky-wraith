@@ -35,11 +35,18 @@ class ThreadIngestRunner:
         with self._lock:
             if self._state.running or not self._gate.try_acquire():
                 return False
+            previous = self._state
             self._state = IngestRunState(running=True, started_at=self._clock())
             self._thread = threading.Thread(
                 target=self._run, args=(trigger,), name="ingest", daemon=True
             )
-            self._thread.start()
+            try:
+                self._thread.start()
+            except Exception:
+                # Sonst bliebe die Sperre belegt und kein späterer Scan liefe mehr an.
+                self._state = previous
+                self._gate.release()
+                raise
             return True
 
     def state(self) -> IngestRunState:

@@ -1,8 +1,9 @@
-import { useQuery } from "@tanstack/react-query";
+import { useScanStatus as useSharedScanStatus } from "@/shared/hooks/use-scan-status";
 
-import { fetchScanStatus, SCAN_STATUS_QUERY_KEY } from "@/shared/api/scan-status";
+// Nach einem Lauf ändern sich die Funde und der Stand der Anwendung.
+const KEYS_AFTER_RUN = [["application-findings"], ["application"]] as const;
 
-/** Stand des letzten Scans; teilt den Cache mit der Schwachstellen-Seite. */
+/** Stand des letzten Scans; teilt den Cache mit der Schwachstellen-Seite und pollt beim Lauf. */
 export function useScanStatus() {
-  return useQuery({ queryKey: SCAN_STATUS_QUERY_KEY, queryFn: fetchScanStatus });
+  return useSharedScanStatus(KEYS_AFTER_RUN);
 }
