@@ -66,3 +66,7 @@ export async function updateComponent(
     body: JSON.stringify(input),
   });
 }
+
+export async function deleteApplication(applicationId: number): Promise<void> {
+  await request(`/api/applications/${applicationId}`, { method: "DELETE" });
+}
