@@ -2,6 +2,7 @@ import { useState } from "react";
 
 import { DEFAULT_TREND_WEEKS, type TrendWeeks } from "@/shared/api/finding-trend";
 import { FilterSummaryBar } from "@/shared/components/filter-summary-bar";
+import { RemediationRow } from "@/shared/components/remediation-row";
 import { TrendCards } from "@/shared/components/trend-cards";
 import { TrendChart } from "@/shared/components/trend-chart";
 import { TrendRangeSelect } from "@/shared/components/trend-range-select";
@@ -12,6 +13,7 @@ import { IngestControl } from "./components/ingest-control";
 import { SeverityChart } from "./components/severity-chart";
 import { useFilteredFindings, useFindings } from "./hooks/use-findings";
 import { useFindingTrend } from "./hooks/use-finding-trend";
+import { useRemediationKpis } from "./hooks/use-remediation-kpis";
 import { isAlreadyRunning, useIngestStatus, useStartIngest } from "./hooks/use-run-ingest";
 import {
   type ColumnOptions,
@@ -74,6 +76,7 @@ export function CvesPage({ onSelectCve }: { onSelectCve: (advisoryId: string) =>
   const { data: findings = [] } = useFindings();
   const [weeks, setWeeks] = useState<TrendWeeks>(DEFAULT_TREND_WEEKS);
   const trend = useFindingTrend(weeks);
+  const kpis = useRemediationKpis();
   const [filters, setFilters] = useState<FindingFilters>(DEFAULT_FILTERS);
   const filtered = useFilteredFindings(filters);
   const ingestStatus = useIngestStatus();
@@ -111,6 +114,13 @@ export function CvesPage({ onSelectCve }: { onSelectCve: (advisoryId: string) =>
           </div>
         </>
       ) : null}
+      <RemediationRow
+        kpis={kpis.data}
+        kpisFailed={kpis.isError}
+        trend={trend.data}
+        feature="cves"
+        showApplications={true}
+      />
       <FilteredResult
         page={filtered.data}
         error={filtered.error}

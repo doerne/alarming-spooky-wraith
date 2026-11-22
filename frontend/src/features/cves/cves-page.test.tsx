@@ -22,6 +22,16 @@ const TREND = {
   openBySeverityNow: { kritisch: 1, hoch: 2, mittel: 1, niedrig: 1 },
 };
 
+const KPIS = {
+  deadlines: {
+    overdue: 2,
+    dueSoon: 1,
+    overdueBySeverity: { kritisch: 1, hoch: 1, mittel: 0, niedrig: 0 },
+    nextDueAt: null,
+  },
+  updates: { targets: [], fixableOpen: 0, openTotal: 5, morePackages: 0 },
+};
+
 function respondWith(body: unknown): Promise<Response> {
   return Promise.resolve(new Response(JSON.stringify(body), { status: 200 }));
 }
@@ -30,6 +40,7 @@ function mockApi() {
   return vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
     const url = String(input);
     if (url.startsWith("/api/findings/trend")) return respondWith(TREND);
+    if (url.startsWith("/api/findings/kpis")) return respondWith(KPIS);
     if (url.startsWith("/api/cves"))
       return respondWith({ items: [], total: 0, unfilteredTotal: 0 });
     return respondWith({});
@@ -101,5 +112,30 @@ describe("CvesPage", () => {
     await userEvent.click(screen.getByTestId("cves-btn-trend-range-4"));
 
     expect(requestedUrls(fetchMock)).toContain("/api/findings/trend?weeks=4");
+  });
+
+  it("zeigt Fristen, Erledigungsarten und Update-Ziele samt Anwendungen", async () => {
+    mockApi();
+    renderPage();
+
+    expect(await screen.findByTestId("cves-card-deadlines")).toBeInTheDocument();
+    expect(screen.getByTestId("cves-card-closure-breakdown")).toBeInTheDocument();
+    expect(screen.getByTestId("cves-card-update-targets")).toBeInTheDocument();
+  });
+
+  it("meldet einen Fehler, wenn die Kennzahlen nicht geladen werden können", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = String(input);
+      if (url.startsWith("/api/findings/kpis"))
+        return Promise.resolve(new Response("{}", { status: 500 }));
+      if (url.startsWith("/api/findings/trend")) return respondWith(TREND);
+      return respondWith({ items: [], total: 0, unfilteredTotal: 0 });
+    });
+    renderPage();
+
+    expect(await screen.findByTestId("cves-error-kpis")).toHaveTextContent(
+      "Kennzahlen konnten nicht geladen werden.",
+    );
+    expect(screen.queryByTestId("cves-card-deadlines")).not.toBeInTheDocument();
   });
 });

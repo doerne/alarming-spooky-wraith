@@ -36,11 +36,24 @@ const TREND = {
   openBySeverityNow: { kritisch: 1, hoch: 2, mittel: 1, niedrig: 1 },
 };
 
+const KPIS = {
+  deadlines: {
+    overdue: 2,
+    dueSoon: 1,
+    overdueBySeverity: { kritisch: 1, hoch: 1, mittel: 0, niedrig: 0 },
+    nextDueAt: null,
+  },
+  updates: { targets: [], fixableOpen: 0, openTotal: 5, morePackages: 0 },
+};
+
 function mockFindings(byApp: Record<string, (typeof FINDING)[]>) {
   return vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
     const url = new URL(String(input), "http://localhost");
     if (url.pathname === "/api/findings/trend") {
       return Promise.resolve(new Response(JSON.stringify(TREND), { status: 200 }));
+    }
+    if (url.pathname === "/api/findings/kpis") {
+      return Promise.resolve(new Response(JSON.stringify(KPIS), { status: 200 }));
     }
     const all = byApp[url.searchParams.get("application_id") ?? ""] ?? [];
     const severities = url.searchParams.getAll("severity");
@@ -75,6 +88,35 @@ describe("ApplicationCvesPage", () => {
     expect(
       urls.some((url) => url.includes("application_id=7") && url.includes("status=offen")),
     ).toBe(true);
+  });
+
+  it("zeigt Fristen, Erledigungsarten und Update-Ziele der Anwendung", async () => {
+    const fetchMock = mockFindings({ "7": [FINDING] });
+    renderPage(7);
+
+    expect(await screen.findByTestId("inventory-card-deadlines")).toBeInTheDocument();
+    expect(screen.getByTestId("inventory-card-closure-breakdown")).toBeInTheDocument();
+    expect(screen.getByTestId("inventory-card-update-targets")).toBeInTheDocument();
+    const kpiRequest = fetchMock.mock.calls
+      .map(([input]) => new URL(String(input), "http://localhost"))
+      .find((url) => url.pathname === "/api/findings/kpis");
+    expect(kpiRequest?.searchParams.get("applicationId")).toBe("7");
+  });
+
+  it("zeigt einen Fehlerhinweis, wenn die Kennzahlen nicht laden", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = String(input);
+      if (url.startsWith("/api/findings/kpis"))
+        return Promise.resolve(new Response("{}", { status: 500 }));
+      const body = url.startsWith("/api/findings/trend")
+        ? TREND
+        : { items: [], total: 0, unfilteredTotal: 0 };
+      return Promise.resolve(new Response(JSON.stringify(body), { status: 200 }));
+    });
+    renderPage(1);
+
+    expect(await screen.findByTestId("inventory-error-kpis")).toHaveAttribute("role", "alert");
+    expect(screen.queryByTestId("inventory-card-deadlines")).not.toBeInTheDocument();
   });
 
   it("zeigt einen Fehlerhinweis, wenn der Trend nicht lädt", async () => {
