@@ -79,11 +79,13 @@ def test_exactly_due_counts_as_overdue_not_due_soon():
     assert summary.overdue_by_severity == {Severity.KRITISCH: 1, Severity.HOCH: 0, Severity.MITTEL: 0, Severity.NIEDRIG: 0}
 
 def test_due_soon_window_and_next_due():
-    soon = make_finding(first_seen_at=NOW - timedelta(days=25), level=Severity.HOCH)   # fällig in 5 Tagen
-    later = make_finding(first_seen_at=NOW - timedelta(days=10), level=Severity.HOCH)  # fällig in 20 Tagen
-    summary = compute_deadlines([later, soon], NOW)
+    # Erstsichtungen nach DEADLINE_START, damit die Frist ab first_seen_at läuft.
+    later_now = datetime(2027, 1, 15, 12, 0, tzinfo=UTC)
+    soon = make_finding(first_seen_at=later_now - timedelta(days=25), level=Severity.HOCH)   # fällig in 5 Tagen
+    later = make_finding(first_seen_at=later_now - timedelta(days=10), level=Severity.HOCH)  # fällig in 20 Tagen
+    summary = compute_deadlines([later, soon], later_now)
     assert (summary.overdue, summary.due_soon) == (0, 1)
-    assert summary.next_due_at == NOW + timedelta(days=5)
+    assert summary.next_due_at == later_now + timedelta(days=5)
 
 def test_closed_findings_never_count_and_in_progress_does():
     overdue_closed = make_finding(FindingStatus.ACCEPTED, first_seen_at=NOW - timedelta(days=60), level=Severity.KRITISCH)
