@@ -85,7 +85,7 @@ Im CVE-Tab einer Anwendung dieselbe dritte Reihe unter dem Verlauf (ohne Spalte
 - Altfunde, die vom ersten Tag an alles rot färben (deshalb Fristbeginn 22.11.).
 - Eine Zielversion vorschlagen, die nicht alle Funde des Pakets schließt (deshalb die
   höchste Fix-Version je Paket, siehe unten).
-- Neue Abhängigkeiten (kein `packaging`/`semver`). Diagramme mit vorhandenem
+- Neue Abhängigkeiten (Versionsvergleich über das vorhandene `univers`). Diagramme mit vorhandenem
   recharts + shadcn `chart`.
 
 ## Ansätze
@@ -114,10 +114,14 @@ Claude hat A gewählt (der Nutzer hat das Wie übergeben).
     `fixed_version | None`. Gruppierung nach (Ökosystem, Paketname). Zielversion = höchste
     `fixed_version` der Gruppe. Ergebnis: `targets` (absteigend nach Anzahl Funde, dann
     Paketname), `fixable_open`, `open_total`, `more_packages`.
-  - `compare_versions(a, b) -> int`: einfacher, abhängigkeitsfreier Vergleich – führendes
-    `v` ignorieren, an `.`, `-`, `+`, `_` trennen, numerische Teile numerisch, sonst
-    lexikografisch; Zahl > Text bei gleicher Position (damit `1.2.0` > `1.2.0-rc1`).
-    Ungültiges/leeres → wird nicht als Ziel genommen.
+  - Versionen vergleicht die Domain nicht selbst. Sie nutzt einen neuen Port
+    `VersionComparator` (`domain/ports.py`), der für jedes Ökosystem richtig vergleicht.
+    Die Implementierung ist `UniversVersionMatcher.is_newer` auf Basis von `univers`. Die
+    Bibliothek nutzt das Projekt bereits für den Scan, sie ist also keine neue
+    Abhängigkeit. (Claudes Entscheidung bei der Planung, ersetzt den eigenen
+    `compare_versions`: Ein selbst geschriebener Vergleich würde npm-, PyPI- und
+    Maven-Regeln nur ungefähr treffen.) Was sich nicht parsen lässt, gilt als
+    „nicht neuer“.
 - `finding_trend.py`: `FindingTrend` bekommt `closed_by_outcome: dict[ClosureKind, int]`
   (immer alle fünf Arten) für Funde, deren `closed_at` im Zeitraum liegt – dieselbe
   Menge, die `closed_total` zählt. `ClosureKind` (StrEnum) mit Werten
@@ -163,7 +167,7 @@ Claude hat A gewählt (der Nutzer hat das Wie übergeben).
 1. **Fund ohne `first_seen_at`** zählt zum offenen Bestand und bekommt den Fristbeginn
    `DEADLINE_START`. So passen Fristen-Zahlen und Kachel „Offener Bestand“ zusammen.
 2. **Fix-Version gehört zur Advisory, nicht zur Komponente.** Sie gilt für einen Fund
-   nur, wenn `compare_versions(fixed_version, found_version) > 0`. Sonst behandeln wir
+   nur, wenn `is_newer(ecosystem, fixed_version, found_version)`. Sonst behandeln wir
    den Fund wie einen ohne bekannte Fix-Version. Das schützt vor veralteten Daten und vor
    Fix-Versionen eines anderen Pakets aus Mehrfach-Advisories, ohne neue Datenfelder.
 3. **Zählweise der Update-Karte:** Eine Zeile zählt nur Funde ihrer Gruppe mit gültiger
@@ -181,7 +185,6 @@ Claude hat A gewählt (der Nutzer hat das Wie übergeben).
 - Exakte Darstellung der Erledigungs-Aufteilung (gestapelte Leiste vs. kleine Balken),
   solange Summe und Zahlen sichtbar sind.
 - Formulierung von Leerzuständen (z. B. „Kein offener Fund mit bekannter Fix-Version.“).
-- Ob `compare_versions` in `remediation.py` oder eigener Datei liegt.
 
 ## Prüfungen
 
