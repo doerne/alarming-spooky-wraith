@@ -4,7 +4,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, replace
 
 from app.application.source_registry import SourceRegistry
-from app.application.unit_of_work import UnitOfWork, UnitOfWorkFactory
+from app.application.unit_of_work import UnitOfWork
 from app.domain.errors import InvalidValueError
 from app.domain.sources import (
     RunStatus,
@@ -104,8 +104,3 @@ class ResetInterruptedRuns:
             )
         self._uow.commit()
         return len(interrupted)
-
-
-def reset_interrupted_runs(uow_factory: UnitOfWorkFactory) -> None:
-    with uow_factory() as uow:
-        ResetInterruptedRuns(uow).execute()

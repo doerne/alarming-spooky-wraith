@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol
 
+from app.domain.scan_run import ScanTrigger
+
 
 @dataclass(frozen=True)
 class IngestRunState:
@@ -18,7 +20,7 @@ class IngestRunState:
 
 
 class IngestRunner(Protocol):
-    def start(self) -> bool:
+    def start(self, trigger: ScanTrigger = ScanTrigger.MANUAL) -> bool:
         """Startet einen Lauf. False, wenn schon einer läuft."""
         ...
 

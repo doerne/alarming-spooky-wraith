@@ -11,6 +11,7 @@ from datetime import datetime
 
 from app.application.ingest import IngestResult
 from app.application.ingest_runner import IngestRunState
+from app.domain.scan_run import ScanTrigger
 from app.infrastructure.job_gate import JobGate
 
 _logger = logging.getLogger(__name__)
@@ -19,7 +20,7 @@ _logger = logging.getLogger(__name__)
 class ThreadIngestRunner:
     def __init__(
         self,
-        job: Callable[[], IngestResult],
+        job: Callable[[ScanTrigger], IngestResult],
         clock: Callable[[], datetime],
         gate: JobGate | None = None,
     ) -> None:
@@ -30,12 +31,14 @@ class ThreadIngestRunner:
         self._state = IngestRunState(running=False)
         self._thread: threading.Thread | None = None
 
-    def start(self) -> bool:
+    def start(self, trigger: ScanTrigger = ScanTrigger.MANUAL) -> bool:
         with self._lock:
             if self._state.running or not self._gate.try_acquire():
                 return False
             self._state = IngestRunState(running=True, started_at=self._clock())
-            self._thread = threading.Thread(target=self._run, name="ingest", daemon=True)
+            self._thread = threading.Thread(
+                target=self._run, args=(trigger,), name="ingest", daemon=True
+            )
             self._thread.start()
             return True
 
@@ -50,9 +53,9 @@ class ThreadIngestRunner:
             thread.join(timeout)
         return not self.state().running
 
-    def _run(self) -> None:
+    def _run(self, trigger: ScanTrigger) -> None:
         try:
-            result = self._job()
+            result = self._job(trigger)
         except Exception as error:
             # Details nur ins Log: Ausnahmen (z. B. der DB) können Interna enthalten.
             _logger.exception("Ingest-Lauf fehlgeschlagen")

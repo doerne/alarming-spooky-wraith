@@ -9,8 +9,8 @@ from fastapi import FastAPI
 from app.application.component_matching import ComponentMatcher
 from app.application.github_sync import GitHubSyncServices, SyncRequest, run_github_sync
 from app.application.ingest import run_ingest_job, run_scan_then_sync
+from app.application.scan_runs import reset_interrupted_runs, run_recorded_scan
 from app.application.source_registry import SourceRegistry
-from app.application.source_use_cases import reset_interrupted_runs
 from app.infrastructure.config import get_settings
 from app.infrastructure.database import create_session_factory
 from app.infrastructure.github.app_client import GitHubAppIssueTracker
@@ -50,7 +50,9 @@ def build_app() -> FastAPI:
     sync_job = partial(run_github_sync, uow_factory, github)
     scan = partial(run_ingest_job, uow_factory, registry, matcher, store, _now)
     automatic_sync = partial(sync_job, SyncRequest(None, create_issues=False, min_level=None))
-    job = partial(run_scan_then_sync, scan, automatic_sync)
+    job = partial(
+        run_recorded_scan, uow_factory, _now, partial(run_scan_then_sync, scan, automatic_sync)
+    )
     return create_app(
         uow_factory,
         enable_docs=settings.enable_docs,
@@ -58,7 +60,7 @@ def build_app() -> FastAPI:
             ingest_runner=ThreadIngestRunner(job, _now, gate),
             advisory_store=store,
             source_registry=registry,
-            on_startup=partial(reset_interrupted_runs, uow_factory),
+            on_startup=partial(reset_interrupted_runs, uow_factory, _now),
             sbom_parser=CycloneDxParser(),
             clock=_now,
             github_tracker=tracker,

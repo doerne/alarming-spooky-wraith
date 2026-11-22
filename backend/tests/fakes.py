@@ -566,11 +566,13 @@ class FakeIngestRunner:
     def __init__(self, state: IngestRunState | None = None) -> None:
         self._state = state or IngestRunState(running=False)
         self.starts = 0
+        self.triggers: list[ScanTrigger] = []
 
-    def start(self) -> bool:
+    def start(self, trigger: ScanTrigger = ScanTrigger.MANUAL) -> bool:
         if self._state.running:
             return False
         self.starts += 1
+        self.triggers.append(trigger)
         self._state = IngestRunState(running=True, started_at=self._state.started_at)
         return True
 

@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 
 from app.application.github_sync import SyncRequest
 from app.application.ingest import IngestResult
+from app.domain.scan_run import ScanTrigger
 from app.infrastructure.job_gate import JobGate
 from app.infrastructure.thread_ingest_runner import ThreadIngestRunner
 from app.infrastructure.thread_sync_runner import ThreadSyncRunner
@@ -11,7 +12,7 @@ _NOW = datetime(2026, 11, 21, 12, 0, tzinfo=UTC)
 _WAIT_SECONDS = 5
 
 
-def _result() -> IngestResult:
+def _result(_trigger: ScanTrigger = ScanTrigger.MANUAL) -> IngestResult:
     return IngestResult(components_scanned=0, findings_found=0, sources=[])
 
 
@@ -44,7 +45,7 @@ def test_sync_is_refused_while_scan_holds_the_gate() -> None:
     release = threading.Event()
     gate = JobGate()
 
-    def scan_job() -> IngestResult:
+    def scan_job(_trigger: ScanTrigger) -> IngestResult:
         release.wait(_WAIT_SECONDS)
         return _result()
 
