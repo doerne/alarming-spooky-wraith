@@ -22,6 +22,13 @@ describe("DeadlineCard", () => {
     expect(screen.getByTestId("cves-text-next-due")).toHaveTextContent(/\d{2}\.\d{2}\./);
   });
 
+  it("rendert keine Klasse undefined", () => {
+    render(<DeadlineCard deadlines={deadlines} openTotal={10} feature="cves" />);
+
+    expect(screen.getByTestId("cves-text-due-soon").className).not.toContain("undefined");
+    expect(screen.getByTestId("cves-text-overdue").className).not.toContain("undefined");
+  });
+
   it("färbt Überfälliges mit text-destructive", () => {
     render(<DeadlineCard deadlines={{ ...deadlines, overdue: 2 }} openTotal={10} feature="cves" />);
 

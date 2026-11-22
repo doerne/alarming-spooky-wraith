@@ -17,12 +17,12 @@ describe("ClosureBreakdownCard", () => {
   it("zeigt Zahlen und Bezeichnung je Art", () => {
     render(<ClosureBreakdownCard closedByOutcome={outcome} feature="cves" />);
 
-    expect(screen.getByTestId("cves-item-closure-fixed_confirmed")).toHaveTextContent(
+    expect(screen.getByTestId("cves-item-closure-fixed-confirmed")).toHaveTextContent(
       "Behoben, bestätigt",
     );
-    expect(screen.getByTestId("cves-item-closure-fixed_confirmed")).toHaveTextContent("5");
+    expect(screen.getByTestId("cves-item-closure-fixed-confirmed")).toHaveTextContent("5");
     expect(screen.getByTestId("cves-item-closure-accepted")).toHaveTextContent("Akzeptiert");
-    expect(screen.getByTestId("cves-item-closure-false_positive")).toHaveTextContent(
+    expect(screen.getByTestId("cves-item-closure-false-positive")).toHaveTextContent(
       "False Positive",
     );
   });

@@ -1,4 +1,5 @@
 import type { RemediationKpis } from "@/shared/api/remediation-kpis";
+import { cn } from "@/shared/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
 
 interface DeadlineCardProps {
@@ -15,17 +16,6 @@ function dayLabelOf(isoDateTime: string): string {
   return `${day}.${month}.`;
 }
 
-function Figure({ label, value, testId, className }: FigureProps) {
-  return (
-    <div>
-      <p className="text-sm text-muted-foreground">{label}</p>
-      <p className={`text-3xl font-semibold ${className}`} data-testid={testId}>
-        {value}
-      </p>
-    </div>
-  );
-}
-
 interface FigureProps {
   label: string;
   value: string | number;
@@ -33,8 +23,19 @@ interface FigureProps {
   className?: string;
 }
 
+function Figure({ label, value, testId, className }: FigureProps) {
+  return (
+    <div>
+      <p className="text-sm text-muted-foreground">{label}</p>
+      <p className={cn("text-3xl font-semibold", className)} data-testid={testId}>
+        {value}
+      </p>
+    </div>
+  );
+}
+
 export function DeadlineCard({ deadlines, openTotal, feature }: DeadlineCardProps) {
-  const overdueClass = deadlines.overdue > 0 ? "text-destructive" : "";
+  const overdueClass = deadlines.overdue > 0 ? "text-destructive" : undefined;
 
   return (
     <Card data-testid={`${feature}-card-deadlines`}>

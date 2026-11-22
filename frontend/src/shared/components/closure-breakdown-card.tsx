@@ -44,7 +44,7 @@ export function ClosureBreakdownCard({ closedByOutcome, feature }: ClosureBreakd
                 <li
                   key={kind}
                   className="flex items-center justify-between gap-2"
-                  data-testid={`${feature}-item-closure-${kind}`}
+                  data-testid={`${feature}-item-closure-${kind.replaceAll("_", "-")}`}
                 >
                   <span className="flex items-center gap-2">
                     <span
