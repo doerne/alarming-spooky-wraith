@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import { FilterSummaryBar } from "@/shared/components/filter-summary-bar";
+import { describeScanFreshness } from "@/shared/lib/scan-freshness";
 
 import { CvesTable } from "./components/cves-table";
 import { IngestControl } from "./components/ingest-control";
@@ -78,6 +79,11 @@ export function CvesPage({ onSelectCve }: { onSelectCve: (advisoryId: string) =>
         <IngestControl
           state={ingestStatus.data}
           alreadyRunning={isAlreadyRunning(startIngest.error)}
+          freshness={
+            ingestStatus.data
+              ? describeScanFreshness({ status: ingestStatus.data, now: new Date() })
+              : undefined
+          }
           onStart={() => startIngest.mutate()}
         />
       </div>

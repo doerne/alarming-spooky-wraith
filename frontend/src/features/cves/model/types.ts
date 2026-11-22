@@ -27,16 +27,6 @@ export const findingsPageSchema = z.object({
 });
 export type FindingsPage = z.infer<typeof findingsPageSchema>;
 
-export const ingestStateSchema = z.object({
-  running: z.boolean(),
-  startedAt: z.string().nullable(),
-  finishedAt: z.string().nullable(),
-  componentsScanned: z.number().nullable(),
-  findingsFound: z.number().nullable(),
-  error: z.string().nullable(),
-});
-export type IngestState = z.infer<typeof ingestStateSchema>;
-
 export const affectedFindingSchema = z.object({
   applicationName: z.string(),
   componentId: z.number(),

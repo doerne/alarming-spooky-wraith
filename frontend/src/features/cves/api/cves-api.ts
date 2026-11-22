@@ -5,9 +5,7 @@ import {
   type Finding,
   type FindingsPage,
   cveDetailSchema,
-  type IngestState,
   findingsPageSchema,
-  ingestStateSchema,
 } from "../model/types";
 import type { FindingFilters } from "../model/filters";
 
@@ -31,14 +29,6 @@ export function buildFindingsQuery(filters: FindingFilters): string {
 
 export async function fetchFilteredFindings(filters: FindingFilters): Promise<FindingsPage> {
   return findingsPageSchema.parse(await request(`/api/cves${buildFindingsQuery(filters)}`));
-}
-
-export async function startIngest(): Promise<IngestState> {
-  return ingestStateSchema.parse(await request("/api/ingest/run", { method: "POST" }));
-}
-
-export async function fetchIngestStatus(): Promise<IngestState> {
-  return ingestStateSchema.parse(await request("/api/ingest/status"));
 }
 
 export async function fetchCveDetail(advisoryId: string): Promise<CveDetail> {
