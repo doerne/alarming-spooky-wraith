@@ -17,6 +17,8 @@ from tests.fakes import FakeAdvisoryStore, InMemoryUnitOfWork
 
 _NOW = datetime(2026, 11, 22, 3, 0, tzinfo=UTC)
 
+_EARLIER = datetime(2026, 11, 1, 3, 0, tzinfo=UTC)
+
 
 class _World:
     def __init__(self) -> None:
@@ -47,7 +49,12 @@ class _World:
         )
 
     def finding(
-        self, component: Component, status: FindingStatus = FindingStatus.OPEN, comment: str = ""
+        self,
+        component: Component,
+        status: FindingStatus = FindingStatus.OPEN,
+        comment: str = "",
+        first_seen_at: datetime | None = None,
+        closed_at: datetime | None = None,
     ) -> None:
         assert component.id is not None
         self.uow.findings.upsert(
@@ -59,6 +66,8 @@ class _World:
                 risk=RiskScore(value=75, level=Severity.HOCH, rationale=""),
                 status=status,
                 comment=comment,
+                first_seen_at=first_seen_at or _NOW,
+                closed_at=closed_at,
             )
         )
 
@@ -100,6 +109,20 @@ def test_transfers_triage_to_successor() -> None:
     assert finding.component_id == successor.id
     assert (finding.status, finding.comment) == (FindingStatus.IN_PROGRESS, "PR #3")
     assert finding.resolved_at is None
+
+
+def test_transfer_keeps_donor_closed_at_and_first_seen() -> None:
+    world = _World()
+    old = world.component("3.1.4", retired_in=world.version("v1.5.0"))
+    world.finding(old, FindingStatus.ACCEPTED, first_seen_at=_EARLIER, closed_at=_EARLIER)
+    successor = world.component("3.1.5")
+    world.finding(successor)
+    world.resolve()
+    [finding] = world.uow.findings.list()
+    assert finding.component_id == successor.id
+    assert finding.status == FindingStatus.ACCEPTED
+    assert finding.closed_at == _EARLIER
+    assert finding.first_seen_at == _EARLIER
 
 
 def test_successor_keeps_its_own_status_when_already_triaged() -> None:

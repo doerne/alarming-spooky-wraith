@@ -3,7 +3,7 @@
 import logging
 import re
 from collections.abc import Callable
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol
 
@@ -217,7 +217,9 @@ class SyncGitHubIssues:
         if action == IssueAction.MARK_ACCEPTED:
             note = f"Issue #{linked.number} als not planned geschlossen"
             for finding in _open_findings(linked.active):
-                accepted = replace(finding.with_note(note), status=FindingStatus.ACCEPTED)
+                accepted = finding.with_note(note).with_status(
+                    FindingStatus.ACCEPTED, self._clock()
+                )
                 self._uow.findings.save_report(accepted)
             return
         text = f"Issue #{linked.number} geschlossen"
