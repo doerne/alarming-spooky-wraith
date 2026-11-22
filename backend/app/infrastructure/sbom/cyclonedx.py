@@ -16,6 +16,10 @@ from app.infrastructure.sources.purl import ecosystem_for_purl_type
 
 SUPPORTED_SPEC_VERSIONS = ("1.4", "1.5", "1.6", "1.7")
 _IMPORTED_TYPES = frozenset({"library", "framework", "application"})
+_TRIVY_TYPE_PROPERTY = "aquasecurity:trivy:Type"
+# Lockfile-Typen, bei denen Trivy das eigene Projekt als Paket unter die Lockfile hängt.
+# Bewusst eng: nur uv ist an echten SBOMs belegt; andere Typen gelten als reine Lockfile-Knoten.
+_LOCKFILES_WITH_OWN_PROJECT = frozenset({"uv"})
 
 
 @dataclass(frozen=True)
@@ -73,21 +77,85 @@ def _package_id(purl: str | None, name: str) -> _PackageId:
     return package or _PackageId(None, name)
 
 
-def _direct_refs(document: Mapping[str, object]) -> frozenset[str] | None:
-    """Refs, von denen das Hauptprojekt direkt abhängt.
+@dataclass(frozen=True)
+class _DirectDependencies:
+    """Direkte Abhängigkeiten des Hauptprojekts und Pakete, die das Projekt selbst sind.
 
-    None (alle gelten als direkt), wenn kein Graph oder kein Eintrag für das Hauptprojekt da ist.
+    ``refs`` None heißt: kein verwertbarer Graph, alle Komponenten gelten als direkt.
     """
-    root_ref = _text(_mapping(_mapping(document.get("metadata")).get("component")).get("bom-ref"))
+
+    refs: frozenset[str] | None
+    own_project: frozenset[str] = frozenset()
+
+
+def _dependency_graph(document: Mapping[str, object]) -> dict[str, list[str]]:
     dependencies = document.get("dependencies")
-    if root_ref is None or not isinstance(dependencies, list):
-        return None
-    for raw in dependencies:
+    graph: dict[str, list[str]] = {}
+    for raw in dependencies if isinstance(dependencies, list) else []:
         dependency = _mapping(raw)
+        ref = _text(dependency.get("ref"))
         depends_on = dependency.get("dependsOn")
-        if dependency.get("ref") == root_ref and isinstance(depends_on, list):
-            return frozenset(ref for ref in depends_on if isinstance(ref, str))
+        if ref is not None and isinstance(depends_on, list):
+            graph[ref] = [item for item in depends_on if isinstance(item, str)]
+    return graph
+
+
+def _package_refs(components: list[Mapping[str, object]]) -> frozenset[str]:
+    """Refs echter Pakete (mit purl); Lockfile-Knoten von Trivy haben keine."""
+    return frozenset(
+        ref
+        for component in components
+        if (ref := _text(component.get("bom-ref"))) and _text(component.get("purl"))
+    )
+
+
+def _trivy_types(components: list[Mapping[str, object]]) -> dict[str, str]:
+    """bom-ref → Trivy-Lockfile-Typ (z. B. "uv", "npm") aus den Komponenten-Properties."""
+    types: dict[str, str] = {}
+    for component in components:
+        ref = _text(component.get("bom-ref"))
+        properties = component.get("properties")
+        for raw in properties if isinstance(properties, list) else []:
+            prop = _mapping(raw)
+            value = _text(prop.get("value"))
+            if ref and value and prop.get("name") == _TRIVY_TYPE_PROPERTY:
+                types[ref] = value
+    return types
+
+
+def _own_project(lockfile_type: str | None, children: list[str]) -> str | None:
+    """Bei uv ist das einzige Paket unter der Lockfile das eigene Projekt, keine Abhängigkeit."""
+    if lockfile_type in _LOCKFILES_WITH_OWN_PROJECT and len(children) == 1:
+        return children[0]
     return None
+
+
+def _direct_dependencies(
+    document: Mapping[str, object], components: list[Mapping[str, object]]
+) -> _DirectDependencies:
+    """Folgt dem Graphen ab dem Hauptprojekt; Lockfile-Knoten ohne purl werden durchlaufen."""
+    root_ref = _text(_mapping(_mapping(document.get("metadata")).get("component")).get("bom-ref"))
+    graph = _dependency_graph(document)
+    if root_ref is None or root_ref not in graph:
+        return _DirectDependencies(refs=None)
+    package_refs = _package_refs(components)
+    trivy_types = _trivy_types(components)
+    direct: set[str] = set()
+    own_project: set[str] = set()
+    for ref in graph[root_ref]:
+        if ref in package_refs:
+            direct.add(ref)
+            continue
+        children = graph.get(ref, [])
+        project = _own_project(trivy_types.get(ref), children)
+        if project is None:
+            direct.update(children)
+        else:
+            own_project.add(project)
+            direct.update(graph.get(project, []))
+    # Kein einziges direktes Paket gefunden: Graph unbrauchbar, wie ohne Graph behandeln.
+    refs = frozenset(direct) if direct else None
+    return _DirectDependencies(refs=refs, own_project=frozenset(own_project))
 
 
 def _is_direct(component: Mapping[str, object], direct_refs: frozenset[str] | None) -> bool:
@@ -139,8 +207,12 @@ class CycloneDxParser:
         ]
         if len(imported) > SBOM_MAX_COMPONENTS:
             raise InvalidSbomError(f"SBOM enthält mehr als {SBOM_MAX_COMPONENTS} Komponenten")
-        direct_refs = _direct_refs(document)
-        entries = [_entry_from(component, direct_refs) for component in imported]
+        dependencies = _direct_dependencies(document, imported)
+        entries = [
+            _entry_from(component, dependencies.refs)
+            for component in imported
+            if component.get("bom-ref") not in dependencies.own_project
+        ]
         valid = tuple(entry for entry in entries if entry is not None)
         return ParsedSbom(
             entries=valid,
