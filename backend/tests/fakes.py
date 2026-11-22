@@ -63,6 +63,9 @@ class InMemoryApplicationRepository:
         self._items[application.id] = application
         return application
 
+    def delete(self, application_id: int) -> None:
+        self._items.pop(application_id, None)
+
 
 class InMemoryComponentRepository:
     def __init__(self) -> None:

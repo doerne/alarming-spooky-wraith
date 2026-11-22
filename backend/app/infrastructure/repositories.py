@@ -174,6 +174,9 @@ class SqlAlchemyApplicationRepository:
         models = self._session.scalars(select(ApplicationModel)).all()
         return [_to_application(model) for model in models]
 
+    def delete(self, application_id: int) -> None:
+        self._session.execute(delete(ApplicationModel).where(ApplicationModel.id == application_id))
+
 
 class SqlAlchemyComponentRepository:
     def __init__(self, session: Session) -> None:

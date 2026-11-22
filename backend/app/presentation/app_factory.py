@@ -7,6 +7,7 @@ from fastapi import FastAPI
 
 from app.application.github_sync import GitHubSyncRunner
 from app.application.ingest_runner import IngestRunner
+from app.application.job_activity import JobActivity
 from app.application.source_registry import SourceRegistry
 from app.application.unit_of_work import UnitOfWorkFactory
 from app.domain.ports import AdvisoryStore, IssueTracker, SbomParser, VersionComparator
@@ -51,6 +52,7 @@ class AppServices:
     github_tracker: IssueTracker | None = None
     github_sync_runner: GitHubSyncRunner | None = None
     version_comparator: VersionComparator | None = None
+    job_activity: JobActivity | None = None
 
 
 def create_app(
@@ -77,6 +79,7 @@ def create_app(
     app.state.github_tracker = services.github_tracker
     app.state.github_sync_runner = services.github_sync_runner
     app.state.version_comparator = services.version_comparator
+    app.state.job_activity = services.job_activity
     register_error_handlers(app)
     app.include_router(health_router)
     app.include_router(inventory_router)

@@ -39,3 +39,8 @@ class ComponentManagedBySbomError(ConflictError):
 
 class IssueTrackerError(DomainError):
     """Der Issue-Tracker (GitHub) ist nicht erreichbar, nicht konfiguriert oder lehnt ab."""
+
+
+class ApplicationBusyError(ConflictError):
+    def __init__(self) -> None:
+        super().__init__("Während eines Scans kann nicht gelöscht werden.")

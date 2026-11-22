@@ -92,6 +92,7 @@ def build_app() -> FastAPI:
             github_tracker=tracker,
             github_sync_runner=ThreadSyncRunner(sync_job, _now, gate),
             version_comparator=versions,
+            job_activity=gate,
         ),
     )
 

@@ -4,8 +4,13 @@ from dataclasses import replace
 from datetime import datetime
 
 from app.application.ingest import Clock
+from app.application.job_activity import JobActivity
 from app.application.unit_of_work import UnitOfWork
-from app.domain.errors import ComponentManagedBySbomError, EntityNotFoundError
+from app.domain.errors import (
+    ApplicationBusyError,
+    ComponentManagedBySbomError,
+    EntityNotFoundError,
+)
 from app.domain.inventory import Application, Component
 
 
@@ -81,3 +86,27 @@ class GetApplication:
             if not component.is_retired
         ]
         return application
+
+
+class DeleteApplication:
+    def __init__(self, uow: UnitOfWork, activity: JobActivity) -> None:
+        self._uow = uow
+        self._activity = activity
+
+    def execute(self, application_id: int) -> None:
+        self._uow.applications.get(application_id)  # EntityNotFoundError, falls unbekannt
+        if self._activity.is_busy():
+            raise ApplicationBusyError()
+        component_ids = [
+            component.id
+            for component in self._uow.components.list_for_application(application_id)
+            if component.id is not None
+        ]
+        # Reihenfolge wegen Fremdschlüssel: Funde, Komponenten, SBOMs (samt Versionen), Anwendung
+        self._uow.findings.delete_for_components(component_ids)
+        self._uow.components.delete_many(component_ids)
+        for sbom in self._uow.sboms.list_for_application(application_id):
+            assert sbom.id is not None
+            self._uow.sboms.delete(sbom.id)
+        self._uow.applications.delete(application_id)
+        self._uow.commit()

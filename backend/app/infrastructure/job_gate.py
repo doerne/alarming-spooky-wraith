@@ -14,3 +14,6 @@ class JobGate:
 
     def release(self) -> None:
         self._lock.release()
+
+    def is_busy(self) -> bool:
+        return self._lock.locked()
