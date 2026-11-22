@@ -119,27 +119,31 @@ _NOW = datetime(2026, 11, 22, 12, 0, tzinfo=UTC)
 _EARLIER = datetime(2026, 11, 1, 9, 0, tzinfo=UTC)
 
 
-def _resolution(status: FindingStatus) -> FindingResolution:
+def _resolution(status: FindingStatus, closed_at: datetime | None) -> FindingResolution:
     return FindingResolution(
-        status=status, resolved_at=_NOW, text="erledigt", source=ResolutionSource.REPORTED
+        status=status,
+        resolved_at=_NOW,
+        text="erledigt",
+        source=ResolutionSource.REPORTED,
+        closed_at=closed_at,
     )
 
 
-def test_fake_resolve_sets_closed_at_from_resolution_time() -> None:
+def test_fake_resolve_writes_closed_at_of_resolution() -> None:
     repository = InMemoryFindingRepository()
     saved = repository.upsert(_finding())
     assert saved.id is not None
-    repository.resolve(saved.id, _resolution(FindingStatus.FIXED))
+    repository.resolve(saved.id, _resolution(FindingStatus.FIXED, _NOW))
     assert repository.list()[0].closed_at == _NOW
 
 
-def test_fake_resolve_keeps_closed_at_of_already_closed() -> None:
+def test_fake_resolve_overwrites_closed_at_with_resolution_value() -> None:
     repository = InMemoryFindingRepository()
     saved = repository.upsert(_finding())
     assert saved.id is not None
     repository.save_report(replace(saved, status=FindingStatus.ACCEPTED, closed_at=_EARLIER))
-    repository.resolve(saved.id, _resolution(FindingStatus.FIXED))
-    assert repository.list()[0].closed_at == _EARLIER
+    repository.resolve(saved.id, _resolution(FindingStatus.FIXED, None))
+    assert repository.list()[0].closed_at is None
 
 
 def test_fake_save_report_persists_closed_at_and_first_seen_at() -> None:

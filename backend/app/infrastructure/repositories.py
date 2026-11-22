@@ -20,7 +20,6 @@ from app.domain.vulnerability import (
     ResolutionSource,
     RiskScore,
     Severity,
-    closed_at_after,
 )
 from app.infrastructure.models import (
     AdvisoryAliasModel,
@@ -398,12 +397,7 @@ class SqlAlchemyFindingRepository:
 
     def resolve(self, finding_id: int, resolution: FindingResolution) -> None:
         model = self._model(finding_id)
-        model.closed_at = closed_at_after(
-            FindingStatus(model.status),
-            as_utc(model.closed_at) if model.closed_at else None,
-            resolution.status,
-            resolution.resolved_at,
-        )
+        model.closed_at = resolution.closed_at
         model.status = resolution.status.value
         model.resolved_at = resolution.resolved_at
         model.resolution = resolution.text

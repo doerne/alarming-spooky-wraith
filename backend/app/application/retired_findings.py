@@ -14,7 +14,6 @@ from app.domain.inventory import Component
 from app.domain.ports import AdvisoryStore
 from app.domain.vulnerability import (
     Finding,
-    FindingResolution,
     FindingStatus,
     ResolutionSource,
 )
@@ -91,7 +90,7 @@ class ResolveRetiredFindings:
         status = finding.status if finding.status in _KEPT_STATUSES else FindingStatus.FIXED
         self._uow.findings.resolve(
             finding.id,
-            FindingResolution(status, now, self._resolution(component), ResolutionSource.SBOM),
+            finding.resolution_for(status, now, self._resolution(component), ResolutionSource.SBOM),
         )
 
     def _resolution(self, component: Component) -> str:

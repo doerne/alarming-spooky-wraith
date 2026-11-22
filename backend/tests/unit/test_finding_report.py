@@ -121,7 +121,9 @@ def test_repeated_fix_keeps_existing_resolution() -> None:
     sbom_time = datetime(2026, 11, 20, tzinfo=UTC)
     world.uow.findings.resolve(
         finding.id,
-        FindingResolution(FindingStatus.FIXED, sbom_time, "ausgebaut", ResolutionSource.SBOM),
+        FindingResolution(
+            FindingStatus.FIXED, sbom_time, "ausgebaut", ResolutionSource.SBOM, sbom_time
+        ),
     )
     world.report(ProgressReport(status=FindingStatus.FIXED, issue_url=_ISSUE))
     [stored] = world.uow.findings.list()
@@ -155,7 +157,9 @@ def test_status_report_spares_history_of_retired_components() -> None:
     sbom_time = datetime(2026, 11, 20, tzinfo=UTC)
     world.uow.findings.resolve(
         history.id,
-        FindingResolution(FindingStatus.FIXED, sbom_time, "ausgebaut", ResolutionSource.SBOM),
+        FindingResolution(
+            FindingStatus.FIXED, sbom_time, "ausgebaut", ResolutionSource.SBOM, sbom_time
+        ),
     )
     assert world.report(
         ProgressReport(status=FindingStatus.IN_PROGRESS, comment="X", issue_url=_ISSUE)

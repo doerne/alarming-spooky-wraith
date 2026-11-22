@@ -152,7 +152,9 @@ def test_retired_component_roundtrip_and_delete_sbom(uow: SqlAlchemyUnitOfWork) 
     resolved_at = datetime(2026, 11, 22, tzinfo=UTC)
     uow.findings.resolve(
         stored.id,
-        FindingResolution(FindingStatus.FIXED, resolved_at, "ausgebaut", ResolutionSource.SBOM),
+        FindingResolution(
+            FindingStatus.FIXED, resolved_at, "ausgebaut", ResolutionSource.SBOM, resolved_at
+        ),
     )
     uow.commit()
     assert uow.components.get(component.id).retired_in_version_id == version.id

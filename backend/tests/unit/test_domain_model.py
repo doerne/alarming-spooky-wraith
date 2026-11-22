@@ -250,3 +250,36 @@ def test_absorb_keeps_own_closed_at_when_not_open() -> None:
     own = replace(_plain_finding(), status=FindingStatus.FIXED, closed_at=NOW)
     donor = replace(_plain_finding(), status=FindingStatus.ACCEPTED, closed_at=EARLIER)
     assert own.absorb(donor).closed_at == NOW
+
+
+_RESOLUTION_NOW = datetime(2026, 11, 22, 12, 0, tzinfo=UTC)
+_RESOLUTION_EARLIER = datetime(2026, 11, 1, 9, 0, tzinfo=UTC)
+
+
+def _resolution_finding(status: FindingStatus, closed_at: datetime | None) -> Finding:
+    return Finding(
+        advisory_id="CVE-2024-1",
+        component_id=1,
+        application_id=1,
+        found_version="1.0.0",
+        risk=RiskScore(value=50, level=Severity.MITTEL, rationale="r"),
+        status=status,
+        closed_at=closed_at,
+    )
+
+
+def test_resolution_for_open_finding_sets_closed_at_to_now() -> None:
+    resolution = _resolution_finding(FindingStatus.OPEN, None).resolution_for(
+        FindingStatus.FIXED, _RESOLUTION_NOW, "erledigt", ResolutionSource.REPORTED
+    )
+    assert resolution.closed_at == _RESOLUTION_NOW
+    assert resolution.resolved_at == _RESOLUTION_NOW
+    assert resolution.status == FindingStatus.FIXED
+
+
+def test_resolution_for_closed_finding_keeps_first_closed_at() -> None:
+    resolution = _resolution_finding(FindingStatus.ACCEPTED, _RESOLUTION_EARLIER).resolution_for(
+        FindingStatus.FIXED, _RESOLUTION_NOW, "erledigt", ResolutionSource.REPORTED
+    )
+    assert resolution.closed_at == _RESOLUTION_EARLIER
+    assert resolution.resolved_at == _RESOLUTION_NOW

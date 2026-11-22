@@ -305,7 +305,7 @@ def test_sbom_fix_is_not_reopened() -> None:
     finding = uow.findings.list()[0]
     assert finding.id is not None
     uow.findings.resolve(
-        finding.id, FindingResolution(FindingStatus.FIXED, _NOW, "x", ResolutionSource.SBOM)
+        finding.id, FindingResolution(FindingStatus.FIXED, _NOW, "x", ResolutionSource.SBOM, _NOW)
     )
     _upload(uow, application_id, _parsed(_REACT, label="1.1.0"))
     assert uow.findings.list()[0].status == FindingStatus.FIXED

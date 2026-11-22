@@ -15,7 +15,6 @@ from app.domain.inventory import Application
 from app.domain.ports import AdvisoryStore, IssueContent, IssueTracker, TrackedIssue
 from app.domain.vulnerability import (
     Finding,
-    FindingResolution,
     FindingStatus,
     IssueState,
     ResolutionSource,
@@ -224,11 +223,8 @@ class SyncGitHubIssues:
         text = f"Issue #{linked.number} geschlossen"
         for finding in _open_findings(linked.active):
             assert finding.id is not None
-            resolution = FindingResolution(
-                status=FindingStatus.FIXED,
-                resolved_at=self._clock(),
-                text=text,
-                source=ResolutionSource.REPORTED,
+            resolution = finding.resolution_for(
+                FindingStatus.FIXED, self._clock(), text, ResolutionSource.REPORTED
             )
             self._uow.findings.resolve(finding.id, resolution)
 
