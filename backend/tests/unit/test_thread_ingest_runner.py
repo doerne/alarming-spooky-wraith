@@ -139,3 +139,18 @@ def test_state_reflects_updates_and_keeps_the_final_steps() -> None:
     assert runner.start() is True
     assert runner.wait(_WAIT_SECONDS)
     assert runner.state().steps == (ScanStep("osv", "OSV", StepState.DONE),)
+
+
+def test_crashed_job_leaves_no_step_running() -> None:
+    progress = ScanProgressTracker()
+
+    def job(_trigger: ScanTrigger) -> IngestResult:
+        progress.update("osv", StepState.RUNNING)
+        raise RuntimeError("DB weg")
+
+    runner = ThreadIngestRunner(
+        job, lambda: _NOW, progress=progress, steps=lambda: [ScanStep("osv", "OSV")]
+    )
+    assert runner.start() is True
+    assert runner.wait(_WAIT_SECONDS)
+    assert runner.state().steps == (ScanStep("osv", "OSV", StepState.FAILED, "Lauf abgebrochen"),)

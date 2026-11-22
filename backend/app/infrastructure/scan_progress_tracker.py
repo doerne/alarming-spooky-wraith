@@ -23,6 +23,16 @@ class ScanProgressTracker:
                 for step in self._steps
             )
 
+    def fail_running(self, detail: str) -> None:
+        """Nach einem Abbruch darf kein Schritt weiter als laufend gelten."""
+        with self._lock:
+            self._steps = tuple(
+                replace(step, state=StepState.FAILED, detail=detail)
+                if step.state == StepState.RUNNING
+                else step
+                for step in self._steps
+            )
+
     def snapshot(self) -> tuple[ScanStep, ...]:
         with self._lock:
             return self._steps

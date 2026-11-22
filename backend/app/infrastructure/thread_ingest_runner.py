@@ -17,6 +17,7 @@ from app.infrastructure.job_gate import JobGate
 from app.infrastructure.scan_progress_tracker import ScanProgressTracker
 
 _logger = logging.getLogger(__name__)
+_ABORTED_STEP_DETAIL = "Lauf abgebrochen"
 
 
 class ThreadIngestRunner:
@@ -73,6 +74,7 @@ class ThreadIngestRunner:
         except Exception as error:
             # Details nur ins Log: Ausnahmen (z. B. der DB) können Interna enthalten.
             _logger.exception("Ingest-Lauf fehlgeschlagen")
+            self._progress.fail_running(_ABORTED_STEP_DETAIL)
             self._finish(error=f"Lauf fehlgeschlagen ({type(error).__name__})")
         else:
             self._finish(

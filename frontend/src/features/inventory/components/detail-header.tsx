@@ -29,7 +29,7 @@ export function DetailHeader({ name, onBack, actions, onDelete }: DetailHeaderPr
       </h2>
       {actions}
       <Button
-        variant="outline"
+        variant="destructive"
         size="sm"
         onClick={onDelete ?? undefined}
         disabled={onDelete === null}

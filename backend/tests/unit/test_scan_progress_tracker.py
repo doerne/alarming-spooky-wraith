@@ -35,3 +35,13 @@ def test_snapshot_is_a_copy() -> None:
     tracker.update("osv", StepState.RUNNING)
     assert before[0].state == StepState.PENDING
     assert tracker.snapshot()[0].state == StepState.RUNNING
+
+
+def test_fail_running_marks_only_running_steps_failed() -> None:
+    tracker = _tracker()
+    tracker.update("osv", StepState.RUNNING)
+    tracker.fail_running("Lauf abgebrochen")
+    assert tracker.snapshot() == (
+        ScanStep("osv", "OSV", StepState.FAILED, "Lauf abgebrochen"),
+        ScanStep("nvd", "NVD"),
+    )

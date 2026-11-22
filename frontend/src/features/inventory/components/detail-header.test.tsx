@@ -16,4 +16,12 @@ describe("DetailHeader", () => {
     await userEvent.click(screen.getByTestId("inventory-btn-delete-app"));
     expect(onDelete).toHaveBeenCalledOnce();
   });
+
+  it("kennzeichnet das Löschen als destruktiv", () => {
+    render(<DetailHeader name="Shop" onBack={vi.fn()} actions={null} onDelete={vi.fn()} />);
+    expect(screen.getByTestId("inventory-btn-delete-app")).toHaveAttribute(
+      "data-variant",
+      "destructive",
+    );
+  });
 });
