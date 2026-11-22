@@ -5,6 +5,7 @@ import {
   applicationOverviewSchema,
   DEFAULT_OVERVIEW_SORT,
   filterOverview,
+  nextOverviewSort,
   sbomAgeText,
   sortOverview,
   summarizeOverview,
@@ -127,6 +128,21 @@ describe("sortOverview je Spalte", () => {
     ["github", ["b", "a"]],
   ] as const)("sortiert %s aufsteigend", (key, expected) => {
     expect(names(sortOverview([large, small], { key, direction: "asc" }))).toEqual(expected);
+  });
+});
+
+describe("nextOverviewSort", () => {
+  it("dreht die Richtung der aktiven Spalte", () => {
+    expect(nextOverviewSort({ key: "open", direction: "desc" }, "open")).toEqual({
+      key: "open",
+      direction: "asc",
+    });
+  });
+
+  it("startet Zahlen absteigend und Texte aufsteigend", () => {
+    expect(nextOverviewSort(DEFAULT_OVERVIEW_SORT, "overdue").direction).toBe("desc");
+    expect(nextOverviewSort(DEFAULT_OVERVIEW_SORT, "name").direction).toBe("asc");
+    expect(nextOverviewSort(DEFAULT_OVERVIEW_SORT, "github").direction).toBe("asc");
   });
 });
 

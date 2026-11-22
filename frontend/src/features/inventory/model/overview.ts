@@ -128,3 +128,13 @@ export function sbomAgeText(isoUploadedAt: string, now: Date): string {
   if (days <= 0) return "heute";
   return days === 1 ? "vor 1 Tag" : `vor ${days} Tagen`;
 }
+
+/** Texte sortieren zuerst A–Z, Zahlen und Zustände zuerst die schlechtesten. */
+const ASCENDING_FIRST: ReadonlySet<SortKey> = new Set(["name", "github"]);
+
+export function nextOverviewSort(current: OverviewSort, key: SortKey): OverviewSort {
+  if (current.key === key) {
+    return { key, direction: current.direction === "asc" ? "desc" : "asc" };
+  }
+  return { key, direction: ASCENDING_FIRST.has(key) ? "asc" : "desc" };
+}
