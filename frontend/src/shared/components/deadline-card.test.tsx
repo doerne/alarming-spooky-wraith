@@ -61,9 +61,14 @@ describe("DeadlineCard", () => {
       />,
     );
 
-    expect(screen.getByTestId("cves-text-overdue-kritisch")).toHaveTextContent("kritisch 2");
+    expect(screen.getByTestId("cves-list-overdue-by-severity")).toHaveTextContent(
+      "Überfällig je Schweregrad",
+    );
+    expect(screen.getByTestId("cves-text-overdue-kritisch")).toHaveTextContent("kritisch2");
     expect(screen.getByTestId("cves-text-overdue-kritisch")).toHaveClass("text-destructive");
-    expect(screen.getByTestId("cves-text-overdue-mittel")).toHaveTextContent("mittel 0");
+    expect(screen.getByTestId("cves-text-overdue-mittel")).toHaveTextContent("mittel0");
     expect(screen.getByTestId("cves-text-overdue-mittel")).not.toHaveClass("text-destructive");
+    // Feste Spalten statt Trennpunkte: nichts kann mit „·“ in die nächste Zeile umbrechen.
+    expect(screen.getByTestId("cves-list-overdue-by-severity")).not.toHaveTextContent("·");
   });
 });
