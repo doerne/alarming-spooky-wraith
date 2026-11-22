@@ -25,7 +25,7 @@ Der Nutzer hat beim Arbeiten mit der App zwei Lücken bemerkt:
 - Nach dem Löschen springt die App zurück zur Inventarliste. Inventar, Schwachstellen,
   Verlauf und Kennzahlen laden neu.
 - Läuft gerade ein Scan oder GitHub-Abgleich, ist Löschen gesperrt: Die API antwortet mit
-  409, und der Dialog zeigt „Während eines Scans kann nicht gelöscht werden.“
+  409, und der Dialog zeigt „Während eines Scans oder GitHub-Abgleichs kann nicht gelöscht werden.“
   (Claudes Entscheidung: Ein Scan hält Komponenten im Speicher und würde sonst Funde zu
   gelöschten Komponenten schreiben wollen.)
 

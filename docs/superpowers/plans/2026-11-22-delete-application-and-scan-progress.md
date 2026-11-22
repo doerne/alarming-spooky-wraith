@@ -15,7 +15,7 @@
 ## Global Constraints
 
 - **Löschen** entfernt Funde → Komponenten → SBOM-Versionen und SBOMs → Anwendung in einer Transaktion. Advisories, Aliase, Quellen-Einstellungen und `scan_run` bleiben. GitHub wird nicht angefasst.
-- **Sperre:** Läuft ein Scan oder Abgleich, antwortet `DELETE` mit 409. Meldung im UI: „Während eines Scans kann nicht gelöscht werden.“
+- **Sperre:** Läuft ein Scan oder Abgleich, antwortet `DELETE` mit 409. Meldung im UI: „Während eines Scans oder GitHub-Abgleichs kann nicht gelöscht werden.“
 - **Dialog-Texte:**
   - Titel: „<Name> löschen?“
   - Beschreibung: „<Name> mit N Komponenten, M SBOMs und K Funden endgültig löschen?“ und „Bereits angelegte GitHub-Issues bleiben auf GitHub bestehen.“
@@ -53,7 +53,7 @@
 
 **Files:**
 - Modify: `backend/app/domain/ports.py` (`ApplicationRepository.delete`), `backend/app/domain/errors.py` (`ApplicationBusyError(ConflictError)`)
-- Create: `backend/app/application/job_activity.py` (Port), Modify: `backend/app/infrastructure/job_gate.py` (`is_busy`)
+- Create: `backend/app/application/job_activity.py` (Port), `backend/app/infrastructure/job_gate.py` erfüllt den Port unverändert (`try_acquire`/`release`)
 - Modify: `backend/app/application/inventory_use_cases.py` (`DeleteApplication`)
 - Modify: `backend/app/infrastructure/repositories.py`, `backend/tests/fakes.py`
 - Modify: `backend/app/presentation/inventory_router.py`, `backend/app/presentation/app_factory.py` (`AppServices.job_activity`), `backend/app/main.py` (vorhandene `gate` übergeben)
@@ -61,19 +61,20 @@
 
 **Interfaces:**
 - Produces:
-  - `class JobActivity(Protocol): def is_busy(self) -> bool: ...`. `JobGate.is_busy()` liefert `self._lock.locked()`.
+  - `class JobActivity(Protocol): def try_acquire(self) -> bool: ...; def release(self) -> None: ...`, erfüllt von `JobGate`. `IDLE_ACTIVITY` (immer frei) ist der Default, den `app_factory` setzt, wenn kein `job_activity` übergeben wird.
+  - *(Umgesetzt nach Review, ersetzt die ursprüngliche Prüfung per `is_busy()`: Das Löschen hält die Sperre über Löschen und Commit, sonst könnte zwischen Prüfung und Commit ein Scan starten.)*
   - `ApplicationRepository.delete(application_id: int) -> None`
-  - `class ApplicationBusyError(ConflictError)` mit deutscher Meldung „Während eines Scans kann nicht gelöscht werden.“
+  - `class ApplicationBusyError(ConflictError)` mit deutscher Meldung „Während eines Scans oder GitHub-Abgleichs kann nicht gelöscht werden.“
   - `DeleteApplication(uow: UnitOfWork, activity: JobActivity).execute(application_id: int) -> None`:
-    - prüft zuerst die Existenz (`applications.get`, sonst `EntityNotFoundError` → 404), dann `activity.is_busy()` → `ApplicationBusyError`.
+    - prüft zuerst die Existenz (`applications.get`, sonst `EntityNotFoundError` → 404), dann `activity.try_acquire()`; schlägt das fehl → `ApplicationBusyError`. Löschen und Commit laufen in `try/finally` mit `release()`.
     - löscht danach über die vorhandenen Ports: `findings.delete_for_components(ids aller Komponenten der Anwendung)` (inkl. ausgebauter), `components.delete_many`, je SBOM `sboms.delete` (prüfen, ob das Versionen mitlöscht; sonst `sbom_versions` vorher), `applications.delete`, `commit()`.
-  - `DELETE /api/applications/{application_id}` → 204. Die Router-Dependency liest `app.state.job_activity`; ist keiner gesetzt, gilt nicht beschäftigt (Tests).
+  - `DELETE /api/applications/{application_id}` → 204. Die Router-Dependency liest nur `app.state.job_activity` (Default `IDLE_ACTIVITY` setzt `app_factory`).
 
 - [ ] **Step 1: Failing tests**
   - Use Case (Fakes):
     - Zwei Anwendungen mit Komponente, Fund und SBOM; nach dem Löschen von A sind A, ihre Komponenten, Funde und SBOMs weg. B ist vollständig da, die Advisory existiert noch.
     - Unbekannte ID → `EntityNotFoundError`.
-    - `is_busy=True` → `ApplicationBusyError`, nichts gelöscht.
+    - Sperre belegt → `ApplicationBusyError`, nichts gelöscht; nach Erfolg und nach Fehler ist die Sperre wieder frei.
   - Repository (`test_repositories.py`, SQLite/DB-Fixture wie dort üblich): Anwendung mit SBOM-Version, ausgebauter Komponente (`retired_in_version_id`) und Fund lässt sich ohne FK-Fehler löschen.
   - API: 204, dann `GET /api/applications/{id}` → 404; unbekannt → 404; busy-Fake → 409.
 - [ ] **Step 2–4:** rot → umsetzen → grün, dann `make check`.
