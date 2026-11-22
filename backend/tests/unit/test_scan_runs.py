@@ -1,5 +1,3 @@
-from collections.abc import Iterator
-from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -14,7 +12,7 @@ from app.application.scan_runs import (
 )
 from app.domain.scan_run import INTERRUPTED_SCAN_MESSAGE, ScanOutcome, ScanRun, ScanTrigger
 from app.domain.sources import RunStatus, SourceSetting
-from tests.fakes import InMemoryUnitOfWork
+from tests.fakes import InMemoryUnitOfWork, uow_factory_for
 
 _NOW = datetime(2026, 11, 22, 4, 0, tzinfo=UTC)
 
@@ -30,14 +28,6 @@ def _result(*sources: SourceRunResult) -> IngestResult:
 @pytest.fixture
 def uow() -> InMemoryUnitOfWork:
     return InMemoryUnitOfWork()
-
-
-def _factory(uow: InMemoryUnitOfWork):  # type: ignore[no-untyped-def]
-    @contextmanager
-    def factory() -> Iterator[InMemoryUnitOfWork]:
-        yield uow
-
-    return factory
 
 
 def test_outcome_ok_when_all_sources_succeed() -> None:
@@ -56,7 +46,7 @@ def test_outcome_incomplete_names_unreliable_sources() -> None:
 
 def test_recorded_scan_stores_finished_run(uow: InMemoryUnitOfWork) -> None:
     result = run_recorded_scan(
-        _factory(uow),
+        uow_factory_for(uow),
         lambda: _NOW,
         lambda: _result(_source("osv", RunStatus.OK)),
         ScanTrigger.SCHEDULE,
@@ -76,7 +66,7 @@ def test_recorded_scan_marks_failed_run_and_reraises(uow: InMemoryUnitOfWork) ->
         raise RuntimeError("db weg")
 
     with pytest.raises(RuntimeError):
-        run_recorded_scan(_factory(uow), lambda: _NOW, failing, ScanTrigger.MANUAL)
+        run_recorded_scan(uow_factory_for(uow), lambda: _NOW, failing, ScanTrigger.MANUAL)
     run = uow.scan_runs.latest_finished()
     assert run is not None
     assert run.outcome == ScanOutcome.FAILED
@@ -116,7 +106,7 @@ def test_history_separates_last_run_from_last_usable(uow: InMemoryUnitOfWork) ->
 def test_startup_reset_cleans_sources_and_scan_runs(uow: InMemoryUnitOfWork) -> None:
     uow.source_settings.save(SourceSetting(source_key="osv", last_status=RunStatus.RUNNING))
     uow.scan_runs.add(ScanRun(trigger=ScanTrigger.SCHEDULE, started_at=_NOW))
-    reset_interrupted_runs(_factory(uow), lambda: _NOW)
+    reset_interrupted_runs(uow_factory_for(uow), lambda: _NOW)
     osv = uow.source_settings.get("osv")
     assert osv is not None
     assert osv.last_status == RunStatus.ERROR

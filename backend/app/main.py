@@ -1,5 +1,6 @@
 """Composition Root: der einzige Ort, der alle Schichten kennt und verdrahtet."""
 
+from collections.abc import Callable
 from datetime import UTC, datetime
 from functools import partial
 
@@ -9,14 +10,18 @@ from fastapi import FastAPI
 from app.application.component_matching import ComponentMatcher
 from app.application.github_sync import GitHubSyncServices, SyncRequest, run_github_sync
 from app.application.ingest import run_ingest_job, run_scan_then_sync
+from app.application.ingest_runner import IngestRunner
 from app.application.scan_runs import reset_interrupted_runs, run_recorded_scan
+from app.application.scan_schedule import parse_scan_schedule, start_catch_up_if_due
 from app.application.source_registry import SourceRegistry
-from app.infrastructure.config import get_settings
+from app.application.unit_of_work import UnitOfWorkFactory
+from app.infrastructure.config import Settings, get_settings
 from app.infrastructure.database import create_session_factory
 from app.infrastructure.github.app_client import GitHubAppIssueTracker
 from app.infrastructure.job_gate import JobGate
 from app.infrastructure.okf_store import FileAdvisoryStore
 from app.infrastructure.sbom.cyclonedx import CycloneDxParser
+from app.infrastructure.scan_scheduler import ApsScanScheduler
 from app.infrastructure.sources.catalog import build_sources
 from app.infrastructure.sources.http_cache import HttpCache
 from app.infrastructure.thread_ingest_runner import ThreadIngestRunner
@@ -31,6 +36,24 @@ _HTTP_TIMEOUT_SECONDS = 60.0
 
 def _now() -> datetime:
     return datetime.now(UTC)
+
+
+def _lifecycle(
+    settings: Settings, uow_factory: UnitOfWorkFactory, runner: IngestRunner
+) -> tuple[Callable[[], None], Callable[[], None] | None]:
+    """Start: aufräumen, ggf. nachholen, Zeitplan starten. Ohne Zeitplan nur aufräumen."""
+    reset = partial(reset_interrupted_runs, uow_factory, _now)
+    if not settings.scan_schedule_enabled:
+        return reset, None
+    schedule = parse_scan_schedule(settings.scan_schedule_time, settings.scan_schedule_timezone)
+    scheduler = ApsScanScheduler(runner, schedule)
+
+    def startup() -> None:
+        reset()
+        start_catch_up_if_due(uow_factory, _now, runner)
+        scheduler.start()
+
+    return startup, scheduler.shutdown
 
 
 def build_app() -> FastAPI:
@@ -53,14 +76,17 @@ def build_app() -> FastAPI:
     job = partial(
         run_recorded_scan, uow_factory, _now, partial(run_scan_then_sync, scan, automatic_sync)
     )
+    runner = ThreadIngestRunner(job, _now, gate)
+    on_startup, on_shutdown = _lifecycle(settings, uow_factory, runner)
     return create_app(
         uow_factory,
         enable_docs=settings.enable_docs,
         services=AppServices(
-            ingest_runner=ThreadIngestRunner(job, _now, gate),
+            ingest_runner=runner,
             advisory_store=store,
             source_registry=registry,
-            on_startup=partial(reset_interrupted_runs, uow_factory, _now),
+            on_startup=on_startup,
+            on_shutdown=on_shutdown,
             sbom_parser=CycloneDxParser(),
             clock=_now,
             github_tracker=tracker,

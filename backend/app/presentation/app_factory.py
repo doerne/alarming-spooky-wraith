@@ -22,12 +22,15 @@ from app.presentation.sources_router import router as sources_router
 
 def _lifespan(
     on_startup: Callable[[], None] | None,
+    on_shutdown: Callable[[], None] | None,
 ) -> Callable[[FastAPI], AbstractAsyncContextManager[None]]:
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         if on_startup is not None:
             on_startup()
         yield
+        if on_shutdown is not None:
+            on_shutdown()
 
     return lifespan
 
@@ -40,6 +43,7 @@ class AppServices:
     advisory_store: AdvisoryStore | None = None
     source_registry: SourceRegistry | None = None
     on_startup: Callable[[], None] | None = None
+    on_shutdown: Callable[[], None] | None = None
     sbom_parser: SbomParser | None = None
     clock: Callable[[], datetime] | None = None
     github_tracker: IssueTracker | None = None
@@ -59,7 +63,7 @@ def create_app(
         docs_url="/api/docs" if enable_docs else None,
         redoc_url=None,
         openapi_url="/api/openapi.json" if enable_docs else None,
-        lifespan=_lifespan(services.on_startup),
+        lifespan=_lifespan(services.on_startup, services.on_shutdown),
     )
     app.state.uow_factory = uow_factory
     app.state.ingest_runner = services.ingest_runner

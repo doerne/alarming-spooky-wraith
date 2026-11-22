@@ -69,6 +69,10 @@ services:
       ENABLE_DOCS: "false"
       # Keine Geheimnisse: die App-ID ist öffentlich. Leer = GitHub-Anbindung aus.
       GITHUB_APP_ID: "${GITHUB_APP_ID:-}"
+      # Täglicher Scan; false schaltet Zeitplan und Nachholen beim Start ab.
+      SCAN_SCHEDULE_ENABLED: "${SCAN_SCHEDULE_ENABLED:-true}"
+      SCAN_SCHEDULE_TIME: "${SCAN_SCHEDULE_TIME:-04:00}"
+      SCAN_SCHEDULE_TIMEZONE: "${SCAN_SCHEDULE_TIMEZONE:-Europe/Berlin}"
     # Beschreibbare Volumes für OKF-Files und Quellen-Cache (read_only bleibt sonst aktiv).
     volumes:
       - okfdata:/data/okf

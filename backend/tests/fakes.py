@@ -1,13 +1,15 @@
 """In-Memory-Adapter für schnelle Tests ohne Datenbank."""
 
 import builtins
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Iterable, Iterator, Mapping, Sequence
+from contextlib import contextmanager
 from dataclasses import replace
 from datetime import UTC, datetime
 
 from app.application.github_sync import SyncRequest, SyncRunState
 from app.application.ingest_runner import IngestRunState
 from app.application.issue_export import IssueDraft
+from app.application.unit_of_work import UnitOfWork, UnitOfWorkFactory
 from app.domain.errors import EntityNotFoundError, IssueTrackerError
 from app.domain.inventory import Application, Component
 from app.domain.ports import (
@@ -464,6 +466,16 @@ class InMemoryUnitOfWork:
 
     def commit(self) -> None:
         self.commits += 1
+
+
+def uow_factory_for(uow: InMemoryUnitOfWork) -> UnitOfWorkFactory:
+    """Factory, die immer dieselbe In-Memory-Unit-of-Work liefert."""
+
+    @contextmanager
+    def factory() -> Iterator[UnitOfWork]:
+        yield uow
+
+    return factory
 
 
 class FakeAdvisoryStore:
