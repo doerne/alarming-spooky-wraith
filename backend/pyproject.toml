@@ -16,6 +16,7 @@ dependencies = [
     "cvss>=3.2",
     "univers>=32.0.1",
     "pyjwt[crypto]>=2.15.1",
+    "apscheduler>=3.11,<4",
 ]
 
 [dependency-groups]
@@ -61,6 +62,11 @@ plugins = ["pydantic.mypy"]
 module = ["cvss.*"]
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+# APScheduler 3 liefert keine Typ-Informationen.
+module = ["apscheduler.*"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
@@ -85,10 +91,17 @@ layers = [
 name = "Domain ist framework-frei"
 type = "forbidden"
 source_modules = ["app.domain"]
-forbidden_modules = ["fastapi", "starlette", "sqlalchemy", "pydantic", "pydantic_settings"]
+forbidden_modules = [
+    "fastapi",
+    "starlette",
+    "sqlalchemy",
+    "pydantic",
+    "pydantic_settings",
+    "apscheduler",
+]
 
 [[tool.importlinter.contracts]]
 name = "Use Cases kennen weder Web noch Datenbank"
 type = "forbidden"
 source_modules = ["app.application"]
-forbidden_modules = ["fastapi", "starlette", "sqlalchemy", "pydantic_settings"]
+forbidden_modules = ["fastapi", "starlette", "sqlalchemy", "pydantic_settings", "apscheduler"]

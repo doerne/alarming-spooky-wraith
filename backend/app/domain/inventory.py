@@ -1,7 +1,7 @@
 """Inventar-Domäne: Anwendungen und ihre manuell gepflegten Komponenten."""
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from enum import StrEnum
 
@@ -82,3 +82,8 @@ class Application:
     auto_issue_enabled_at: datetime | None = None
     github_synced_at: datetime | None = None
     github_sync_message: str = ""
+    inventory_changed_at: datetime | None = None
+
+    def mark_inventory_changed(self, now: datetime) -> "Application":
+        """Kopie mit neuem Änderungszeitpunkt des Inventars (Komponenten, SBOMs)."""
+        return replace(self, inventory_changed_at=now)

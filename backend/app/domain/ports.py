@@ -7,6 +7,7 @@ from typing import Protocol
 
 from app.domain.inventory import Application, Component
 from app.domain.sbom import ParsedSbom, Sbom, SbomVersion
+from app.domain.scan_run import ScanRun, ScanTrigger
 from app.domain.sources import SourceDescriptor, SourceSetting
 from app.domain.vulnerability import (
     Advisory,
@@ -222,6 +223,21 @@ class BulkSource(Protocol):
 
 
 VulnerabilitySource = PackageQuerySource | BulkSource
+
+
+class ScanRunRepository(Protocol):
+    """Scan-Läufe; „latest“ heißt jeweils: höchstes ``started_at``."""
+
+    def add(self, run: ScanRun) -> ScanRun: ...
+    def update(self, run: ScanRun) -> ScanRun: ...
+    def list_unfinished(self) -> list[ScanRun]: ...
+    def latest_finished(self) -> ScanRun | None: ...
+    def latest_usable(self) -> ScanRun | None: ...
+    def latest_regular_finished(self) -> ScanRun | None:
+        """Letzter beendeter Lauf, den kein Neustart abgebrochen hat."""
+        ...
+
+    def latest_started(self, trigger: ScanTrigger) -> ScanRun | None: ...
 
 
 class SourceSettingRepository(Protocol):

@@ -13,6 +13,7 @@ from app.infrastructure.repositories import (
     SqlAlchemySbomVersionRepository,
     SqlAlchemySourceSettingRepository,
 )
+from app.infrastructure.scan_run_repository import SqlAlchemyScanRunRepository
 
 
 class SqlAlchemyUnitOfWork:
@@ -28,6 +29,7 @@ class SqlAlchemyUnitOfWork:
         self.source_settings = SqlAlchemySourceSettingRepository(session)
         self.sboms = SqlAlchemySbomRepository(session)
         self.sbom_versions = SqlAlchemySbomVersionRepository(session)
+        self.scan_runs = SqlAlchemyScanRunRepository(session)
 
     def commit(self) -> None:
         self._session.commit()

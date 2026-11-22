@@ -104,8 +104,8 @@ export OKF_ROOT="$PWD/../.okf-dev"     # beschreibbares Verzeichnis für die OKF
 export SOURCE_CACHE_ROOT="$PWD/../.sources-dev"  # Cache für Quellen-Abzüge
 uv run alembic upgrade head
 
-# 3) Backend starten (eigenes Terminal)
-ENABLE_DOCS=true uv run uvicorn app.main:app --host 127.0.0.1 --port 8000
+# 3) Backend starten (eigenes Terminal; ohne täglichen Scan und ohne Nachholen beim Start)
+ENABLE_DOCS=true SCAN_SCHEDULE_ENABLED=false uv run uvicorn app.main:app --host 127.0.0.1 --port 8000
 
 # 4) Frontend starten (eigenes Terminal)
 cd frontend && npm run dev
@@ -186,7 +186,7 @@ vorbelegt.
   noch besteht. Ist eine Quelle ausgefallen, die die Lücke gemeldet hat, wartet er einen
   weiteren Lauf.
 - SBOM-Komponenten sind nicht von Hand bearbeitbar. Neue Treffer erscheinen beim nächsten
-  Scan (täglich oder *Scan starten* auf der Schwachstellen-Seite).
+  Scan (täglich automatisch oder *Scan starten* auf der Schwachstellen-Seite).
 
 ## CVEs als GitHub-Issues exportieren
 

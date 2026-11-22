@@ -4,6 +4,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import datetime
 
+from app.application.inventory_use_cases import mark_inventory_changed
 from app.application.sbom_reconcile import Reconciliation, merge_duplicates, reconcile
 from app.application.unit_of_work import UnitOfWork
 from app.domain.errors import DuplicateSbomVersionError, EntityNotFoundError, InvalidValueError
@@ -116,6 +117,7 @@ class UploadSbomVersion:
         ]
         changes = reconcile(live, entries)
         self._apply(application_id, version, changes)
+        mark_inventory_changed(self._uow, application_id, now)
         self._uow.commit()
         return SbomUploadResult(
             sbom=sbom,
@@ -248,11 +250,13 @@ class GetSbomVersion:
 
 
 class DeleteSbom:
-    def __init__(self, uow: UnitOfWork) -> None:
+    def __init__(self, uow: UnitOfWork, clock: Callable[[], datetime]) -> None:
         self._uow = uow
+        self._clock = clock
 
     def execute(self, *, application_id: int, sbom_id: int) -> None:
         _owned_sbom(self._uow, application_id, sbom_id)
         _remove_components(self._uow, self._uow.components.list_for_sbom(sbom_id))
         self._uow.sboms.delete(sbom_id)
+        mark_inventory_changed(self._uow, application_id, self._clock())
         self._uow.commit()

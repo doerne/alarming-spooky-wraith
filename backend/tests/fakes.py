@@ -1,13 +1,15 @@
 """In-Memory-Adapter für schnelle Tests ohne Datenbank."""
 
 import builtins
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Iterator, Mapping, Sequence
+from contextlib import contextmanager
 from dataclasses import replace
 from datetime import UTC, datetime
 
 from app.application.github_sync import SyncRequest, SyncRunState
 from app.application.ingest_runner import IngestRunState
 from app.application.issue_export import IssueDraft
+from app.application.unit_of_work import UnitOfWork, UnitOfWorkFactory
 from app.domain.errors import EntityNotFoundError, IssueTrackerError
 from app.domain.inventory import Application, Component
 from app.domain.ports import (
@@ -18,6 +20,7 @@ from app.domain.ports import (
     TrackedIssue,
 )
 from app.domain.sbom import ParsedSbom, Sbom, SbomVersion
+from app.domain.scan_run import ScanRun, ScanTrigger
 from app.domain.sources import (
     ApiKeyRequirement,
     MatchScope,
@@ -339,6 +342,43 @@ class InMemorySourceSettingRepository:
         self._items[setting.source_key] = replace(setting)
 
 
+class InMemoryScanRunRepository:
+    def __init__(self) -> None:
+        self._runs: dict[int, ScanRun] = {}
+
+    def add(self, run: ScanRun) -> ScanRun:
+        saved = replace(run, id=len(self._runs) + 1)
+        self._runs[saved.id or 0] = saved
+        return saved
+
+    def update(self, run: ScanRun) -> ScanRun:
+        if run.id not in self._runs:
+            raise EntityNotFoundError("Scan-Lauf", str(run.id))
+        self._runs[run.id] = run
+        return run
+
+    def list_unfinished(self) -> list[ScanRun]:
+        return [run for run in self._runs.values() if run.finished_at is None]
+
+    def latest_finished(self) -> ScanRun | None:
+        return self._newest(run for run in self._runs.values() if run.finished_at)
+
+    def latest_usable(self) -> ScanRun | None:
+        return self._newest(run for run in self._runs.values() if run.usable)
+
+    def latest_regular_finished(self) -> ScanRun | None:
+        return self._newest(
+            run for run in self._runs.values() if run.finished_at and not run.interrupted
+        )
+
+    def latest_started(self, trigger: ScanTrigger) -> ScanRun | None:
+        return self._newest(run for run in self._runs.values() if run.trigger == trigger)
+
+    @staticmethod
+    def _newest(runs: Iterable[ScanRun]) -> ScanRun | None:
+        return max(runs, key=lambda run: (run.started_at, run.id or 0), default=None)
+
+
 class FakeIssueTracker:
     """Speicher-Tracker: Issues je Repo, Marker-Index, Aufzeichnung der Schreibzugriffe."""
 
@@ -419,12 +459,31 @@ class InMemoryUnitOfWork:
         self.source_settings = InMemorySourceSettingRepository()
         self.sbom_versions = InMemorySbomVersionRepository()
         self.sboms = InMemorySbomRepository(self.sbom_versions)
+        self.scan_runs = InMemoryScanRunRepository()
 
     def rollback(self) -> None:
         self.rollbacks += 1
 
     def commit(self) -> None:
         self.commits += 1
+
+
+FIXED_NOW = datetime(2026, 11, 22, 10, 0, tzinfo=UTC)
+
+
+def fixed_clock() -> datetime:
+    """Feste Uhr für Tests, die nur irgendeinen Zeitpunkt brauchen."""
+    return FIXED_NOW
+
+
+def uow_factory_for(uow: InMemoryUnitOfWork) -> UnitOfWorkFactory:
+    """Factory, die immer dieselbe In-Memory-Unit-of-Work liefert."""
+
+    @contextmanager
+    def factory() -> Iterator[UnitOfWork]:
+        yield uow
+
+    return factory
 
 
 class FakeAdvisoryStore:
@@ -527,11 +586,13 @@ class FakeIngestRunner:
     def __init__(self, state: IngestRunState | None = None) -> None:
         self._state = state or IngestRunState(running=False)
         self.starts = 0
+        self.triggers: list[ScanTrigger] = []
 
-    def start(self) -> bool:
+    def start(self, trigger: ScanTrigger = ScanTrigger.MANUAL) -> bool:
         if self._state.running:
             return False
         self.starts += 1
+        self.triggers.append(trigger)
         self._state = IngestRunState(running=True, started_at=self._state.started_at)
         return True
 

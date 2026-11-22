@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     github_app_id: str | None = None
     github_app_private_key_file: Path = Path("/run/secrets/github_app_private_key")
     github_api_url: str = "https://api.github.com"
+    scan_schedule_enabled: bool = True
+    scan_schedule_time: str = "04:00"
+    scan_schedule_timezone: str = "Europe/Berlin"
 
     def sqlalchemy_url(self) -> str:
         if self.database_url:

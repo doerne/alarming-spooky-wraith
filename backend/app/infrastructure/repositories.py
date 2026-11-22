@@ -41,7 +41,7 @@ def _chunks(ids: Sequence[int]) -> Iterator[Sequence[int]]:
         yield ids[start : start + _IN_CLAUSE_CHUNK]
 
 
-def _as_utc(value: datetime) -> datetime:
+def as_utc(value: datetime) -> datetime:
     """MariaDB speichert DATETIME ohne Zone; geschrieben wird immer UTC."""
     return value if value.tzinfo else value.replace(tzinfo=UTC)
 
@@ -69,11 +69,14 @@ def _to_application(model: ApplicationModel) -> Application:
         auto_issue_min_level=Severity(model.auto_issue_min_level)
         if model.auto_issue_min_level
         else None,
-        auto_issue_enabled_at=_as_utc(model.auto_issue_enabled_at)
+        auto_issue_enabled_at=as_utc(model.auto_issue_enabled_at)
         if model.auto_issue_enabled_at
         else None,
-        github_synced_at=_as_utc(model.github_synced_at) if model.github_synced_at else None,
+        github_synced_at=as_utc(model.github_synced_at) if model.github_synced_at else None,
         github_sync_message=model.github_sync_message or "",
+        inventory_changed_at=as_utc(model.inventory_changed_at)
+        if model.inventory_changed_at
+        else None,
     )
 
 
@@ -88,6 +91,7 @@ def _application_values(application: Application) -> dict[str, object]:
         "auto_issue_enabled_at": application.auto_issue_enabled_at,
         "github_synced_at": application.github_synced_at,
         "github_sync_message": application.github_sync_message,
+        "inventory_changed_at": application.inventory_changed_at,
     }
 
 
@@ -129,12 +133,12 @@ def _to_finding(model: FindingModel) -> Finding:
         status=FindingStatus(model.status),
         comment=model.comment,
         id=model.id,
-        resolved_at=_as_utc(model.resolved_at) if model.resolved_at else None,
+        resolved_at=as_utc(model.resolved_at) if model.resolved_at else None,
         resolution=model.resolution or "",
         resolved_by=ResolutionSource(model.resolved_by) if model.resolved_by else None,
         issue_url=model.issue_url or "",
         issue_state=IssueState(model.issue_state) if model.issue_state else None,
-        first_seen_at=_as_utc(model.first_seen_at) if model.first_seen_at else None,
+        first_seen_at=as_utc(model.first_seen_at) if model.first_seen_at else None,
     )
 
 
@@ -456,7 +460,7 @@ def _to_sbom_version(model: SbomVersionModel) -> SbomVersion:
     return SbomVersion(
         sbom_id=model.sbom_id,
         label=model.label,
-        uploaded_at=_as_utc(model.uploaded_at),
+        uploaded_at=as_utc(model.uploaded_at),
         serial_number=model.serial_number,
         is_current=model.is_current,
         entries=tuple(_entry_from_json(raw) for raw in model.components),

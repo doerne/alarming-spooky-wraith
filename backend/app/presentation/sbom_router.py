@@ -164,6 +164,6 @@ def get_sbom_version(
 
 
 @router.delete("/{sbom_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_sbom(application_id: int, sbom_id: int, uow: UnitOfWorkDep) -> Response:
-    DeleteSbom(uow).execute(application_id=application_id, sbom_id=sbom_id)
+def delete_sbom(application_id: int, sbom_id: int, uow: UnitOfWorkDep, clock: ClockDep) -> Response:
+    DeleteSbom(uow, clock).execute(application_id=application_id, sbom_id=sbom_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

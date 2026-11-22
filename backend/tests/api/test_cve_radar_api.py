@@ -1,7 +1,6 @@
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime
-from functools import partial
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -11,6 +10,7 @@ from app.application.ingest import run_ingest_job
 from app.application.ingest_runner import IngestRunState
 from app.application.source_registry import SourceRegistry
 from app.domain.ports import SourceVuln
+from app.domain.scan_run import ScanCounts, ScanOutcome, ScanRun, ScanTrigger
 from app.infrastructure.thread_ingest_runner import ThreadIngestRunner
 from app.infrastructure.univers_matcher import UniversVersionMatcher
 from app.presentation.app_factory import AppServices, create_app
@@ -37,11 +37,13 @@ def _build(vulns: list[SourceVuln]) -> FastAPI:
     store = FakeAdvisoryStore()
 
     runner = ThreadIngestRunner(
-        partial(run_ingest_job, factory, registry, matcher, store, _now), _now
+        lambda _trigger: run_ingest_job(factory, registry, matcher, store, _now), _now
     )
     return create_app(
         factory,
-        services=AppServices(ingest_runner=runner, source_registry=registry, advisory_store=store),
+        services=AppServices(
+            ingest_runner=runner, source_registry=registry, advisory_store=store, clock=_now
+        ),
     )
 
 
@@ -143,6 +145,14 @@ def test_get_application_returns_components() -> None:
     assert detail["name"] == "Shop"
     assert [c["name"] for c in detail["components"]] == ["react"]
     assert detail["components"][0]["version"] == "18.2.0"
+
+
+def test_application_detail_reports_inventory_change_time() -> None:
+    client = _client(_build([]))
+    _add_react(client)
+    app_id = client.get("/api/applications").json()[0]["id"]
+    detail = client.get(f"/api/applications/{app_id}").json()
+    assert detail["inventoryChangedAt"] is not None
 
 
 def test_get_unknown_application_is_404() -> None:
@@ -252,15 +262,16 @@ def test_component_with_pypi_ecosystem_is_accepted() -> None:
     assert response.json()["ecosystem"] == "PyPI"
 
 
-def _app_with_runner(runner: FakeIngestRunner) -> FastAPI:
-    uow = InMemoryUnitOfWork()
+def _app_with_runner(runner: FakeIngestRunner, uow: InMemoryUnitOfWork | None = None) -> FastAPI:
+    uow = uow or InMemoryUnitOfWork()
 
     @contextmanager
     def factory() -> Iterator[InMemoryUnitOfWork]:
         yield uow
 
     return create_app(
-        factory, services=AppServices(ingest_runner=runner, source_registry=SourceRegistry([]))
+        factory,
+        services=AppServices(ingest_runner=runner, source_registry=SourceRegistry([]), clock=_now),
     )
 
 
@@ -293,6 +304,33 @@ def test_status_endpoint() -> None:
     assert body["componentsScanned"] == 4
     assert body["findingsFound"] == 2
     assert body["finishedAt"].startswith("2026-11-01T12:00:00")
+
+
+def test_status_reports_stored_runs_after_restart() -> None:
+    uow = InMemoryUnitOfWork()
+    started = datetime(2026, 11, 22, 4, 0, tzinfo=UTC)
+    usable = uow.scan_runs.add(ScanRun(trigger=ScanTrigger.SCHEDULE, started_at=started))
+    uow.scan_runs.update(
+        usable.finish(
+            ScanOutcome.INCOMPLETE,
+            started,
+            counts=ScanCounts(components_scanned=4, findings_found=2, sources_with_errors=1),
+            message="1 Quellen mit Fehlern: nvd",
+        )
+    )
+    body = _client(_app_with_runner(FakeIngestRunner(), uow)).get("/api/ingest/status").json()
+    assert body["running"] is False
+    assert body["lastRun"]["outcome"] == "incomplete"
+    assert body["lastRun"]["trigger"] == "schedule"
+    assert body["lastRun"]["sourcesWithErrors"] == 1
+    assert body["lastUsableRun"]["findingsFound"] == 2
+    assert body["lastUsableRun"]["finishedAt"].startswith("2026-11-22T04:00:00")
+
+
+def test_status_without_runs_has_no_history() -> None:
+    body = _client(_app_with_runner(FakeIngestRunner())).get("/api/ingest/status").json()
+    assert body["lastRun"] is None
+    assert body["lastUsableRun"] is None
 
 
 def test_cve_detail_returns_document_and_findings() -> None:

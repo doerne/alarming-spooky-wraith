@@ -1,36 +1,38 @@
 import { Loader2, Play } from "lucide-react";
 
+import type { ScanStatus } from "@/shared/api/scan-status";
+import { ScanFreshness } from "@/shared/components/scan-freshness";
+import type { ScanFreshnessView } from "@/shared/lib/scan-freshness";
 import { Button } from "@/shared/ui/button";
 
-import type { IngestState } from "../model/types";
-
 interface IngestControlProps {
-  state: IngestState | undefined;
+  state: ScanStatus | undefined;
   alreadyRunning: boolean;
+  freshness: ScanFreshnessView | undefined;
   onStart: () => void;
 }
 
-function LastResult({ state }: { state: IngestState }) {
-  if (state.error) {
-    return (
-      <span role="alert" className="text-sm text-destructive" data-testid="cves-error-ingest">
-        {state.error}
-      </span>
-    );
-  }
-  if (!state.finishedAt || state.running) return null;
+function LastError({ state }: { state: ScanStatus }) {
+  if (!state.error) return null;
   return (
-    <span className="text-sm text-muted-foreground" data-testid="cves-text-ingest-result">
-      Letzter Scan: {state.findingsFound ?? 0} Funde
+    <span role="alert" className="text-sm text-destructive" data-testid="cves-error-ingest">
+      {state.error}
     </span>
   );
 }
 
-export function IngestControl({ state, alreadyRunning, onStart }: IngestControlProps) {
+export function IngestControl({ state, alreadyRunning, freshness, onStart }: IngestControlProps) {
   const running = state?.running ?? false;
   return (
     <div className="flex flex-wrap items-center justify-end gap-3">
-      {state ? <LastResult state={state} /> : null}
+      {freshness ? (
+        <ScanFreshness
+          text={freshness.text}
+          warning={freshness.warning}
+          testId="cves-text-scan-freshness"
+        />
+      ) : null}
+      {state ? <LastError state={state} /> : null}
       {alreadyRunning ? (
         <span className="text-sm text-muted-foreground" data-testid="cves-text-ingest-running">
           Ein Scan läuft bereits

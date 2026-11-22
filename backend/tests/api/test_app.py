@@ -6,8 +6,8 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.domain.errors import DomainError, EntityNotFoundError
-from app.presentation.app_factory import create_app
-from tests.fakes import InMemoryUnitOfWork
+from app.presentation.app_factory import AppServices, create_app
+from tests.fakes import InMemoryUnitOfWork, uow_factory_for
 
 
 @pytest.fixture
@@ -47,3 +47,13 @@ def test_domain_errors_are_mapped_to_http_status(app: FastAPI) -> None:
         response = client.get("/api/_test/domain-error")
         assert response.status_code == 400
         assert response.json() == {"detail": "Regel verletzt"}
+
+
+def test_lifespan_runs_startup_and_shutdown_hooks(uow: InMemoryUnitOfWork) -> None:
+    events: list[str] = []
+    services = AppServices(
+        on_startup=lambda: events.append("start"), on_shutdown=lambda: events.append("stop")
+    )
+    with TestClient(create_app(uow_factory_for(uow), services=services)):
+        assert events == ["start"]
+    assert events == ["start", "stop"]

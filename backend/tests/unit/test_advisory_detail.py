@@ -12,7 +12,13 @@ from app.domain.inventory import Category, Component, Ecosystem
 from app.domain.ports import AdvisoryDocument, SourceReference, SourceVuln
 from app.domain.vulnerability import Severity
 from app.infrastructure.univers_matcher import UniversVersionMatcher
-from tests.fakes import FakeAdvisoryStore, FakePackageSource, InMemoryUnitOfWork, descriptor
+from tests.fakes import (
+    FakeAdvisoryStore,
+    FakePackageSource,
+    InMemoryUnitOfWork,
+    descriptor,
+    fixed_clock,
+)
 
 _VULN = SourceVuln(
     source_key="osv",
@@ -40,9 +46,9 @@ def _react(version: str = "18.2.0") -> Component:
 def _ingested(*app_names: str) -> tuple[InMemoryUnitOfWork, FakeAdvisoryStore]:
     uow = InMemoryUnitOfWork()
     for name in app_names:
-        application = CreateApplication(uow).execute(name=name)
+        application = CreateApplication(uow, fixed_clock).execute(name=name)
         assert application.id is not None
-        AddComponent(uow).execute(application_id=application.id, component=_react())
+        AddComponent(uow, fixed_clock).execute(application_id=application.id, component=_react())
     store = FakeAdvisoryStore()
     registry = SourceRegistry([FakePackageSource(descriptor("osv"), {"react": [_VULN]})])
     matcher = ComponentMatcher(UniversVersionMatcher())

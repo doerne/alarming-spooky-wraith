@@ -60,6 +60,7 @@ class ApplicationDetailResponse(ApiModel):
     auto_issue_min_level: Severity | None
     github_synced_at: datetime | None
     github_sync_message: str
+    inventory_changed_at: datetime | None
 
 
 class UpdateApplicationRequest(ApiModel):
@@ -96,8 +97,12 @@ def _to_component_response(component: Component) -> ComponentResponse:
 
 
 @router.post("/applications", status_code=status.HTTP_201_CREATED)
-def create_application(body: CreateApplicationRequest, uow: UnitOfWorkDep) -> ApplicationResponse:
-    application = CreateApplication(uow).execute(name=body.name, description=body.description)
+def create_application(
+    body: CreateApplicationRequest, uow: UnitOfWorkDep, clock: ClockDep
+) -> ApplicationResponse:
+    application = CreateApplication(uow, clock).execute(
+        name=body.name, description=body.description
+    )
     assert application.id is not None
     return ApplicationResponse(
         id=application.id, name=application.name, description=application.description
@@ -125,6 +130,7 @@ def _to_detail_response(application: Application) -> ApplicationDetailResponse:
         auto_issue_min_level=application.auto_issue_min_level,
         github_synced_at=application.github_synced_at,
         github_sync_message=application.github_sync_message,
+        inventory_changed_at=application.inventory_changed_at,
     )
 
 
@@ -153,9 +159,9 @@ def update_application(
     status_code=status.HTTP_201_CREATED,
 )
 def add_component(
-    application_id: int, body: CreateComponentRequest, uow: UnitOfWorkDep
+    application_id: int, body: CreateComponentRequest, uow: UnitOfWorkDep, clock: ClockDep
 ) -> ComponentResponse:
-    component = AddComponent(uow).execute(
+    component = AddComponent(uow, clock).execute(
         application_id=application_id,
         component=_component_from_request(body),
     )
@@ -168,8 +174,9 @@ def update_component(
     component_id: int,
     body: CreateComponentRequest,
     uow: UnitOfWorkDep,
+    clock: ClockDep,
 ) -> ComponentResponse:
-    component = UpdateComponent(uow).execute(
+    component = UpdateComponent(uow, clock).execute(
         application_id=application_id,
         component_id=component_id,
         component=_component_from_request(body),
