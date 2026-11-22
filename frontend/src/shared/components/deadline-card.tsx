@@ -43,21 +43,23 @@ function OverdueBySeverity({
   counts: RemediationKpis["deadlines"]["overdueBySeverity"];
   feature: string;
 }) {
+  // Feste Spalten je Schweregrad: bricht in schmalen Karten nicht mitten in der Aufzählung um.
   return (
-    <p className="flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground">
-      <span>überfällig je Schweregrad:</span>
-      {SEVERITIES.map((severity, index) => (
-        <span key={severity} className="flex gap-2">
-          {index > 0 && <span aria-hidden>·</span>}
-          <span
-            className={cn(counts[severity] > 0 && "text-destructive")}
+    <div data-testid={`${feature}-list-overdue-by-severity`}>
+      <p className="text-sm text-muted-foreground">Überfällig je Schweregrad</p>
+      <dl className="mt-1 grid grid-cols-4 gap-2 text-sm">
+        {SEVERITIES.map((severity) => (
+          <div
+            key={severity}
+            className={cn(counts[severity] > 0 ? "text-destructive" : "text-muted-foreground")}
             data-testid={`${feature}-text-overdue-${severity}`}
           >
-            {severity} {counts[severity]}
-          </span>
-        </span>
-      ))}
-    </p>
+            <dt>{severity}</dt>
+            <dd className="font-semibold">{counts[severity]}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
   );
 }
 
