@@ -402,12 +402,13 @@ class GitHubSyncServices:
 
 def run_github_sync(
     uow_factory: UnitOfWorkFactory, services: GitHubSyncServices, request: SyncRequest
-) -> None:
-    """Abgleich mit eigener Unit of Work; ohne GitHub-Konfiguration passiert nichts."""
+) -> bool:
+    """Abgleich mit eigener Unit of Work; ohne GitHub-Konfiguration passiert nichts (False)."""
     if not services.tracker.is_configured():
-        return
+        return False
     with uow_factory() as uow:
         drafts = ExportApplicationIssues(uow, services.store, services.clock)
         SyncGitHubIssues(uow, services.tracker, services.formatter, drafts, services.clock).execute(
             request
         )
+    return True

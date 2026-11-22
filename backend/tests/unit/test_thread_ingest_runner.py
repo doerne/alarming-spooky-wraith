@@ -4,8 +4,10 @@ from datetime import UTC, datetime
 import pytest
 
 from app.application.ingest import IngestResult
+from app.application.scan_progress import PERSIST_STEP, ScanStep, StepState
 from app.domain.scan_run import ScanTrigger
 from app.infrastructure.job_gate import JobGate
+from app.infrastructure.scan_progress_tracker import ScanProgressTracker
 from app.infrastructure.thread_ingest_runner import ThreadIngestRunner
 
 _NOW = datetime(2026, 11, 1, 12, 0, tzinfo=UTC)
@@ -102,3 +104,53 @@ def test_failed_thread_start_releases_runner(monkeypatch: pytest.MonkeyPatch) ->
     monkeypatch.undo()
     assert runner.start() is True
     assert runner.wait(_WAIT_SECONDS)
+
+
+def test_start_publishes_initial_steps_as_pending() -> None:
+    release = threading.Event()
+
+    def job(_trigger: ScanTrigger) -> IngestResult:
+        release.wait(_WAIT_SECONDS)
+        return _result()
+
+    steps = [ScanStep("osv", "OSV"), ScanStep(PERSIST_STEP, "Funde speichern")]
+    runner = ThreadIngestRunner(
+        job, lambda: _NOW, progress=ScanProgressTracker(), steps=lambda: steps
+    )
+    assert runner.start() is True
+    try:
+        assert runner.state().steps == tuple(steps)
+        assert all(step.state == StepState.PENDING for step in runner.state().steps)
+    finally:
+        release.set()
+        assert runner.wait(_WAIT_SECONDS)
+
+
+def test_state_reflects_updates_and_keeps_the_final_steps() -> None:
+    progress = ScanProgressTracker()
+
+    def job(_trigger: ScanTrigger) -> IngestResult:
+        progress.update("osv", StepState.DONE)
+        return _result()
+
+    runner = ThreadIngestRunner(
+        job, lambda: _NOW, progress=progress, steps=lambda: [ScanStep("osv", "OSV")]
+    )
+    assert runner.start() is True
+    assert runner.wait(_WAIT_SECONDS)
+    assert runner.state().steps == (ScanStep("osv", "OSV", StepState.DONE),)
+
+
+def test_crashed_job_leaves_no_step_running() -> None:
+    progress = ScanProgressTracker()
+
+    def job(_trigger: ScanTrigger) -> IngestResult:
+        progress.update("osv", StepState.RUNNING)
+        raise RuntimeError("DB weg")
+
+    runner = ThreadIngestRunner(
+        job, lambda: _NOW, progress=progress, steps=lambda: [ScanStep("osv", "OSV")]
+    )
+    assert runner.start() is True
+    assert runner.wait(_WAIT_SECONDS)
+    assert runner.state().steps == (ScanStep("osv", "OSV", StepState.FAILED, "Lauf abgebrochen"),)

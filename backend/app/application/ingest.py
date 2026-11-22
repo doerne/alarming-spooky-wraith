@@ -20,6 +20,13 @@ from app.application.alias_absorber import AliasAbsorber
 from app.application.component_matching import ComponentMatcher, normalize_package_name
 from app.application.retired_findings import ResolveRetiredFindings
 from app.application.risk_score import compute_risk_score
+from app.application.scan_progress import (
+    GITHUB_SYNC_STEP,
+    NO_PROGRESS,
+    PERSIST_STEP,
+    ScanProgress,
+    StepState,
+)
 from app.application.source_registry import SourceRegistry
 from app.application.source_use_cases import load_setting
 from app.application.unit_of_work import UnitOfWork, UnitOfWorkFactory
@@ -51,6 +58,8 @@ from app.domain.vulnerability import (
 
 _logger = logging.getLogger(__name__)
 _MAX_MESSAGE_LENGTH = 500
+_PERSIST_FAILED_MESSAGE = "Speichern fehlgeschlagen"
+_SYNC_FAILED_MESSAGE = "Abgleich fehlgeschlagen"
 _SKIP_MESSAGES = {
     SourceStatus.DISABLED: "deaktiviert",
     SourceStatus.MISSING_KEY: "API-Key fehlt",
@@ -208,20 +217,26 @@ class _SourceCollector:
         ]
 
 
+@dataclass(frozen=True)
+class IngestServices:
+    """Was ein Lauf neben der Unit of Work braucht."""
+
+    registry: SourceRegistry
+    matcher: ComponentMatcher
+    store: AdvisoryStore
+    clock: Clock
+
+
 class RunIngest:
     def __init__(
-        self,
-        uow: UnitOfWork,
-        registry: SourceRegistry,
-        matcher: ComponentMatcher,
-        store: AdvisoryStore,
-        clock: Clock,
+        self, uow: UnitOfWork, services: IngestServices, progress: ScanProgress = NO_PROGRESS
     ) -> None:
         self._uow = uow
-        self._registry = registry
-        self._collector = _SourceCollector(matcher)
-        self._store = store
-        self._clock = clock
+        self._progress = progress
+        self._registry = services.registry
+        self._collector = _SourceCollector(services.matcher)
+        self._store = services.store
+        self._clock = services.clock
 
     def execute(self) -> IngestResult:
         # Nur was schon vor dem Lauf ausgebaut war, wird aufgelöst: später ausgebaute
@@ -245,26 +260,49 @@ class RunIngest:
             result, source_hits = self._run_source(source, components)
             results.append(result)
             hits.extend(source_hits)
-        found = self._persist(hits)
-        failed = frozenset(result.source_key for result in results if result.unreliable)
-        ResolveRetiredFindings(self._uow, self._store, self._clock).execute(
-            failed, eligible=retired_before
-        )
-        self._uow.commit()
+        found = self._save_findings(hits, results, retired_before)
         return IngestResult(len(components), found, results)
+
+    def _save_findings(
+        self,
+        hits: Sequence[_Hit],
+        results: Sequence[SourceRunResult],
+        retired_before: frozenset[int],
+    ) -> int:
+        """Speichert Funde und löst ausgebaute auf; der Schritt bleibt nie auf ``running``."""
+        self._progress.update(PERSIST_STEP, StepState.RUNNING)
+        try:
+            found = self._persist(hits)
+            failed = frozenset(result.source_key for result in results if result.unreliable)
+            ResolveRetiredFindings(self._uow, self._store, self._clock).execute(
+                failed, eligible=retired_before
+            )
+            self._uow.commit()
+        except Exception:
+            self._progress.update(PERSIST_STEP, StepState.FAILED, _PERSIST_FAILED_MESSAGE)
+            raise
+        self._progress.update(PERSIST_STEP, StepState.DONE)
+        return found
 
     def _run_source(
         self, source: VulnerabilitySource, components: Sequence[Component]
     ) -> tuple[SourceRunResult, list[_Hit]]:
-        setting = load_setting(self._uow, source.descriptor.key)
+        key = source.descriptor.key
+        setting = load_setting(self._uow, key)
         status = source_status(source.descriptor, setting)
         if status != SourceStatus.READY:
-            return self._finish(setting, RunStatus.SKIPPED, _SKIP_MESSAGES[status], None), []
+            skip_message = _SKIP_MESSAGES[status]
+            self._progress.update(key, StepState.SKIPPED, skip_message)
+            return self._finish(setting, RunStatus.SKIPPED, skip_message, None), []
+        self._progress.update(key, StepState.RUNNING)
         self._save(setting, RunStatus.RUNNING, "", setting.last_findings)
         try:
             collected = self._collector.collect(source, setting.api_key, components)
         except Exception as error:
-            return self._finish(setting, RunStatus.ERROR, _error_message(error), None), []
+            message = _error_message(error)
+            self._progress.update(key, StepState.FAILED, message)
+            return self._finish(setting, RunStatus.ERROR, message, None), []
+        self._progress.update(key, StepState.DONE, collected.message)
         hits = collected.hits
         result = self._finish(setting, RunStatus.OK, collected.message, len(hits))
         return replace(result, complete=collected.complete), hits
@@ -362,21 +400,30 @@ class RunIngest:
 
 def run_ingest_job(
     uow_factory: UnitOfWorkFactory,
-    registry: SourceRegistry,
-    matcher: ComponentMatcher,
-    store: AdvisoryStore,
-    clock: Clock,
+    services: IngestServices,
+    progress: ScanProgress = NO_PROGRESS,
 ) -> IngestResult:
     """Führt einen Lauf mit eigener Unit of Work aus (für den Hintergrund-Thread)."""
     with uow_factory() as uow:
-        return RunIngest(uow, registry, matcher, store, clock).execute()
+        return RunIngest(uow, services, progress).execute()
 
 
-def run_scan_then_sync(scan: Callable[[], IngestResult], sync: Callable[[], None]) -> IngestResult:
-    """Scan, danach der Abgleich. Ein Fehler im Abgleich wird nur protokolliert."""
+def run_scan_then_sync(
+    scan: Callable[[], IngestResult],
+    sync: Callable[[], bool],
+    progress: ScanProgress = NO_PROGRESS,
+) -> IngestResult:
+    """Scan, danach der Abgleich. Ein Fehler im Abgleich wird nur protokolliert.
+
+    ``sync`` liefert False, wenn GitHub nicht konfiguriert ist (Schritt übersprungen).
+    """
     result = scan()
+    progress.update(GITHUB_SYNC_STEP, StepState.RUNNING)
     try:
-        sync()
+        synced = sync()
     except Exception:
         _logger.exception("GitHub-Abgleich nach dem Scan fehlgeschlagen")
+        progress.update(GITHUB_SYNC_STEP, StepState.FAILED, _SYNC_FAILED_MESSAGE)
+        return result
+    progress.update(GITHUB_SYNC_STEP, StepState.DONE if synced else StepState.SKIPPED)
     return result

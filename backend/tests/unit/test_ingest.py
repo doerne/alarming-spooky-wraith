@@ -1,9 +1,12 @@
 from dataclasses import replace
 from datetime import UTC, datetime
 
+import pytest
+
 from app.application.component_matching import ComponentMatcher
-from app.application.ingest import IngestResult, RunIngest
+from app.application.ingest import IngestResult, IngestServices, RunIngest
 from app.application.inventory_use_cases import AddComponent, CreateApplication
+from app.application.scan_progress import PERSIST_STEP, StepState
 from app.application.source_registry import SourceRegistry
 from app.domain.errors import SourceAccessError
 from app.domain.inventory import Category, Component, Ecosystem
@@ -36,6 +39,7 @@ from tests.fakes import (
     FakeBulkSource,
     FakePackageSource,
     InMemoryUnitOfWork,
+    RecordingProgress,
     VulnerabilitySourceFake,
     descriptor,
     fixed_clock,
@@ -86,7 +90,8 @@ def _run(
 ) -> IngestResult:
     matcher = ComponentMatcher(UniversVersionMatcher())
     registry = SourceRegistry(list(sources))
-    return RunIngest(uow, registry, matcher, store or FakeAdvisoryStore(), lambda: _NOW).execute()
+    services = IngestServices(registry, matcher, store or FakeAdvisoryStore(), lambda: _NOW)
+    return RunIngest(uow, services).execute()
 
 
 def _result_of(result: IngestResult, key: str) -> RunStatus:
@@ -581,3 +586,51 @@ def test_ingest_only_resolves_components_retired_before_the_run() -> None:
     [finding] = uow.findings.list()
     assert finding.status == FindingStatus.OPEN
     assert finding.resolved_at is None
+
+
+def test_progress_reports_each_source_and_persist() -> None:
+    uow = _uow(_REACT)
+    uow.source_settings.save(SourceSetting(source_key="skip", enabled=False))
+    ok = FakePackageSource(descriptor("ok"), {"react": [_vuln()]})
+    skipped = FakePackageSource(descriptor("skip"), {})
+    broken = FakePackageSource(descriptor("err"), error=RuntimeError("weg"))
+    progress = RecordingProgress()
+    services = IngestServices(
+        SourceRegistry([ok, skipped, broken]),
+        ComponentMatcher(UniversVersionMatcher()),
+        FakeAdvisoryStore(),
+        lambda: _NOW,
+    )
+
+    RunIngest(uow, services, progress).execute()
+
+    assert progress.updates == [
+        ("ok", StepState.RUNNING, ""),
+        ("ok", StepState.DONE, ""),
+        ("skip", StepState.SKIPPED, "deaktiviert"),
+        ("err", StepState.RUNNING, ""),
+        ("err", StepState.FAILED, "Unerwarteter Fehler (RuntimeError)"),
+        (PERSIST_STEP, StepState.RUNNING, ""),
+        (PERSIST_STEP, StepState.DONE, ""),
+    ]
+
+
+class _FailingStore(FakeAdvisoryStore):
+    def save(self, *args: object, **kwargs: object) -> str:
+        raise OSError("Platte voll")
+
+
+def test_failing_persist_is_reported_failed_not_left_running() -> None:
+    uow = _uow(_REACT)
+    progress = RecordingProgress()
+    services = IngestServices(
+        SourceRegistry([FakePackageSource(descriptor("osv"), {"react": [_vuln()]})]),
+        ComponentMatcher(UniversVersionMatcher()),
+        _FailingStore(),
+        lambda: _NOW,
+    )
+
+    with pytest.raises(OSError, match="Platte voll"):
+        RunIngest(uow, services, progress).execute()
+
+    assert progress.updates[-1] == (PERSIST_STEP, StepState.FAILED, "Speichern fehlgeschlagen")

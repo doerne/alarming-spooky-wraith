@@ -1,23 +1,34 @@
 """Router zur manuellen Inventar-Pflege. Enthaelt keine Logik."""
 
 from datetime import datetime
+from typing import Annotated
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Depends, Request, Response, status
 
 from app.application.github_settings import GitHubSettingsChange, UpdateGitHubSettings
 from app.application.inventory_use_cases import (
     AddComponent,
     CreateApplication,
+    DeleteApplication,
     GetApplication,
     ListApplications,
     UpdateComponent,
 )
+from app.application.job_activity import JobActivity
 from app.domain.inventory import Application, Category, Component, Ecosystem
 from app.domain.vulnerability import Severity
 from app.presentation.dependencies import ClockDep, UnitOfWorkDep
 from app.presentation.schemas import ApiModel
 
 router = APIRouter(prefix="/api", tags=["inventory"])
+
+
+def get_job_activity(request: Request) -> JobActivity:
+    activity: JobActivity = request.app.state.job_activity
+    return activity
+
+
+JobActivityDep = Annotated[JobActivity, Depends(get_job_activity)]
 
 
 class CreateApplicationRequest(ApiModel):
@@ -182,3 +193,11 @@ def update_component(
         component=_component_from_request(body),
     )
     return _to_component_response(component)
+
+
+@router.delete("/applications/{application_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_application(
+    application_id: int, uow: UnitOfWorkDep, activity: JobActivityDep
+) -> Response:
+    DeleteApplication(uow, activity).execute(application_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

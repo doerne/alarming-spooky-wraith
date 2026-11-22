@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 
 from app.application.component_matching import ComponentMatcher
-from app.application.ingest import RunIngest
+from app.application.ingest import IngestServices, RunIngest
 from app.application.inventory_use_cases import AddComponent, CreateApplication
 from app.application.list_findings import NO_ECOSYSTEM, FindingFilter, ListFindings
 from app.application.source_registry import SourceRegistry
@@ -55,13 +55,13 @@ def _ingested_uow() -> InMemoryUnitOfWork:
     osv = FakePackageSource(
         descriptor("osv"), {"react": [_vuln("CVE-2024-1", 9.8), _vuln("CVE-2024-2", 5.0)]}
     )
-    RunIngest(
-        uow,
+    services = IngestServices(
         SourceRegistry([osv]),
         ComponentMatcher(UniversVersionMatcher()),
         FakeAdvisoryStore(),
         lambda: datetime.now(UTC),
-    ).execute()
+    )
+    RunIngest(uow, services).execute()
     return uow
 
 

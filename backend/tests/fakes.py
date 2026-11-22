@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from app.application.github_sync import SyncRequest, SyncRunState
 from app.application.ingest_runner import IngestRunState
 from app.application.issue_export import IssueDraft
+from app.application.scan_progress import ScanStep, StepState
 from app.application.unit_of_work import UnitOfWork, UnitOfWorkFactory
 from app.domain.errors import EntityNotFoundError, IssueTrackerError
 from app.domain.inventory import Application, Component
@@ -62,6 +63,9 @@ class InMemoryApplicationRepository:
             raise EntityNotFoundError("Anwendung", application.id)
         self._items[application.id] = application
         return application
+
+    def delete(self, application_id: int) -> None:
+        self._items.pop(application_id, None)
 
 
 class InMemoryComponentRepository:
@@ -630,3 +634,34 @@ class TupleVersionComparator:
     @staticmethod
     def _parse(version: str) -> tuple[int, ...]:
         return tuple(int(part) for part in version.split("."))
+
+
+class FakeJobActivity:
+    """Ersatz für die Job-Sperre: zählt Erwerb und Freigabe, kann belegt sein."""
+
+    def __init__(self, busy: bool = False) -> None:
+        self.busy = busy
+        self.held = False
+
+    def try_acquire(self) -> bool:
+        if self.busy or self.held:
+            return False
+        self.held = True
+        return True
+
+    def release(self) -> None:
+        self.held = False
+
+
+class RecordingProgress:
+    """Ersatz für den Scan-Fortschritt: merkt sich jeden Aufruf in Reihenfolge."""
+
+    def __init__(self) -> None:
+        self.begun: list[ScanStep] = []
+        self.updates: list[tuple[str, StepState, str]] = []
+
+    def begin(self, steps: Sequence[ScanStep]) -> None:
+        self.begun = list(steps)
+
+    def update(self, key: str, state: StepState, detail: str = "") -> None:
+        self.updates.append((key, state, detail))

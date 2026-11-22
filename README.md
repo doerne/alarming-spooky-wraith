@@ -11,7 +11,7 @@ gehärteten Containern. Angelegt mit dem Claude-Code-Plugin `fullstack-standards
 
 | Bereich | Was es kann |
 |---|---|
-| **Inventar** | Anwendungen und ihre Komponenten (Sprache, Framework, Library, Dienst) mit Version pflegen – von Hand oder per CycloneDX-SBOM-Upload mit Versionsverlauf |
+| **Inventar** | Anwendungen und ihre Komponenten (Sprache, Framework, Library, Dienst) mit Version pflegen – von Hand oder per CycloneDX-SBOM-Upload mit Versionsverlauf; Anwendungen samt Komponenten, SBOMs und Funden löschen |
 | **Schwachstellen** | Treffer in einer Tabelle, nach Risk Score sortiert (startet mit den offenen, „Filter zurücksetzen“ zeigt alle), mit Spaltenfiltern, Detailansicht und Statusänderung; Kacheln und Verlauf zeigen die Entwicklung des offenen Bestands |
 | **Quellen** | CVE-Quellen ein- und ausschalten, API-Keys hinterlegen, Fortschritt des Scans je Quelle sehen |
 | **Export für KI** | Offene CVEs einer Anwendung als Markdown mit fertigen Issue-Texten für einen Agenten |
@@ -90,6 +90,16 @@ zusätzlich auf Knopfdruck (*Scan starten* auf der Schwachstellen-Seite oder
 `POST /api/ingest/run`). War das Backend zur geplanten Zeit aus, holt es den Scan beim Start
 nach, wenn der letzte reguläre Lauf über 24 h zurückliegt (höchstens ein Nachholversuch pro
 Tag). Der GitHub-Abgleich läuft nach jedem Scan mit.
+
+Während ein Scan läuft, zeigt die Schwachstellen-Seite unter dem Button „Scan läuft · X von
+Y Quellen erledigt“, einen Balken und je Quelle, „Funde speichern“ und „GitHub-Abgleich“
+einen Chip mit Zustand (wartet, läuft, erledigt, übersprungen, fehlgeschlagen). Bei
+übersprungenen Quellen nennt der Tooltip den Grund. Derselbe Stand steht als `steps` in
+`GET /api/ingest/status`.
+
+**Anwendung löschen** (Detailansicht → *Anwendung löschen*) entfernt die Anwendung mit allen
+Komponenten, SBOMs und Funden endgültig. Advisories und angelegte GitHub-Issues bleiben
+bestehen. Während eines Scans oder GitHub-Abgleichs wird das Löschen abgelehnt (HTTP 409).
 
 Wie aktuell die Daten sind, zeigt „Stand: …“ auf der Schwachstellen-Seite und im CVE-Reiter
 jeder Anwendung. Er wird zur Warnung, wenn der Stand älter als 26 h ist, Quellen Fehler hatten

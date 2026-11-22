@@ -34,6 +34,7 @@ function status(overrides: Partial<ScanStatus> = {}): ScanStatus {
     error: null,
     lastRun: null,
     lastUsableRun: null,
+    steps: [],
     ...overrides,
   };
 }

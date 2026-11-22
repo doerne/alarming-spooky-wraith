@@ -8,6 +8,7 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session
 
 from app.application.alias_absorber import AliasAbsorber
+from app.application.inventory_use_cases import DeleteApplication
 from app.application.sbom_use_cases import DeleteSbom
 from app.domain.inventory import Application, Category, Component, Ecosystem
 from app.domain.sbom import Sbom, SbomVersion
@@ -24,7 +25,7 @@ from app.infrastructure import models  # noqa: F401  (Modelle registrieren)
 from app.infrastructure.database import Base
 from app.infrastructure.models import AdvisoryAliasModel
 from app.infrastructure.unit_of_work import SqlAlchemyUnitOfWork
-from tests.fakes import FakeAdvisoryStore, fixed_clock
+from tests.fakes import FakeAdvisoryStore, FakeJobActivity, fixed_clock
 
 
 def _enable_foreign_keys(connection: Any, _: Any) -> None:
@@ -192,3 +193,37 @@ def test_list_for_components(uow: SqlAlchemyUnitOfWork) -> None:
     found = uow.findings.list_for_components([component_id])
     assert [finding.advisory_id for finding in found] == ["GHSA-1"]
     assert uow.findings.list_for_components([]) == []
+
+
+def test_delete_application_with_versions_retired_components_and_findings(
+    uow: SqlAlchemyUnitOfWork,
+) -> None:
+    application_id, component_id = _setup(uow)
+    other = uow.applications.add(Application(name="Blog"))
+    assert other.id is not None
+    sbom = uow.sboms.add(Sbom(application_id=application_id, name="img"))
+    assert sbom.id is not None
+    version = uow.sbom_versions.add(
+        SbomVersion(sbom.id, "v1", datetime(2026, 11, 21, tzinfo=UTC), None, True, ())
+    )
+    assert version.id is not None
+    retired = uow.components.add(
+        application_id,
+        Component("openssl", "3", Category.LIBRARY, None, True, sbom_id=sbom.id, checked=False),
+    )
+    assert retired.id is not None
+    uow.components.retire_many([retired.id], version.id)
+    uow.findings.upsert(_finding("GHSA-1", retired.id, application_id))
+    uow.findings.upsert(_finding("GHSA-1", component_id, application_id))
+    kept_component = uow.components.add(
+        other.id, Component("pip", "1.0", Category.LIBRARY, Ecosystem.PYPI, True)
+    )
+    assert kept_component.id is not None
+    uow.findings.upsert(_finding("GHSA-1", kept_component.id, other.id))
+    uow.commit()
+    DeleteApplication(uow, FakeJobActivity()).execute(application_id)
+    assert [app.id for app in uow.applications.list()] == [other.id]
+    assert [c.id for c in uow.components.list_all()] == [kept_component.id]
+    assert [f.application_id for f in uow.findings.list()] == [other.id]
+    assert uow.sboms.list_for_application(application_id) == []
+    assert uow.advisories.find("GHSA-1") is not None
