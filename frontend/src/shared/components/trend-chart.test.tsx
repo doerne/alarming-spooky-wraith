@@ -10,6 +10,13 @@ const base: FindingTrend = {
   openAtStart: 44,
   newTotal: 3,
   closedTotal: 5,
+  closedByOutcome: {
+    fixed_confirmed: 0,
+    fixed_reported: 0,
+    fixed_manual: 0,
+    accepted: 0,
+    false_positive: 0,
+  },
   untouchedNow: 30,
   inProgressNow: 12,
   openBySeverityNow: { kritisch: 3, hoch: 10, mittel: 20, niedrig: 9 },
@@ -24,7 +31,10 @@ describe("TrendChart", () => {
   });
 
   it("zeigt einen Leerzustand ohne Bewegung", () => {
-    const quiet = { ...base, weeks: [{ weekStart: "2026-11-16", new: 0, closed: 0, openAtEnd: 5 }] };
+    const quiet = {
+      ...base,
+      weeks: [{ weekStart: "2026-11-16", new: 0, closed: 0, openAtEnd: 5 }],
+    };
     render(<TrendChart trend={quiet} feature="cves" />);
 
     expect(screen.getByTestId("cves-text-trend-empty")).toHaveTextContent(

@@ -96,3 +96,11 @@ class UniversVersionMatcher:
         for bound, kind in events:
             affected = _apply_event(affected, current, bound, kind)
         return affected
+
+    def is_newer(self, ecosystem: str | None, candidate: str, current: str) -> bool:
+        version_class = _VERSION_CLASS.get(ecosystem or "", _FALLBACK)
+        candidate_version = _parse(version_class, candidate)
+        current_version = _parse(version_class, current)
+        if candidate_version is None or current_version is None:
+            return False
+        return candidate_version > current_version

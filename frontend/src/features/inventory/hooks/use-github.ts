@@ -1,3 +1,4 @@
+import { queryKeys } from "@/shared/api/query-keys";
 import { useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -23,7 +24,8 @@ export function useUpdateGitHubSettings(applicationId: number) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: ApplicationGitHubInput) => updateApplicationGitHub(applicationId, input),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["application", applicationId] }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: queryKeys.application(applicationId) }),
   });
 }
 
@@ -43,9 +45,11 @@ export function useRefreshAfterSync(applicationId: number, running: boolean) {
   useEffect(() => {
     if (wasRunning.current && !running) {
       // Der Abgleich ändert Fund-Status: Tabelle und Verlauf (Anwendung und global) neu laden.
-      void queryClient.invalidateQueries({ queryKey: ["application", applicationId] });
-      void queryClient.invalidateQueries({ queryKey: ["application-findings", applicationId] });
-      void queryClient.invalidateQueries({ queryKey: ["findings"] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.application(applicationId) });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.applicationFindings(applicationId),
+      });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.findings });
     }
     wasRunning.current = running;
   }, [applicationId, running, queryClient]);

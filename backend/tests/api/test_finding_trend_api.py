@@ -29,6 +29,13 @@ def test_get_trend_default_twelve_weeks() -> None:
     assert len(body["weeks"]) == 12
     assert set(body["weeks"][0]) == {"weekStart", "new", "closed", "openAtEnd"}
     assert body["weeks"][-1]["weekStart"] == "2026-11-16"
+    assert set(body["closedByOutcome"]) == {
+        "fixed_confirmed",
+        "fixed_reported",
+        "fixed_manual",
+        "accepted",
+        "false_positive",
+    }
     assert set(body["openBySeverityNow"]) == {"kritisch", "hoch", "mittel", "niedrig"}
 
 

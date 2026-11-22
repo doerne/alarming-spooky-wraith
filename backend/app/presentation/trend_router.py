@@ -8,6 +8,7 @@ from pydantic import AfterValidator
 
 from app.application.finding_trend import GetFindingTrend
 from app.domain.finding_trend import DEFAULT_TREND_WEEKS, TREND_WEEK_OPTIONS, FindingTrend
+from app.domain.remediation import ClosureKind
 from app.domain.vulnerability import Severity
 from app.presentation.dependencies import ClockDep, UnitOfWorkDep
 from app.presentation.schemas import ApiModel
@@ -40,6 +41,7 @@ class FindingTrendResponse(ApiModel):
     untouched_now: int
     in_progress_now: int
     open_by_severity_now: dict[Severity, int]
+    closed_by_outcome: dict[ClosureKind, int]
 
 
 def _to_response(trend: FindingTrend) -> FindingTrendResponse:
@@ -59,6 +61,7 @@ def _to_response(trend: FindingTrend) -> FindingTrendResponse:
         untouched_now=trend.untouched_now,
         in_progress_now=trend.in_progress_now,
         open_by_severity_now=trend.open_by_severity_now,
+        closed_by_outcome=trend.closed_by_outcome,
     )
 
 

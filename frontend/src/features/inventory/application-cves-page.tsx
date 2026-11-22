@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import { DEFAULT_TREND_WEEKS, type TrendWeeks } from "@/shared/api/finding-trend";
+import { RemediationRow } from "@/shared/components/remediation-row";
 import { TrendCards } from "@/shared/components/trend-cards";
 import { TrendChart } from "@/shared/components/trend-chart";
 import { TrendRangeSelect } from "@/shared/components/trend-range-select";
@@ -12,6 +13,7 @@ import { GithubCreateDialog } from "./components/github-create-dialog";
 import { GithubSyncControls } from "./components/github-sync-controls";
 import { useApplication } from "./hooks/use-application";
 import { useApplicationFindings } from "./hooks/use-application-findings";
+import { useApplicationKpis } from "./hooks/use-application-kpis";
 import { useApplicationTrend } from "./hooks/use-application-trend";
 import { useGithubSyncPanel } from "./hooks/use-github-sync-panel";
 import { useScanStatus } from "./hooks/use-scan-status";
@@ -32,6 +34,7 @@ export function ApplicationCvesPage({ applicationId, onSelectCve }: ApplicationC
   const [filters, setFilters] = useState<CveFilters>(DEFAULT_CVE_FILTERS);
   const [weeks, setWeeks] = useState<TrendWeeks>(DEFAULT_TREND_WEEKS);
   const trend = useApplicationTrend(applicationId, weeks);
+  const kpis = useApplicationKpis(applicationId);
   const findings = useApplicationFindings(applicationId, filters);
   // Auswahlwerte für Advisory/Komponente aus allen Funden der Anwendung (ungefiltert).
   const allFindings = useApplicationFindings(applicationId, EMPTY_CVE_FILTERS);
@@ -71,6 +74,13 @@ export function ApplicationCvesPage({ applicationId, onSelectCve }: ApplicationC
           <TrendChart trend={trend.data} feature="inventory" />
         </>
       )}
+      <RemediationRow
+        kpis={kpis.data}
+        kpisFailed={kpis.isError}
+        trend={trend.data}
+        feature="inventory"
+        showApplications={false}
+      />
       <ApplicationCvesPanel
         page={findings.data}
         options={cveColumnOptionsOf(allFindings.data?.items ?? [])}

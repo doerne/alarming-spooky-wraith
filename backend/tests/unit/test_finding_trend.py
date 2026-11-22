@@ -1,7 +1,14 @@
 from datetime import UTC, date, datetime, timedelta
 
 from app.domain.finding_trend import compute_trend
-from app.domain.vulnerability import Finding, FindingStatus, RiskScore, Severity
+from app.domain.remediation import ClosureKind
+from app.domain.vulnerability import (
+    Finding,
+    FindingStatus,
+    ResolutionSource,
+    RiskScore,
+    Severity,
+)
 
 NOW = datetime(2026, 11, 22, 9, 0, tzinfo=UTC)
 
@@ -11,6 +18,7 @@ def make_finding(
     first_seen_at: datetime | None = None,
     closed_at: datetime | None = None,
     level: Severity = Severity.MITTEL,
+    resolved_by: ResolutionSource | None = None,
 ) -> Finding:
     return Finding(
         advisory_id="CVE-2026-0001",
@@ -21,6 +29,7 @@ def make_finding(
         status=status,
         first_seen_at=first_seen_at,
         closed_at=closed_at,
+        resolved_by=resolved_by,
     )
 
 
@@ -170,3 +179,30 @@ def test_totals_sum_weeks() -> None:
 
     assert trend.new_total == sum(week.new for week in trend.weeks) == 2
     assert trend.closed_total == sum(week.closed for week in trend.weeks) == 1
+
+
+def test_closed_by_outcome_counts_same_set_as_closed_total() -> None:
+    seen = datetime(2026, 10, 1, tzinfo=UTC)
+    findings = [
+        make_finding(
+            FindingStatus.FIXED,
+            seen,
+            datetime(2026, 11, 10, tzinfo=UTC),
+            resolved_by=ResolutionSource.SBOM,
+        ),
+        make_finding(FindingStatus.ACCEPTED, seen, datetime(2026, 11, 12, tzinfo=UTC)),
+        # vor dem Zeitraum erledigt
+        make_finding(FindingStatus.FIXED, seen, datetime(2026, 10, 5, tzinfo=UTC)),
+        # Altfund: erledigt vor Erstsichtung
+        make_finding(FindingStatus.FALSE_POSITIVE, seen, datetime(2026, 9, 1, tzinfo=UTC)),
+    ]
+
+    trend = compute_trend(findings, NOW, 4)
+
+    assert set(trend.closed_by_outcome) == set(ClosureKind)
+    assert trend.closed_by_outcome[ClosureKind.FIXED_CONFIRMED] == 1
+    assert trend.closed_by_outcome[ClosureKind.ACCEPTED] == 1
+    assert trend.closed_by_outcome[ClosureKind.FIXED_REPORTED] == 0
+    assert trend.closed_by_outcome[ClosureKind.FIXED_MANUAL] == 0
+    assert trend.closed_by_outcome[ClosureKind.FALSE_POSITIVE] == 0
+    assert sum(trend.closed_by_outcome.values()) == trend.closed_total

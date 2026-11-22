@@ -12,7 +12,7 @@ gehärteten Containern. Angelegt mit dem Claude-Code-Plugin `fullstack-standards
 | Bereich | Was es kann |
 |---|---|
 | **Inventar** | Anwendungen und ihre Komponenten (Sprache, Framework, Library, Dienst) mit Version pflegen – von Hand oder per CycloneDX-SBOM-Upload mit Versionsverlauf |
-| **Schwachstellen** | Offene Treffer in einer Tabelle, nach Risk Score sortiert, mit Spaltenfiltern, Detailansicht und Statusänderung; Kacheln und Verlauf zeigen die Entwicklung des offenen Bestands |
+| **Schwachstellen** | Treffer in einer Tabelle, nach Risk Score sortiert (startet mit den offenen, „Filter zurücksetzen“ zeigt alle), mit Spaltenfiltern, Detailansicht und Statusänderung; Kacheln und Verlauf zeigen die Entwicklung des offenen Bestands |
 | **Quellen** | CVE-Quellen ein- und ausschalten, API-Keys hinterlegen, Fortschritt des Scans je Quelle sehen |
 | **Export für KI** | Offene CVEs einer Anwendung als Markdown mit fertigen Issue-Texten für einen Agenten |
 | **Rückkanal** | Agenten melden Issue-Link und Status per API; „behoben“ wird mit der nächsten SBOM überprüft |
@@ -136,6 +136,14 @@ Die Schwachstellen-Seite und der CVE-Reiter jeder Anwendung zeigen zuerst die En
 - **Diagramm „Verlauf“:** Balken für neu und erledigt je ISO-Woche, Linie für den offenen
   Bestand. Zeitraum 4, 12, 26 oder 52 Wochen (Standard 12).
 - **Schweregrad-Diagramm:** zählt nur den offenen Bestand.
+- **Karte „Fristen“:** überfällig, bald fällig (≤ 7 Tage) und nächste Frist. Fristen je
+  Schweregrad: kritisch 7, hoch 30, mittel 90, niedrig 180 Tage. Fristbeginn ist die
+  Erstsichtung, frühestens der 22.11.2026.
+- **Karte „Wie erledigt“:** Aufteilung der im Zeitraum erledigten Funde in Behoben, bestätigt
+  durch SBOM · Behoben, gemeldet · Behoben, von Hand · Akzeptiert · False Positive.
+- **Karte „Behebbar durch Update“:** Top 5 Pakete, deren Update die meisten offenen
+  Funde schließt. Zielversion ist die höchste Fix-Version, die neuer ist als die eingesetzte.
+  Die Angabe „in n Anwendungen“ gibt es nur auf der Schwachstellen-Seite.
 
 Begriffe: **Erledigt** = `behoben`, `akzeptiert`, `false_positive`. **Offener Bestand** =
 `offen` + `in_arbeit`; **Unangetastet** = `offen`. Funde, die vor Einführung der Zeiterfassung
