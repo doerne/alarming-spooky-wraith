@@ -4,6 +4,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 
+from app.domain.remediation import ClosureKind, closure_kind_of
 from app.domain.vulnerability import Finding, FindingStatus, Severity, is_closed
 
 TREND_WEEK_OPTIONS: tuple[int, ...] = (4, 12, 26, 52)
@@ -28,6 +29,7 @@ class FindingTrend:
     untouched_now: int
     in_progress_now: int
     open_by_severity_now: dict[Severity, int]  # immer alle vier Stufen
+    closed_by_outcome: dict[ClosureKind, int]  # immer alle fünf Arten
 
 
 def week_start_of(moment: datetime) -> datetime:
@@ -76,6 +78,18 @@ def _open_by_severity(findings: Sequence[Finding]) -> dict[Severity, int]:
     return counts
 
 
+def _closed_by_outcome(
+    findings: Sequence[Finding], start: datetime, end: datetime
+) -> dict[ClosureKind, int]:
+    """Erledigte Funde im Zeitraum nach Art der Erledigung (gleiche Menge wie ``closed``)."""
+    counts = {kind: 0 for kind in ClosureKind}
+    for finding in findings:
+        kind = closure_kind_of(finding)
+        if kind is not None and _in_interval(finding.closed_at, start, end):
+            counts[kind] += 1
+    return counts
+
+
 def _count_status(findings: Sequence[Finding], status: FindingStatus) -> int:
     return sum(1 for finding in findings if finding.status == status)
 
@@ -93,4 +107,5 @@ def compute_trend(findings: Sequence[Finding], now: datetime, weeks: int) -> Fin
         untouched_now=_count_status(findings, FindingStatus.OPEN),
         in_progress_now=_count_status(findings, FindingStatus.IN_PROGRESS),
         open_by_severity_now=_open_by_severity(findings),
+        closed_by_outcome=_closed_by_outcome(tracked, range_start, range_start + weeks * _ONE_WEEK),
     )
