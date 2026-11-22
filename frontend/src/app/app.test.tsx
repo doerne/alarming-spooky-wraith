@@ -59,6 +59,13 @@ const TREND = {
   openAtStart: 3,
   newTotal: 2,
   closedTotal: 0,
+  closedByOutcome: {
+    fixed_confirmed: 0,
+    fixed_reported: 0,
+    fixed_manual: 0,
+    accepted: 0,
+    false_positive: 0,
+  },
   untouchedNow: 3,
   inProgressNow: 2,
   openBySeverityNow: { kritisch: 1, hoch: 2, mittel: 1, niedrig: 1 },

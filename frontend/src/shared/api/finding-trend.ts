@@ -1,10 +1,19 @@
 import { z } from "zod";
 
 import { request } from "./http-client";
+import { CLOSURE_KINDS } from "./remediation-kpis";
 
 export const TREND_WEEK_OPTIONS = [4, 12, 26, 52] as const;
 export type TrendWeeks = (typeof TREND_WEEK_OPTIONS)[number];
 export const DEFAULT_TREND_WEEKS: TrendWeeks = 12;
+
+const closedByOutcomeSchema = z.object(
+  Object.fromEntries(CLOSURE_KINDS.map((kind) => [kind, z.number()])) as Record<
+    (typeof CLOSURE_KINDS)[number],
+    z.ZodNumber
+  >,
+);
+export type ClosedByOutcome = z.infer<typeof closedByOutcomeSchema>;
 
 export const findingTrendSchema = z.object({
   weeks: z.array(
@@ -18,6 +27,7 @@ export const findingTrendSchema = z.object({
   openAtStart: z.number(),
   newTotal: z.number(),
   closedTotal: z.number(),
+  closedByOutcome: closedByOutcomeSchema,
   untouchedNow: z.number(),
   inProgressNow: z.number(),
   openBySeverityNow: z.record(z.enum(["kritisch", "hoch", "mittel", "niedrig"]), z.number()),

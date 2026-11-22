@@ -10,6 +10,13 @@ const base: FindingTrend = {
   openAtStart: 44,
   newTotal: 7,
   closedTotal: 12,
+  closedByOutcome: {
+    fixed_confirmed: 0,
+    fixed_reported: 0,
+    fixed_manual: 0,
+    accepted: 0,
+    false_positive: 0,
+  },
   untouchedNow: 30,
   inProgressNow: 12,
   openBySeverityNow: { kritisch: 3, hoch: 10, mittel: 20, niedrig: 9 },

@@ -1,3 +1,4 @@
+import { queryKeys } from "@/shared/api/query-keys";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { addComponent } from "../api/inventory-api";
@@ -13,9 +14,9 @@ export function useAddComponent() {
   return useMutation<void, Error, AddComponentVars>({
     mutationFn: ({ applicationId, input }) => addComponent(applicationId, input),
     onSuccess: (_data, { applicationId }) => {
-      queryClient.invalidateQueries({ queryKey: ["application", applicationId] });
-      queryClient.invalidateQueries({ queryKey: ["application-findings", applicationId] });
-      queryClient.invalidateQueries({ queryKey: ["findings"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.application(applicationId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.applicationFindings(applicationId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.findings });
     },
   });
 }
