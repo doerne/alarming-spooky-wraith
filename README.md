@@ -55,6 +55,12 @@ alle Werte vorbelegt; nötig ist höchstens `GITHUB_APP_ID`.
 | `GITHUB_APP_ID` | – | ID der GitHub App; ohne sie ist GitHub „nicht konfiguriert“ |
 | `GITHUB_APP_PRIVATE_KEY_FILE` | `/run/secrets/github_app_private_key` | Privater Schlüssel der App als Docker Secret |
 | `GITHUB_API_URL` | `https://api.github.com` | GitHub-API (z. B. für GitHub Enterprise) |
+| `SCAN_SCHEDULE_ENABLED` | `true` | Täglicher Scan; `false` schaltet Zeitplan und Nachholen ab |
+| `SCAN_SCHEDULE_TIME` | `04:00` | Uhrzeit des täglichen Scans (`HH:MM`) |
+| `SCAN_SCHEDULE_TIMEZONE` | `Europe/Berlin` | Zeitzone der Uhrzeit (IANA-Name) |
+
+Eine ungültige Uhrzeit oder Zeitzone verhindert den Start des Backends; die Meldung nennt
+Variable und Wert.
 
 Secrets liegen nur in `secrets/` und werden als Docker Secrets eingebunden;
 `make secrets` (bzw. `scripts/generate-secrets.sh`) legt fehlende Dateien an.
@@ -79,8 +85,16 @@ menschenlesbare OKF-Datei (Markdown + YAML-Frontmatter) mit Quellenangabe abgele
 Datenbank ist der Index. Welche Felder gespeichert und welche verworfen werden:
 [`docs/cve-data-retention.md`](docs/cve-data-retention.md).
 
-Scans laufen im Hintergrund und werden derzeit **manuell** gestartet (*Scan starten* auf der
-Schwachstellen-Seite oder `POST /api/ingest/run`); einen Zeitplan gibt es noch nicht.
+Scans laufen im Hintergrund, **täglich automatisch** (Standard 04:00 Europe/Berlin) und
+zusätzlich auf Knopfdruck (*Scan starten* auf der Schwachstellen-Seite oder
+`POST /api/ingest/run`). War das Backend zur geplanten Zeit aus, holt es den Scan beim Start
+nach, wenn der letzte reguläre Lauf über 24 h zurückliegt (höchstens ein Nachholversuch pro
+Tag). Der GitHub-Abgleich läuft nach jedem Scan mit.
+
+Wie aktuell die Daten sind, zeigt „Stand: …“ auf der Schwachstellen-Seite und im CVE-Reiter
+jeder Anwendung. Er wird zur Warnung, wenn der Stand älter als 26 h ist, Quellen Fehler hatten
+oder der letzte Lauf fehlgeschlagen ist. Wurde eine Anwendung nach dem letzten Scan geändert
+(Komponente, SBOM), steht dort „Noch nicht gescannt“.
 
 ## Risk Score
 
