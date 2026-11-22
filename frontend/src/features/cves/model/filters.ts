@@ -20,6 +20,9 @@ export const EMPTY_FILTERS: FindingFilters = {
   componentNames: [],
 };
 
+/** Startzustand der Tabelle: nur offene Funde. */
+export const DEFAULT_FILTERS: FindingFilters = { ...EMPTY_FILTERS, statuses: ["offen"] };
+
 export const SEVERITY_OPTIONS: ReadonlyArray<FilterOption<RiskLevel>> = [
   { value: "kritisch", label: "Kritisch" },
   { value: "hoch", label: "Hoch" },

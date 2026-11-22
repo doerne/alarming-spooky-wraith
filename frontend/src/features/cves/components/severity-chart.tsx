@@ -29,7 +29,7 @@ export function SeverityChart({ data }: { data: SeverityCount[] }) {
   return (
     <Card data-testid="cves-card-severity-chart">
       <CardHeader>
-        <CardTitle>Funde nach Schweregrad</CardTitle>
+        <CardTitle>Offen nach Schweregrad</CardTitle>
       </CardHeader>
       <CardContent>
         <ChartContainer config={chartConfig} className="h-[260px] w-full">

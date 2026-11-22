@@ -1,23 +1,28 @@
 import { useState } from "react";
 
+import { DEFAULT_TREND_WEEKS, type TrendWeeks } from "@/shared/api/finding-trend";
 import { FilterSummaryBar } from "@/shared/components/filter-summary-bar";
+import { TrendCards } from "@/shared/components/trend-cards";
+import { TrendChart } from "@/shared/components/trend-chart";
+import { TrendRangeSelect } from "@/shared/components/trend-range-select";
 import { describeScanFreshness } from "@/shared/lib/scan-freshness";
 
 import { CvesTable } from "./components/cves-table";
 import { IngestControl } from "./components/ingest-control";
-import { SectionCards } from "./components/section-cards";
 import { SeverityChart } from "./components/severity-chart";
 import { useFilteredFindings, useFindings } from "./hooks/use-findings";
+import { useFindingTrend } from "./hooks/use-finding-trend";
 import { isAlreadyRunning, useIngestStatus, useStartIngest } from "./hooks/use-run-ingest";
 import {
   type ColumnOptions,
+  DEFAULT_FILTERS,
   EMPTY_FILTERS,
   type FindingFilters,
   columnOptionsOf,
   emptyStateOf,
   hasActiveFilters,
 } from "./model/filters";
-import { computeKpis, countBySeverity } from "./model/stats";
+import { severityCountsOf } from "./model/stats";
 import type { FindingsPage } from "./model/types";
 
 interface FilteredResultProps {
@@ -65,9 +70,11 @@ function FilteredResult(props: FilteredResultProps) {
 }
 
 export function CvesPage({ onSelectCve }: { onSelectCve: (advisoryId: string) => void }) {
-  // Kacheln und Diagramm zeigen immer den Gesamtstand; nur die Tabelle wird gefiltert.
+  // Alle Funde liefern nur die Auswahlwerte der Spaltenfilter; Kacheln und Diagramme kommen aus dem Trend.
   const { data: findings = [] } = useFindings();
-  const [filters, setFilters] = useState<FindingFilters>(EMPTY_FILTERS);
+  const [weeks, setWeeks] = useState<TrendWeeks>(DEFAULT_TREND_WEEKS);
+  const trend = useFindingTrend(weeks);
+  const [filters, setFilters] = useState<FindingFilters>(DEFAULT_FILTERS);
   const filtered = useFilteredFindings(filters);
   const ingestStatus = useIngestStatus();
   const startIngest = useStartIngest();
@@ -87,8 +94,18 @@ export function CvesPage({ onSelectCve }: { onSelectCve: (advisoryId: string) =>
           onStart={() => startIngest.mutate()}
         />
       </div>
-      <SectionCards kpis={computeKpis(findings)} />
-      <SeverityChart data={countBySeverity(findings)} />
+      <TrendRangeSelect value={weeks} onChange={setWeeks} feature="cves" />
+      {trend.data ? (
+        <>
+          <TrendCards trend={trend.data} feature="cves" />
+          <div className="grid gap-6 lg:grid-cols-3">
+            <div className="lg:col-span-2">
+              <TrendChart trend={trend.data} feature="cves" />
+            </div>
+            <SeverityChart data={severityCountsOf(trend.data.openBySeverityNow)} />
+          </div>
+        </>
+      ) : null}
       <FilteredResult
         page={filtered.data}
         error={filtered.error}
