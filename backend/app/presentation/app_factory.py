@@ -18,6 +18,7 @@ from app.presentation.ingest_router import router as ingest_router
 from app.presentation.inventory_router import router as inventory_router
 from app.presentation.sbom_router import router as sbom_router
 from app.presentation.sources_router import router as sources_router
+from app.presentation.trend_router import router as trend_router
 
 
 def _lifespan(
@@ -79,6 +80,7 @@ def create_app(
     app.include_router(sbom_router)
     app.include_router(ingest_router)
     app.include_router(cves_router)
+    app.include_router(trend_router)
     app.include_router(sources_router)
     app.include_router(github_router)
     return app
