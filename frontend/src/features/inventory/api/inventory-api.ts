@@ -1,6 +1,7 @@
 import { request } from "@/shared/api/http-client";
 
 import type { CveFilters } from "../model/cve-filters";
+import { type ApplicationOverview, applicationOverviewSchema } from "../model/overview";
 import type { ApplicationInput, ComponentInput } from "../model/schema";
 import type { Application, ApplicationDetail, ApplicationFinding } from "../model/types";
 
@@ -14,6 +15,10 @@ export interface ApplicationFindingsPage {
 
 export async function listApplications(): Promise<Application[]> {
   return request<Application[]>("/api/applications");
+}
+
+export async function listApplicationsOverview(): Promise<ApplicationOverview[]> {
+  return applicationOverviewSchema.array().parse(await request("/api/applications/overview"));
 }
 
 export async function getApplication(applicationId: number): Promise<ApplicationDetail> {
