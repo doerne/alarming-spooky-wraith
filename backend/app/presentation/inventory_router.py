@@ -5,6 +5,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request, Response, status
 
+from app.application.applications_overview import GetApplicationsOverview
 from app.application.github_settings import GitHubSettingsChange, UpdateGitHubSettings
 from app.application.inventory_use_cases import (
     AddComponent,
@@ -15,6 +16,7 @@ from app.application.inventory_use_cases import (
     UpdateComponent,
 )
 from app.application.job_activity import JobActivity
+from app.domain.application_overview import ApplicationOverview, ScanState
 from app.domain.inventory import Application, Category, Component, Ecosystem
 from app.domain.vulnerability import Severity
 from app.presentation.dependencies import ClockDep, UnitOfWorkDep
@@ -40,6 +42,36 @@ class ApplicationResponse(ApiModel):
     id: int
     name: str
     description: str
+
+
+class ApplicationOverviewResponse(ApiModel):
+    id: int
+    name: str
+    description: str
+    open_by_severity: dict[Severity, int]
+    overdue: int
+    component_count: int
+    latest_sbom_upload_at: datetime | None
+    sbom_stale: bool
+    scan_state: ScanState
+    inventory_changed_at: datetime | None
+    github_repository: str | None
+
+
+def _to_overview_response(row: ApplicationOverview) -> ApplicationOverviewResponse:
+    return ApplicationOverviewResponse(
+        id=row.application_id,
+        name=row.name,
+        description=row.description,
+        open_by_severity=row.open_by_severity,
+        overdue=row.overdue,
+        component_count=row.component_count,
+        latest_sbom_upload_at=row.latest_sbom_upload_at,
+        sbom_stale=row.sbom_stale,
+        scan_state=row.scan_state,
+        inventory_changed_at=row.inventory_changed_at,
+        github_repository=row.github_repository,
+    )
 
 
 class CreateComponentRequest(ApiModel):
@@ -128,6 +160,12 @@ def list_applications(uow: UnitOfWorkDep) -> list[ApplicationResponse]:
         for app in applications
         if app.id is not None
     ]
+
+
+# Muss vor /applications/{application_id} stehen, sonst wird „overview“ als ID gelesen.
+@router.get("/applications/overview")
+def applications_overview(uow: UnitOfWorkDep, clock: ClockDep) -> list[ApplicationOverviewResponse]:
+    return [_to_overview_response(row) for row in GetApplicationsOverview(uow, clock).execute()]
 
 
 def _to_detail_response(application: Application) -> ApplicationDetailResponse:
