@@ -23,14 +23,9 @@ from app.presentation.schemas import ApiModel
 router = APIRouter(prefix="/api", tags=["inventory"])
 
 
-class _NeverBusy:
-    def is_busy(self) -> bool:
-        return False
-
-
 def get_job_activity(request: Request) -> JobActivity:
-    activity: JobActivity | None = request.app.state.job_activity
-    return activity if activity is not None else _NeverBusy()
+    activity: JobActivity = request.app.state.job_activity
+    return activity
 
 
 JobActivityDep = Annotated[JobActivity, Depends(get_job_activity)]

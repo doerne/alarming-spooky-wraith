@@ -633,3 +633,20 @@ class TupleVersionComparator:
     @staticmethod
     def _parse(version: str) -> tuple[int, ...]:
         return tuple(int(part) for part in version.split("."))
+
+
+class FakeJobActivity:
+    """Ersatz für die Job-Sperre: zählt Erwerb und Freigabe, kann belegt sein."""
+
+    def __init__(self, busy: bool = False) -> None:
+        self.busy = busy
+        self.held = False
+
+    def try_acquire(self) -> bool:
+        if self.busy or self.held:
+            return False
+        self.held = True
+        return True
+
+    def release(self) -> None:
+        self.held = False

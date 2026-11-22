@@ -67,12 +67,3 @@ def test_gate_is_released_after_sync_error() -> None:
     assert sync.wait(_WAIT_SECONDS)
     assert sync.state().error == "Abgleich fehlgeschlagen (RuntimeError)"
     assert gate.try_acquire() is True
-
-
-def test_gate_reports_busy_while_held() -> None:
-    gate = JobGate()
-    assert gate.is_busy() is False
-    gate.try_acquire()
-    assert gate.is_busy() is True
-    gate.release()
-    assert gate.is_busy() is False

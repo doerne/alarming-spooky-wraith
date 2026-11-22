@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from dataclasses import replace
 from datetime import timedelta
 
@@ -19,7 +20,7 @@ from app.domain.errors import (
 from app.domain.inventory import Category, Component, Ecosystem
 from app.domain.sbom import Sbom, SbomVersion
 from app.domain.vulnerability import Advisory, Finding, RiskScore, Severity
-from tests.fakes import FIXED_NOW, InMemoryUnitOfWork, fixed_clock
+from tests.fakes import FIXED_NOW, FakeJobActivity, InMemoryUnitOfWork, fixed_clock
 
 
 def _npm_component() -> Component:
@@ -103,14 +104,6 @@ def test_component_changes_mark_inventory_changed() -> None:
     assert uow.applications.get(application.id).inventory_changed_at == later
 
 
-class _Activity:
-    def __init__(self, busy: bool) -> None:
-        self._busy = busy
-
-    def is_busy(self) -> bool:
-        return self._busy
-
-
 def _application_with_inventory(uow: InMemoryUnitOfWork, name: str) -> int:
     application = CreateApplication(uow, fixed_clock).execute(name=name)
     assert application.id is not None
@@ -139,7 +132,7 @@ def test_delete_application_removes_only_its_own_data() -> None:
     uow.advisories.upsert(Advisory("CVE-1", "CVE-1", "t", "d", 5.0, None, [], "a.md"))
     doomed = _application_with_inventory(uow, "A")
     kept = _application_with_inventory(uow, "B")
-    DeleteApplication(uow, _Activity(busy=False)).execute(doomed)
+    DeleteApplication(uow, FakeJobActivity()).execute(doomed)
     assert [app.id for app in uow.applications.list()] == [kept]
     assert [c.application_id for c in uow.components.list_all()] == [kept]
     assert [f.application_id for f in uow.findings.list()] == [kept]
@@ -151,14 +144,45 @@ def test_delete_application_removes_only_its_own_data() -> None:
 
 def test_delete_unknown_application_raises_not_found() -> None:
     with pytest.raises(EntityNotFoundError):
-        DeleteApplication(InMemoryUnitOfWork(), _Activity(busy=False)).execute(999)
+        DeleteApplication(InMemoryUnitOfWork(), FakeJobActivity()).execute(999)
 
 
 def test_delete_application_is_refused_while_busy() -> None:
     uow = InMemoryUnitOfWork()
     application_id = _application_with_inventory(uow, "A")
     with pytest.raises(ApplicationBusyError):
-        DeleteApplication(uow, _Activity(busy=True)).execute(application_id)
+        DeleteApplication(uow, FakeJobActivity(busy=True)).execute(application_id)
     assert len(uow.applications.list()) == 1
     assert len(uow.components.list_all()) == 1
     assert len(uow.findings.list()) == 1
+
+
+def test_gate_is_released_after_successful_delete() -> None:
+    uow = InMemoryUnitOfWork()
+    activity = FakeJobActivity()
+    DeleteApplication(uow, activity).execute(_application_with_inventory(uow, "A"))
+    assert activity.try_acquire() is True
+
+
+def test_gate_is_released_when_a_delete_step_fails() -> None:
+    uow = InMemoryUnitOfWork()
+    application_id = _application_with_inventory(uow, "A")
+    activity = FakeJobActivity()
+
+    def failing(_: Sequence[int]) -> None:
+        raise RuntimeError("boom")
+
+    uow.components.delete_many = failing  # type: ignore[assignment]
+    with pytest.raises(RuntimeError):
+        DeleteApplication(uow, activity).execute(application_id)
+    assert activity.try_acquire() is True
+
+
+def test_busy_delete_does_not_release_a_foreign_holder() -> None:
+    uow = InMemoryUnitOfWork()
+    application_id = _application_with_inventory(uow, "A")
+    activity = FakeJobActivity()
+    assert activity.try_acquire() is True
+    with pytest.raises(ApplicationBusyError):
+        DeleteApplication(uow, activity).execute(application_id)
+    assert activity.held is True

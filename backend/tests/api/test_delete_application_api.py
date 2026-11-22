@@ -4,18 +4,10 @@ from contextlib import contextmanager
 from fastapi.testclient import TestClient
 
 from app.presentation.app_factory import AppServices, create_app
-from tests.fakes import InMemoryUnitOfWork, fixed_clock
+from tests.fakes import FakeJobActivity, InMemoryUnitOfWork, fixed_clock
 
 
-class _Activity:
-    def __init__(self, busy: bool) -> None:
-        self._busy = busy
-
-    def is_busy(self) -> bool:
-        return self._busy
-
-
-def _client(activity: _Activity | None = None) -> TestClient:
+def _client(activity: FakeJobActivity | None = None) -> TestClient:
     uow = InMemoryUnitOfWork()
 
     @contextmanager
@@ -44,7 +36,7 @@ def test_delete_unknown_application_is_404() -> None:
 
 
 def test_delete_while_busy_is_409() -> None:
-    client = _client(_Activity(busy=True))
+    client = _client(FakeJobActivity(busy=True))
     application_id = _create(client)
     response = client.delete(f"/api/applications/{application_id}")
     assert response.status_code == 409

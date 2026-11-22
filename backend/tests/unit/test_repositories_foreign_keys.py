@@ -25,16 +25,11 @@ from app.infrastructure import models  # noqa: F401  (Modelle registrieren)
 from app.infrastructure.database import Base
 from app.infrastructure.models import AdvisoryAliasModel
 from app.infrastructure.unit_of_work import SqlAlchemyUnitOfWork
-from tests.fakes import FakeAdvisoryStore, fixed_clock
+from tests.fakes import FakeAdvisoryStore, FakeJobActivity, fixed_clock
 
 
 def _enable_foreign_keys(connection: Any, _: Any) -> None:
     connection.execute("PRAGMA foreign_keys=ON")
-
-
-class _Idle:
-    def is_busy(self) -> bool:
-        return False
 
 
 @pytest.fixture
@@ -226,7 +221,7 @@ def test_delete_application_with_versions_retired_components_and_findings(
     assert kept_component.id is not None
     uow.findings.upsert(_finding("GHSA-1", kept_component.id, other.id))
     uow.commit()
-    DeleteApplication(uow, _Idle()).execute(application_id)
+    DeleteApplication(uow, FakeJobActivity()).execute(application_id)
     assert [app.id for app in uow.applications.list()] == [other.id]
     assert [c.id for c in uow.components.list_all()] == [kept_component.id]
     assert [f.application_id for f in uow.findings.list()] == [other.id]

@@ -43,4 +43,4 @@ class IssueTrackerError(DomainError):
 
 class ApplicationBusyError(ConflictError):
     def __init__(self) -> None:
-        super().__init__("Während eines Scans kann nicht gelöscht werden.")
+        super().__init__("Während eines Scans oder GitHub-Abgleichs kann nicht gelöscht werden.")
