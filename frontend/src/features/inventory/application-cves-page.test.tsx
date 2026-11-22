@@ -89,12 +89,11 @@ describe("ApplicationCvesPage", () => {
     expect(screen.queryByTestId("inventory-text-no-cves")).not.toBeInTheDocument();
   });
 
-  it("zeigt N von M und setzt zurück", async () => {
+  it("zeigt N von M und setzt auf ungefiltert zurück", async () => {
     mockFindings({ "1": [FINDING] });
     renderPage(1);
 
     expect(await screen.findByTestId("inventory-text-filter-summary")).toHaveTextContent("1 von 1");
-    // Startfilter "offen" ist aktiv, Zurücksetzen hebt ihn auf.
     await userEvent.click(screen.getByTestId("inventory-btn-reset-filters"));
     expect(screen.getByTestId("inventory-btn-reset-filters")).toBeDisabled();
   });

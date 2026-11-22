@@ -15,7 +15,7 @@ import {
 const chartConfig = {
   new: { label: "Neu", color: "var(--chart-5)" },
   closed: { label: "Erledigt", color: "var(--chart-1)" },
-  openAtEnd: { label: "Offener Bestand", color: "var(--chart-3)" },
+  openAtEnd: { label: "Offener Bestand", color: "var(--foreground)" },
 } satisfies ChartConfig;
 
 export function TrendChart({ trend, feature }: { trend: FindingTrend; feature: string }) {
@@ -43,10 +43,10 @@ export function TrendChart({ trend, feature }: { trend: FindingTrend; feature: s
               <Bar dataKey="closed" fill="var(--color-closed)" radius={4} />
               <Line
                 dataKey="openAtEnd"
-                type="monotone"
+                type="linear"
                 stroke="var(--color-openAtEnd)"
                 strokeWidth={2}
-                dot={false}
+                dot={{ r: 3, fill: "var(--color-openAtEnd)" }}
               />
             </ComposedChart>
           </ChartContainer>

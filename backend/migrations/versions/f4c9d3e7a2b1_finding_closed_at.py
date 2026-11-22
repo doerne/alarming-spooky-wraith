@@ -35,6 +35,9 @@ def upgrade() -> None:
             "WHERE status = 'behoben' AND resolved_at IS NOT NULL"
         )
     )
+    # Funde mit echtem first_seen_at, die vor der Migration akzeptiert/false_positive waren,
+    # erhalten closed_at = BASELINE < first_seen_at. _is_trackable schließt sie deshalb aus dem
+    # Verlauf aus (einmaliger, bewusster Effekt; der Bestand bleibt korrekt).
     connection.execute(
         sa.text(
             "UPDATE finding SET closed_at = :baseline "
