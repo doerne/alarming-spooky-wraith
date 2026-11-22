@@ -2,11 +2,21 @@
 
 from datetime import UTC, datetime
 
-from sqlalchemy import JSON, DateTime, ForeignKey, String, Text, UniqueConstraint, true
+from sqlalchemy import (
+    JSON,
+    DateTime,
+    ForeignKey,
+    String,
+    Text,
+    UniqueConstraint,
+    false,
+    true,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.domain.inventory import COMPONENT_NAME_MAX_LENGTH, COMPONENT_VERSION_MAX_LENGTH
 from app.domain.sbom import SBOM_LABEL_MAX_LENGTH, SBOM_NAME_MAX_LENGTH, SBOM_SERIAL_MAX_LENGTH
+from app.domain.scan_run import SCAN_MESSAGE_MAX_LENGTH
 from app.domain.vulnerability import (
     ADVISORY_ID_MAX_LENGTH,
     ADVISORY_TITLE_MAX_LENGTH,
@@ -139,3 +149,18 @@ class SourceSettingModel(Base):
     last_status: Mapped[str | None] = mapped_column(String(20), nullable=True)
     last_message: Mapped[str] = mapped_column(Text, default="")
     last_findings: Mapped[int | None] = mapped_column(nullable=True)
+
+
+class ScanRunModel(Base):
+    __tablename__ = "scan_run"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    trigger: Mapped[str] = mapped_column(String(20))
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    outcome: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    components_scanned: Mapped[int | None] = mapped_column(nullable=True)
+    findings_found: Mapped[int | None] = mapped_column(nullable=True)
+    sources_with_errors: Mapped[int] = mapped_column(default=0, server_default="0")
+    message: Mapped[str] = mapped_column(String(SCAN_MESSAGE_MAX_LENGTH), default="")
+    interrupted: Mapped[bool] = mapped_column(default=False, server_default=false())

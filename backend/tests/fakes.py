@@ -1,7 +1,7 @@
 """In-Memory-Adapter für schnelle Tests ohne Datenbank."""
 
 import builtins
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import replace
 from datetime import UTC, datetime
 
@@ -18,6 +18,7 @@ from app.domain.ports import (
     TrackedIssue,
 )
 from app.domain.sbom import ParsedSbom, Sbom, SbomVersion
+from app.domain.scan_run import ScanRun, ScanTrigger
 from app.domain.sources import (
     ApiKeyRequirement,
     MatchScope,
@@ -339,6 +340,43 @@ class InMemorySourceSettingRepository:
         self._items[setting.source_key] = replace(setting)
 
 
+class InMemoryScanRunRepository:
+    def __init__(self) -> None:
+        self._runs: dict[int, ScanRun] = {}
+
+    def add(self, run: ScanRun) -> ScanRun:
+        saved = replace(run, id=len(self._runs) + 1)
+        self._runs[saved.id or 0] = saved
+        return saved
+
+    def update(self, run: ScanRun) -> ScanRun:
+        if run.id not in self._runs:
+            raise EntityNotFoundError("Scan-Lauf", str(run.id))
+        self._runs[run.id] = run
+        return run
+
+    def list_unfinished(self) -> list[ScanRun]:
+        return [run for run in self._runs.values() if run.finished_at is None]
+
+    def latest_finished(self) -> ScanRun | None:
+        return self._newest(run for run in self._runs.values() if run.finished_at)
+
+    def latest_usable(self) -> ScanRun | None:
+        return self._newest(run for run in self._runs.values() if run.usable)
+
+    def latest_regular_finished(self) -> ScanRun | None:
+        return self._newest(
+            run for run in self._runs.values() if run.finished_at and not run.interrupted
+        )
+
+    def latest_started(self, trigger: ScanTrigger) -> ScanRun | None:
+        return self._newest(run for run in self._runs.values() if run.trigger == trigger)
+
+    @staticmethod
+    def _newest(runs: Iterable[ScanRun]) -> ScanRun | None:
+        return max(runs, key=lambda run: (run.started_at, run.id or 0), default=None)
+
+
 class FakeIssueTracker:
     """Speicher-Tracker: Issues je Repo, Marker-Index, Aufzeichnung der Schreibzugriffe."""
 
@@ -419,6 +457,7 @@ class InMemoryUnitOfWork:
         self.source_settings = InMemorySourceSettingRepository()
         self.sbom_versions = InMemorySbomVersionRepository()
         self.sboms = InMemorySbomRepository(self.sbom_versions)
+        self.scan_runs = InMemoryScanRunRepository()
 
     def rollback(self) -> None:
         self.rollbacks += 1

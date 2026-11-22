@@ -10,6 +10,7 @@ from app.domain.ports import (
     FindingRepository,
     SbomRepository,
     SbomVersionRepository,
+    ScanRunRepository,
     SourceSettingRepository,
 )
 
@@ -33,6 +34,8 @@ class UnitOfWork(Protocol):
     def sboms(self) -> SbomRepository: ...
     @property
     def sbom_versions(self) -> SbomVersionRepository: ...
+    @property
+    def scan_runs(self) -> ScanRunRepository: ...
     def commit(self) -> None: ...
     def rollback(self) -> None: ...
 
