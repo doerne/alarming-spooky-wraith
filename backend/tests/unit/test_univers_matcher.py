@@ -60,3 +60,20 @@ def test_unparseable_version_is_not_affected(version: str) -> None:
 def test_unparseable_event_is_ignored() -> None:
     package = _package(("introduced", "0"), ("fixed", "not-a-version"))
     assert _MATCHER.is_affected("npm", "1.0.0", package) is False
+
+
+@pytest.mark.parametrize(
+    ("ecosystem", "candidate", "current", "expected"),
+    [
+        ("npm", "1.10.0", "1.9.0", True),
+        ("npm", "1.2.0", "1.2.0-rc.1", True),
+        ("npm", "1.2.0", "1.2.0", False),
+        ("PyPI", "78.1.1", "70.3.0", True),
+        ("Maven", "2.0", "2.0.1", False),
+        (None, "2.10", "2.9", True),
+        ("npm", "kaputt", "1.0.0", False),
+        ("npm", "1.x", "1.0.0", False),
+    ],
+)
+def test_is_newer(ecosystem: str | None, candidate: str, current: str, expected: bool) -> None:
+    assert _MATCHER.is_newer(ecosystem, candidate, current) is expected
