@@ -208,20 +208,23 @@ class _SourceCollector:
         ]
 
 
+@dataclass(frozen=True)
+class IngestServices:
+    """Was ein Lauf neben der Unit of Work braucht."""
+
+    registry: SourceRegistry
+    matcher: ComponentMatcher
+    store: AdvisoryStore
+    clock: Clock
+
+
 class RunIngest:
-    def __init__(
-        self,
-        uow: UnitOfWork,
-        registry: SourceRegistry,
-        matcher: ComponentMatcher,
-        store: AdvisoryStore,
-        clock: Clock,
-    ) -> None:
+    def __init__(self, uow: UnitOfWork, services: IngestServices) -> None:
         self._uow = uow
-        self._registry = registry
-        self._collector = _SourceCollector(matcher)
-        self._store = store
-        self._clock = clock
+        self._registry = services.registry
+        self._collector = _SourceCollector(services.matcher)
+        self._store = services.store
+        self._clock = services.clock
 
     def execute(self) -> IngestResult:
         # Nur was schon vor dem Lauf ausgebaut war, wird aufgelöst: später ausgebaute
@@ -360,16 +363,10 @@ class RunIngest:
         return len(components)
 
 
-def run_ingest_job(
-    uow_factory: UnitOfWorkFactory,
-    registry: SourceRegistry,
-    matcher: ComponentMatcher,
-    store: AdvisoryStore,
-    clock: Clock,
-) -> IngestResult:
+def run_ingest_job(uow_factory: UnitOfWorkFactory, services: IngestServices) -> IngestResult:
     """Führt einen Lauf mit eigener Unit of Work aus (für den Hintergrund-Thread)."""
     with uow_factory() as uow:
-        return RunIngest(uow, registry, matcher, store, clock).execute()
+        return RunIngest(uow, services).execute()
 
 
 def run_scan_then_sync(scan: Callable[[], IngestResult], sync: Callable[[], None]) -> IngestResult:

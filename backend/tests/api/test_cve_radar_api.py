@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.application.component_matching import ComponentMatcher
-from app.application.ingest import run_ingest_job
+from app.application.ingest import IngestServices, run_ingest_job
 from app.application.ingest_runner import IngestRunState
 from app.application.source_registry import SourceRegistry
 from app.domain.ports import SourceVuln
@@ -36,9 +36,8 @@ def _build(vulns: list[SourceVuln]) -> FastAPI:
     matcher = ComponentMatcher(UniversVersionMatcher())
     store = FakeAdvisoryStore()
 
-    runner = ThreadIngestRunner(
-        lambda _trigger: run_ingest_job(factory, registry, matcher, store, _now), _now
-    )
+    services = IngestServices(registry, matcher, store, _now)
+    runner = ThreadIngestRunner(lambda _trigger: run_ingest_job(factory, services), _now)
     return create_app(
         factory,
         services=AppServices(

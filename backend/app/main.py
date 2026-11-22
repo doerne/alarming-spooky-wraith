@@ -9,7 +9,7 @@ from fastapi import FastAPI
 
 from app.application.component_matching import ComponentMatcher
 from app.application.github_sync import GitHubSyncServices, SyncRequest, run_github_sync
-from app.application.ingest import run_ingest_job, run_scan_then_sync
+from app.application.ingest import IngestServices, run_ingest_job, run_scan_then_sync
 from app.application.ingest_runner import IngestRunner
 from app.application.scan_runs import reset_interrupted_runs, run_recorded_scan
 from app.application.scan_schedule import parse_scan_schedule, start_catch_up_if_due
@@ -71,7 +71,7 @@ def build_app() -> FastAPI:
     tracker = GitHubAppIssueTracker(settings)
     github = GitHubSyncServices(tracker, MarkdownIssueFormatter(), store, _now)
     sync_job = partial(run_github_sync, uow_factory, github)
-    scan = partial(run_ingest_job, uow_factory, registry, matcher, store, _now)
+    scan = partial(run_ingest_job, uow_factory, IngestServices(registry, matcher, store, _now))
     automatic_sync = partial(sync_job, SyncRequest(None, create_issues=False, min_level=None))
     job = partial(
         run_recorded_scan, uow_factory, _now, partial(run_scan_then_sync, scan, automatic_sync)

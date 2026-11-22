@@ -2,7 +2,7 @@ from dataclasses import replace
 from datetime import UTC, datetime
 
 from app.application.component_matching import ComponentMatcher
-from app.application.ingest import IngestResult, RunIngest
+from app.application.ingest import IngestResult, IngestServices, RunIngest
 from app.application.inventory_use_cases import AddComponent, CreateApplication
 from app.application.source_registry import SourceRegistry
 from app.domain.errors import SourceAccessError
@@ -86,7 +86,8 @@ def _run(
 ) -> IngestResult:
     matcher = ComponentMatcher(UniversVersionMatcher())
     registry = SourceRegistry(list(sources))
-    return RunIngest(uow, registry, matcher, store or FakeAdvisoryStore(), lambda: _NOW).execute()
+    services = IngestServices(registry, matcher, store or FakeAdvisoryStore(), lambda: _NOW)
+    return RunIngest(uow, services).execute()
 
 
 def _result_of(result: IngestResult, key: str) -> RunStatus:

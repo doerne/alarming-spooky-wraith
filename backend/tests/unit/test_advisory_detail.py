@@ -4,7 +4,7 @@ import pytest
 
 from app.application.advisory_detail import GetAdvisoryDetail
 from app.application.component_matching import ComponentMatcher
-from app.application.ingest import RunIngest
+from app.application.ingest import IngestServices, RunIngest
 from app.application.inventory_use_cases import AddComponent, CreateApplication
 from app.application.source_registry import SourceRegistry
 from app.domain.errors import EntityNotFoundError
@@ -52,7 +52,7 @@ def _ingested(*app_names: str) -> tuple[InMemoryUnitOfWork, FakeAdvisoryStore]:
     store = FakeAdvisoryStore()
     registry = SourceRegistry([FakePackageSource(descriptor("osv"), {"react": [_VULN]})])
     matcher = ComponentMatcher(UniversVersionMatcher())
-    RunIngest(uow, registry, matcher, store, lambda: datetime.now(UTC)).execute()
+    RunIngest(uow, IngestServices(registry, matcher, store, lambda: datetime.now(UTC))).execute()
     return uow, store
 
 
