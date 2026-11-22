@@ -3,11 +3,11 @@ import { CLOSURE_KINDS, CLOSURE_KIND_LABELS } from "@/shared/api/remediation-kpi
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
 
 const CLOSURE_KIND_COLORS = {
-  fixed_confirmed: "var(--chart-1)",
-  fixed_reported: "var(--chart-2)",
-  fixed_manual: "var(--chart-3)",
-  accepted: "var(--chart-4)",
-  false_positive: "var(--chart-5)",
+  fixed_confirmed: "var(--chart-2)",
+  fixed_reported: "var(--chart-1)",
+  fixed_manual: "var(--chart-5)",
+  accepted: "var(--muted-foreground)",
+  false_positive: "color-mix(in oklch, var(--muted-foreground) 45%, transparent)",
 } as const;
 
 interface ClosureBreakdownCardProps {
@@ -28,10 +28,14 @@ export function ClosureBreakdownCard({ closedByOutcome, feature }: ClosureBreakd
           <p className="text-sm text-muted-foreground">Im Zeitraum nichts erledigt.</p>
         ) : (
           <>
-            <div className="flex h-3 w-full overflow-hidden rounded-full bg-muted" aria-hidden>
-              {CLOSURE_KINDS.map((kind) => (
+            <div
+              className="flex h-3 w-full gap-px overflow-hidden rounded-full bg-background"
+              aria-hidden
+            >
+              {CLOSURE_KINDS.filter((kind) => closedByOutcome[kind] > 0).map((kind) => (
                 <div
                   key={kind}
+                  data-testid={`${feature}-segment-closure-${kind.replaceAll("_", "-")}`}
                   style={{
                     width: `${(closedByOutcome[kind] / total) * 100}%`,
                     backgroundColor: CLOSURE_KIND_COLORS[kind],

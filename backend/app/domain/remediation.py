@@ -52,7 +52,7 @@ class OpenItem:
     ecosystem: str | None
     found_version: str
     fixed_version: str | None
-    application_name: str
+    application_id: int
 
 
 @dataclass(frozen=True)
@@ -156,11 +156,11 @@ def compute_update_targets(
             ecosystem=ecosystem,
             target_version=_highest(ecosystem, [fix for _, fix in entries], versions),
             findings=len(entries),
-            applications=len({entry.application_name for entry, _ in entries}),
+            applications=len({entry.application_id for entry, _ in entries}),
         )
         for (ecosystem, name), entries in groups.items()
     ]
-    targets.sort(key=lambda target: (-target.findings, target.package_name))
+    targets.sort(key=lambda target: (-target.findings, target.package_name, target.ecosystem or ""))
     return UpdateSummary(
         targets=targets[:limit],
         fixable_open=sum(target.findings for target in targets),

@@ -1,6 +1,6 @@
 import type { RemediationKpis } from "@/shared/api/remediation-kpis";
+import { Badge } from "@/shared/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/ui/table";
 
 interface UpdateTargetsCardProps {
   updates: RemediationKpis["updates"];
@@ -8,11 +8,15 @@ interface UpdateTargetsCardProps {
   showApplications: boolean;
 }
 
+function applicationsLabel(count: number): string {
+  return count === 1 ? "in 1 Anwendung" : `in ${count} Anwendungen`;
+}
+
 export function UpdateTargetsCard({ updates, feature, showApplications }: UpdateTargetsCardProps) {
   return (
     <Card data-testid={`${feature}-card-update-targets`}>
       <CardHeader>
-        <CardTitle>Updates mit größtem Effekt</CardTitle>
+        <CardTitle>Behebbar durch Update</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         {updates.targets.length === 0 ? (
@@ -24,31 +28,37 @@ export function UpdateTargetsCard({ updates, feature, showApplications }: Update
             <p className="text-sm text-muted-foreground" data-testid={`${feature}-text-fixable`}>
               {updates.fixableOpen} von {updates.openTotal} offenen Funden durch Update behebbar
             </p>
-            <Table data-testid={`${feature}-list-update-targets`}>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Paket</TableHead>
-                  <TableHead>Zielversion</TableHead>
-                  <TableHead className="text-right">Funde</TableHead>
-                  {showApplications && <TableHead className="text-right">Anwendungen</TableHead>}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {updates.targets.map((target, index) => (
-                  <TableRow
-                    key={`${target.ecosystem}-${target.packageName}`}
-                    data-testid={`${feature}-item-update-target-${index}`}
-                  >
-                    <TableCell className="font-medium">{target.packageName}</TableCell>
-                    <TableCell>{target.targetVersion}</TableCell>
-                    <TableCell className="text-right">{target.findings}</TableCell>
+            <ul className="space-y-3" data-testid={`${feature}-list-update-targets`}>
+              {updates.targets.map((target, index) => (
+                <li
+                  key={`${target.ecosystem}-${target.packageName}`}
+                  className="flex items-start justify-between gap-3"
+                  data-testid={`${feature}-item-update-target-${index}`}
+                >
+                  <div className="min-w-0">
+                    <p className="truncate font-medium" title={target.packageName}>
+                      {target.packageName}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {target.ecosystem ?? "–"} · → {target.targetVersion}
+                    </p>
+                  </div>
+                  <div className="flex flex-col items-end gap-1">
+                    <Badge variant="secondary" className="shrink-0">
+                      {target.findings} Funde
+                    </Badge>
                     {showApplications && (
-                      <TableCell className="text-right">{target.applications}</TableCell>
+                      <p
+                        className="text-xs text-muted-foreground"
+                        data-testid={`${feature}-text-update-target-applications-${index}`}
+                      >
+                        {applicationsLabel(target.applications)}
+                      </p>
                     )}
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                  </div>
+                </li>
+              ))}
+            </ul>
             {updates.morePackages > 0 && (
               <p className="text-sm text-muted-foreground">
                 + {updates.morePackages} weitere Pakete

@@ -1,6 +1,7 @@
 from datetime import UTC, datetime, timedelta
 
 from app.domain.remediation import (
+    DEADLINE_DAYS,
     ClosureKind,
     OpenItem,
     UpdateTarget,
@@ -108,15 +109,16 @@ def item(
     package: str = "lodash",
     found: str = "4.17.0",
     fixed: str | None = "4.17.21",
-    app: str = "A",
+    application_id: int = 1,
     ecosystem: str | None = "npm",
 ) -> OpenItem:
-    return OpenItem(package, ecosystem, found, fixed, app)
+    return OpenItem(package, ecosystem, found, fixed, application_id)
 
 
 def test_groups_by_package_and_takes_highest_valid_fix() -> None:
     summary = compute_update_targets(
-        [item(fixed="4.17.12"), item(fixed="4.17.21", app="B"), item(fixed="4.17.19")], VERSIONS
+        [item(fixed="4.17.12"), item(fixed="4.17.21", application_id=2), item(fixed="4.17.19")],
+        VERSIONS,
     )
     assert summary.targets == [UpdateTarget("lodash", "npm", "4.17.21", 3, 2)]
     assert (summary.fixable_open, summary.open_total, summary.more_packages) == (3, 3, 0)
@@ -145,3 +147,44 @@ def test_sorted_by_findings_then_name_and_limited() -> None:
     summary = compute_update_targets(items, VERSIONS, limit=5)
     assert [target.package_name for target in summary.targets] == ["z", "p0", "p1", "p2", "p3"]
     assert summary.more_packages == 2
+
+
+def test_same_name_same_count_in_two_ecosystems_has_fixed_order() -> None:
+    first = compute_update_targets(
+        [item(package="x", ecosystem="PyPI", found="1.0", fixed="2.0"), item(package="x")],
+        VERSIONS,
+    )
+    second = compute_update_targets(
+        [item(package="x"), item(package="x", ecosystem="PyPI", found="1.0", fixed="2.0")],
+        VERSIONS,
+    )
+    expected = sorted(["npm", "PyPI"])
+    assert [t.ecosystem for t in first.targets] == expected
+    assert [t.ecosystem for t in second.targets] == expected
+
+
+def test_applications_are_counted_by_id_not_name() -> None:
+    summary = compute_update_targets(
+        [item(application_id=1), item(application_id=1), item(application_id=2)], VERSIONS
+    )
+    assert summary.targets[0].applications == 2
+
+
+def test_fixed_version_equal_to_found_is_not_fixable() -> None:
+    summary = compute_update_targets([item(found="4.17.21", fixed="4.17.21")], VERSIONS)
+    assert summary.targets == []
+    assert summary.fixable_open == 0
+
+
+def test_empty_items_give_empty_summary() -> None:
+    summary = compute_update_targets([], VERSIONS)
+    assert summary.targets == []
+    assert (summary.fixable_open, summary.open_total, summary.more_packages) == (0, 0, 0)
+
+
+def test_due_exactly_in_seven_days_counts_as_due_soon() -> None:
+    first_seen = NOW + timedelta(days=7) - timedelta(days=DEADLINE_DAYS[Severity.KRITISCH])
+    summary = compute_deadlines(
+        [make_finding(first_seen_at=first_seen, level=Severity.KRITISCH)], NOW
+    )
+    assert (summary.overdue, summary.due_soon) == (0, 1)

@@ -42,4 +42,12 @@ describe("ClosureBreakdownCard", () => {
     );
     expect(screen.queryByTestId("cves-item-closure-accepted")).not.toBeInTheDocument();
   });
+
+  it("lässt Segmente mit 0 in der Leiste weg, die Legende behält alle fünf", () => {
+    render(<ClosureBreakdownCard closedByOutcome={outcome} feature="cves" />);
+
+    expect(screen.getAllByTestId(/^cves-item-closure-/)).toHaveLength(5);
+    expect(screen.getAllByTestId(/^cves-segment-closure-/)).toHaveLength(4);
+    expect(screen.queryByTestId("cves-segment-closure-false-positive")).not.toBeInTheDocument();
+  });
 });

@@ -39,14 +39,24 @@ describe("UpdateTargetsCard", () => {
     expect(screen.getByTestId("cves-item-update-target-1")).toHaveTextContent("django");
   });
 
-  it("zeigt die Spalte Anwendungen nur bei showApplications", () => {
+  it("zeigt Ökosystem, Zielversion und Anwendungen nur bei showApplications", () => {
     const { rerender } = render(
       <UpdateTargetsCard updates={updates} feature="cves" showApplications />,
     );
-    expect(screen.getByTestId("cves-list-update-targets")).toHaveTextContent("Anwendungen");
+    expect(screen.getByTestId("cves-list-update-targets")).toHaveTextContent("npm · → 4.17.21");
+    expect(screen.getByTestId("cves-item-update-target-0")).toHaveTextContent("3 Funde");
+    expect(screen.getByTestId("cves-text-update-target-applications-0")).toHaveTextContent(
+      "in 2 Anwendungen",
+    );
+    expect(screen.getByTestId("cves-text-update-target-applications-1")).toHaveTextContent(
+      "in 1 Anwendung",
+    );
+    expect(screen.getByTestId("cves-text-update-target-applications-1")).not.toHaveTextContent(
+      "Anwendungen",
+    );
 
     rerender(<UpdateTargetsCard updates={updates} feature="cves" showApplications={false} />);
-    expect(screen.getByTestId("cves-list-update-targets")).not.toHaveTextContent("Anwendungen");
+    expect(screen.queryByTestId("cves-text-update-target-applications-0")).not.toBeInTheDocument();
   });
 
   it("zeigt weitere Pakete", () => {

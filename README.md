@@ -141,9 +141,9 @@ Die Schwachstellen-Seite und der CVE-Reiter jeder Anwendung zeigen zuerst die En
   Erstsichtung, frühestens der 22.11.2026.
 - **Karte „Wie erledigt“:** Aufteilung der im Zeitraum erledigten Funde in Behoben, bestätigt
   durch SBOM · Behoben, gemeldet · Behoben, von Hand · Akzeptiert · False Positive.
-- **Karte „Updates mit größtem Effekt“:** Top 5 Pakete, deren Update die meisten offenen
+- **Karte „Behebbar durch Update“:** Top 5 Pakete, deren Update die meisten offenen
   Funde schließt. Zielversion ist die höchste Fix-Version, die neuer ist als die eingesetzte.
-  Die Spalte „Anwendungen“ gibt es nur auf der Schwachstellen-Seite.
+  Die Angabe „in n Anwendungen“ gibt es nur auf der Schwachstellen-Seite.
 
 Begriffe: **Erledigt** = `behoben`, `akzeptiert`, `false_positive`. **Offener Bestand** =
 `offen` + `in_arbeit`; **Unangetastet** = `offen`. Funde, die vor Einführung der Zeiterfassung

@@ -47,4 +47,23 @@ describe("DeadlineCard", () => {
     expect(screen.getByTestId("cves-card-deadlines")).toHaveTextContent("Keine offenen Funde.");
     expect(screen.queryByTestId("cves-text-overdue")).not.toBeInTheDocument();
   });
+
+  it("zeigt überfällige Funde je Schweregrad, Werte über 0 in text-destructive", () => {
+    render(
+      <DeadlineCard
+        deadlines={{
+          ...deadlines,
+          overdue: 3,
+          overdueBySeverity: { kritisch: 2, hoch: 1, mittel: 0, niedrig: 0 },
+        }}
+        openTotal={10}
+        feature="cves"
+      />,
+    );
+
+    expect(screen.getByTestId("cves-text-overdue-kritisch")).toHaveTextContent("kritisch 2");
+    expect(screen.getByTestId("cves-text-overdue-kritisch")).toHaveClass("text-destructive");
+    expect(screen.getByTestId("cves-text-overdue-mittel")).toHaveTextContent("mittel 0");
+    expect(screen.getByTestId("cves-text-overdue-mittel")).not.toHaveClass("text-destructive");
+  });
 });

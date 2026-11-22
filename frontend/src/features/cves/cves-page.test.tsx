@@ -29,7 +29,20 @@ const KPIS = {
     overdueBySeverity: { kritisch: 1, hoch: 1, mittel: 0, niedrig: 0 },
     nextDueAt: null,
   },
-  updates: { targets: [], fixableOpen: 0, openTotal: 5, morePackages: 0 },
+  updates: {
+    targets: [
+      {
+        packageName: "lodash",
+        ecosystem: "npm",
+        targetVersion: "4.17.21",
+        findings: 3,
+        applications: 2,
+      },
+    ],
+    fixableOpen: 3,
+    openTotal: 5,
+    morePackages: 0,
+  },
 };
 
 function respondWith(body: unknown): Promise<Response> {
@@ -121,6 +134,9 @@ describe("CvesPage", () => {
     expect(await screen.findByTestId("cves-card-deadlines")).toBeInTheDocument();
     expect(screen.getByTestId("cves-card-closure-breakdown")).toBeInTheDocument();
     expect(screen.getByTestId("cves-card-update-targets")).toBeInTheDocument();
+    expect(screen.getByTestId("cves-text-update-target-applications-0")).toHaveTextContent(
+      "in 2 Anwendungen",
+    );
   });
 
   it("meldet einen Fehler, wenn die Kennzahlen nicht geladen werden können", async () => {

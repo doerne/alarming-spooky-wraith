@@ -34,35 +34,65 @@ function Figure({ label, value, testId, className }: FigureProps) {
   );
 }
 
+const SEVERITIES = ["kritisch", "hoch", "mittel", "niedrig"] as const;
+
+function OverdueBySeverity({
+  counts,
+  feature,
+}: {
+  counts: RemediationKpis["deadlines"]["overdueBySeverity"];
+  feature: string;
+}) {
+  return (
+    <p className="flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground">
+      <span>überfällig je Schweregrad:</span>
+      {SEVERITIES.map((severity, index) => (
+        <span key={severity} className="flex gap-2">
+          {index > 0 && <span aria-hidden>·</span>}
+          <span
+            className={cn(counts[severity] > 0 && "text-destructive")}
+            data-testid={`${feature}-text-overdue-${severity}`}
+          >
+            {severity} {counts[severity]}
+          </span>
+        </span>
+      ))}
+    </p>
+  );
+}
+
 export function DeadlineCard({ deadlines, openTotal, feature }: DeadlineCardProps) {
   const overdueClass = deadlines.overdue > 0 ? "text-destructive" : undefined;
 
   return (
     <Card data-testid={`${feature}-card-deadlines`}>
       <CardHeader>
-        <CardTitle className="text-sm font-medium text-muted-foreground">Fristen</CardTitle>
+        <CardTitle>Fristen</CardTitle>
       </CardHeader>
       <CardContent>
         {openTotal === 0 ? (
           <p className="text-sm text-muted-foreground">Keine offenen Funde.</p>
         ) : (
-          <div className="grid grid-cols-3 gap-4">
-            <Figure
-              label="Überfällig"
-              value={deadlines.overdue}
-              testId={`${feature}-text-overdue`}
-              className={overdueClass}
-            />
-            <Figure
-              label="Bald fällig"
-              value={deadlines.dueSoon}
-              testId={`${feature}-text-due-soon`}
-            />
-            <Figure
-              label="Nächste Frist"
-              value={deadlines.nextDueAt === null ? "–" : dayLabelOf(deadlines.nextDueAt)}
-              testId={`${feature}-text-next-due`}
-            />
+          <div className="space-y-4">
+            <div className="grid grid-cols-3 gap-4">
+              <Figure
+                label="Überfällig"
+                value={deadlines.overdue}
+                testId={`${feature}-text-overdue`}
+                className={overdueClass}
+              />
+              <Figure
+                label="Bald fällig"
+                value={deadlines.dueSoon}
+                testId={`${feature}-text-due-soon`}
+              />
+              <Figure
+                label="Nächste Frist"
+                value={deadlines.nextDueAt === null ? "–" : dayLabelOf(deadlines.nextDueAt)}
+                testId={`${feature}-text-next-due`}
+              />
+            </div>
+            <OverdueBySeverity counts={deadlines.overdueBySeverity} feature={feature} />
           </div>
         )}
       </CardContent>

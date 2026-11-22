@@ -60,5 +60,5 @@ class GetRemediationKpis:
             ecosystem=component.ecosystem.value if component.ecosystem else None,
             found_version=finding.found_version,
             fixed_version=self._uow.advisories.get(finding.advisory_id).fixed_version,
-            application_name=self._uow.applications.get(finding.application_id).name,
+            application_id=finding.application_id,
         )
