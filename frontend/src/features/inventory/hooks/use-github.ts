@@ -42,7 +42,10 @@ export function useRefreshAfterSync(applicationId: number, running: boolean) {
   const wasRunning = useRef(false);
   useEffect(() => {
     if (wasRunning.current && !running) {
+      // Der Abgleich ändert Fund-Status: Tabelle und Verlauf (Anwendung und global) neu laden.
       void queryClient.invalidateQueries({ queryKey: ["application", applicationId] });
+      void queryClient.invalidateQueries({ queryKey: ["application-findings", applicationId] });
+      void queryClient.invalidateQueries({ queryKey: ["findings"] });
     }
     wasRunning.current = running;
   }, [applicationId, running, queryClient]);

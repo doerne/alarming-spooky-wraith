@@ -54,12 +54,23 @@ const IDLE_INGEST = {
   error: null,
 };
 
+const TREND = {
+  weeks: [{ weekStart: "2026-11-16", new: 2, closed: 0, openAtEnd: 5 }],
+  openAtStart: 3,
+  newTotal: 2,
+  closedTotal: 0,
+  untouchedNow: 3,
+  inProgressNow: 2,
+  openBySeverityNow: { kritisch: 1, hoch: 2, mittel: 1, niedrig: 1 },
+};
+
 const SECOND = { ...FINDING, advisoryId: "CVE-2024-2", cveId: "CVE-2024-2", riskLevel: "mittel" };
 
 let allFindings: unknown[] = [];
 
 function bodyFor(url: URL): unknown {
   if (url.pathname === "/api/cves/CVE-2024-1") return DETAIL;
+  if (url.pathname === "/api/findings/trend") return TREND;
   if (url.pathname !== "/api/cves") return IDLE_INGEST;
   const all = allFindings as (typeof FINDING)[];
   const severities = url.searchParams.getAll("severity");
@@ -136,7 +147,7 @@ describe("App", () => {
     ).toBeInTheDocument();
   });
 
-  it("filtert nur die Tabelle, Kacheln zeigen den Gesamtstand", async () => {
+  it("filtert nur die Tabelle, die Trend-Kacheln bleiben unverändert", async () => {
     mockApi();
     renderApp();
 
@@ -146,8 +157,8 @@ describe("App", () => {
 
     expect(await screen.findByTestId("cves-text-filter-summary")).toHaveTextContent("1 von 2");
     expect(screen.queryByTestId("cves-item-CVE-2024-2-1")).not.toBeInTheDocument();
-    expect(screen.getByTestId("cves-list-kpis")).toHaveTextContent("2");
-    expect(requests).toContain("/api/cves?severity=kritisch");
+    expect(screen.getByTestId("cves-card-trend-open")).toHaveTextContent("5");
+    expect(requests).toContain("/api/cves?severity=kritisch&status=offen");
   });
 
   it("öffnet den CVE-Drawer per Klick auf eine Zeile", async () => {

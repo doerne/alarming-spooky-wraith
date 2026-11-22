@@ -1,3 +1,5 @@
+from datetime import UTC, datetime
+
 from app.application.alias_absorber import AliasAbsorber
 from app.domain.inventory import Application, Category, Component, Ecosystem
 from app.domain.vulnerability import (
@@ -12,6 +14,8 @@ from tests.fakes import FakeAdvisoryStore, InMemoryUnitOfWork
 
 _CANONICAL = "GHSA-6q48-6c7w-9gw2"
 _ALIAS = "PYSEC-2026-4320"
+_EARLIER = datetime(2026, 1, 5, tzinfo=UTC)
+_LATER = datetime(2026, 6, 1, tzinfo=UTC)
 
 
 class _World:
@@ -36,7 +40,12 @@ class _World:
         self.store.saved[advisory_id] = "body"
 
     def finding(
-        self, advisory_id: str, component_id: int, status: FindingStatus, comment: str = ""
+        self,
+        advisory_id: str,
+        component_id: int,
+        status: FindingStatus,
+        comment: str = "",
+        first_seen_at: datetime | None = None,
     ) -> None:
         self.uow.findings.upsert(
             Finding(
@@ -47,6 +56,7 @@ class _World:
                 risk=RiskScore(value=75, level=Severity.HOCH, rationale=""),
                 status=status,
                 comment=comment,
+                first_seen_at=first_seen_at or _LATER,
             )
         )
 
@@ -133,3 +143,15 @@ def test_absorber_keeps_issue_link_and_reported_fix() -> None:
     [finding] = world.uow.findings.list()
     assert finding.issue_url == "https://github.com/acme/shop/issues/9"
     assert (finding.status, finding.resolved_by) == (FindingStatus.FIXED, ResolutionSource.REPORTED)
+
+
+def test_absorb_alias_keeps_earliest_first_seen() -> None:
+    world = _World()
+    world.advisory(_CANONICAL)
+    world.advisory(_ALIAS)
+    certifi = world.component("certifi")
+    world.finding(_CANONICAL, certifi, FindingStatus.OPEN, first_seen_at=_LATER)
+    world.finding(_ALIAS, certifi, FindingStatus.OPEN, first_seen_at=_EARLIER)
+    world.absorb()
+    [finding] = world.uow.findings.list()
+    assert finding.first_seen_at == _EARLIER

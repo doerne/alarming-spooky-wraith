@@ -193,6 +193,19 @@ def test_automatic_creation_only_for_findings_seen_after_enable() -> None:
     assert created == [f"<!-- cve-radar:application={world.app_id};advisory=CVE-NEW -->"]
 
 
+def test_backfilled_first_seen_does_not_create_auto_issue() -> None:
+    world = World()
+    app = world.uow.applications.get(world.app_id)
+    app.auto_issue_min_level = Severity.HOCH
+    app.auto_issue_enabled_at = NOW - timedelta(days=1)
+    component = world.component(world.app_id, "react")
+    world.finding("CVE-OLD", component, FindingSpec(first_seen_at=NOW - timedelta(weeks=53)))
+
+    world.sync_links()
+
+    assert world.tracker.created == []
+
+
 def test_closed_issue_completed_marks_open_findings_fixed() -> None:
     world = World()
     component = world.component(world.app_id, "react")
@@ -224,6 +237,19 @@ def test_closed_issue_not_planned_marks_open_findings_accepted() -> None:
     stored = world.stored(finding)
     assert stored.status == FindingStatus.ACCEPTED
     assert "Issue #7 als not planned geschlossen" in stored.comment
+
+
+def test_issue_closed_not_planned_sets_closed_at() -> None:
+    world = World()
+    component = world.component(world.app_id, "react")
+    finding = world.finding(
+        "CVE-1", component, FindingSpec(issue_url=ISSUE_7, issue_state=IssueState.OPEN)
+    )
+    world.tracker.add_issue(REPO, 7, is_open=False, not_planned=True)
+
+    world.sync_links()
+
+    assert world.stored(finding).closed_at == NOW
 
 
 def test_reopened_issue_reopens_fixed_findings_with_note() -> None:

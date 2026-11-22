@@ -19,9 +19,22 @@ const FINDING = {
   status: "offen",
 };
 
+const TREND = {
+  weeks: [{ weekStart: "2026-11-16", new: 2, closed: 1, openAtEnd: 5 }],
+  openAtStart: 4,
+  newTotal: 2,
+  closedTotal: 1,
+  untouchedNow: 3,
+  inProgressNow: 2,
+  openBySeverityNow: { kritisch: 1, hoch: 2, mittel: 1, niedrig: 1 },
+};
+
 function mockFindings(byApp: Record<string, (typeof FINDING)[]>) {
-  vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+  return vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
     const url = new URL(String(input), "http://localhost");
+    if (url.pathname === "/api/findings/trend") {
+      return Promise.resolve(new Response(JSON.stringify(TREND), { status: 200 }));
+    }
     const all = byApp[url.searchParams.get("application_id") ?? ""] ?? [];
     const severities = url.searchParams.getAll("severity");
     const items = severities.length ? all.filter((f) => severities.includes(f.riskLevel)) : all;
@@ -43,6 +56,32 @@ function renderPage(applicationId: number) {
 afterEach(() => vi.restoreAllMocks());
 
 describe("ApplicationCvesPage", () => {
+  it("zeigt den Trend der Anwendung und lädt die Funde zunächst nur offen", async () => {
+    const fetchMock = mockFindings({ "7": [FINDING] });
+    renderPage(7);
+
+    expect(await screen.findByTestId("inventory-card-trend-open")).toBeInTheDocument();
+    const urls = fetchMock.mock.calls.map(([input]) => String(input));
+    expect(
+      urls.some((url) => url.includes("/api/findings/trend") && url.includes("applicationId=7")),
+    ).toBe(true);
+    expect(
+      urls.some((url) => url.includes("application_id=7") && url.includes("status=offen")),
+    ).toBe(true);
+  });
+
+  it("zeigt einen Fehlerhinweis, wenn der Trend nicht lädt", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const status = String(input).startsWith("/api/findings/trend") ? 500 : 200;
+      const body = status === 500 ? {} : { items: [], total: 0, unfilteredTotal: 0 };
+      return Promise.resolve(new Response(JSON.stringify(body), { status }));
+    });
+    renderPage(1);
+
+    expect(await screen.findByTestId("inventory-error-trend")).toHaveAttribute("role", "alert");
+    expect(screen.queryByTestId("inventory-card-trend-open")).not.toBeInTheDocument();
+  });
+
   it("blendet beim Laden keinen Hinweis ein", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(() => new Promise<Response>(() => {}));
     renderPage(1);
@@ -50,11 +89,12 @@ describe("ApplicationCvesPage", () => {
     expect(screen.queryByTestId("inventory-text-no-cves")).not.toBeInTheDocument();
   });
 
-  it("zeigt N von M und setzt zurück", async () => {
+  it("zeigt N von M und setzt auf ungefiltert zurück", async () => {
     mockFindings({ "1": [FINDING] });
     renderPage(1);
 
     expect(await screen.findByTestId("inventory-text-filter-summary")).toHaveTextContent("1 von 1");
+    await userEvent.click(screen.getByTestId("inventory-btn-reset-filters"));
     expect(screen.getByTestId("inventory-btn-reset-filters")).toBeDisabled();
   });
 

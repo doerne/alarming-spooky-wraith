@@ -17,6 +17,7 @@ from app.domain.vulnerability import (
 from tests.fakes import InMemoryUnitOfWork
 
 _NOW = datetime(2026, 11, 22, 9, 0, tzinfo=UTC)
+_EARLIER = datetime(2026, 11, 1, 9, 0, tzinfo=UTC)
 _ISSUE = "https://github.com/acme/shop/issues/12"
 
 
@@ -31,7 +32,14 @@ class _World:
         assert application.id is not None
         return application.id
 
-    def finding(self, name: str, application_id: int | None = None, comment: str = "") -> None:
+    def finding(
+        self,
+        name: str,
+        application_id: int | None = None,
+        comment: str = "",
+        closed_at: datetime | None = None,
+        status: FindingStatus = FindingStatus.OPEN,
+    ) -> None:
         target_application_id = application_id or self.application_id
         component = self.uow.components.add(
             target_application_id, Component(name, "1.0", Category.LIBRARY, Ecosystem.NPM, True)
@@ -45,6 +53,8 @@ class _World:
                 "1.0",
                 RiskScore(value=75, level=Severity.HOCH, rationale=""),
                 comment=comment,
+                status=status,
+                closed_at=closed_at,
             )
         )
 
@@ -91,6 +101,35 @@ def test_other_status_clears_resolution() -> None:
     )
 
 
+def test_report_accepted_sets_closed_at() -> None:
+    world = _World()
+    world.finding("react")
+    world.report(ProgressReport(status=FindingStatus.ACCEPTED))
+    [finding] = world.uow.findings.list()
+    assert finding.status == FindingStatus.ACCEPTED
+    assert finding.closed_at == _NOW
+
+
+def test_report_fixed_after_accepted_keeps_closed_at() -> None:
+    world = _World()
+    world.finding("react", status=FindingStatus.ACCEPTED, closed_at=_EARLIER)
+    world.report(ProgressReport(status=FindingStatus.FIXED))
+    [finding] = world.uow.findings.list()
+    assert finding.status == FindingStatus.FIXED
+    assert finding.closed_at == _EARLIER
+    assert finding.resolved_at == _NOW
+
+
+def test_report_in_progress_clears_closed_at() -> None:
+    world = _World()
+    world.finding("react")
+    world.report(ProgressReport(status=FindingStatus.FIXED))
+    world.report(ProgressReport(status=FindingStatus.IN_PROGRESS))
+    [finding] = world.uow.findings.list()
+    assert finding.closed_at is None
+    assert finding.resolved_at is None
+
+
 def test_resolves_absorbed_advisory_id() -> None:
     world = _World()
     world.finding("react")
@@ -121,7 +160,9 @@ def test_repeated_fix_keeps_existing_resolution() -> None:
     sbom_time = datetime(2026, 11, 20, tzinfo=UTC)
     world.uow.findings.resolve(
         finding.id,
-        FindingResolution(FindingStatus.FIXED, sbom_time, "ausgebaut", ResolutionSource.SBOM),
+        FindingResolution(
+            FindingStatus.FIXED, sbom_time, "ausgebaut", ResolutionSource.SBOM, sbom_time
+        ),
     )
     world.report(ProgressReport(status=FindingStatus.FIXED, issue_url=_ISSUE))
     [stored] = world.uow.findings.list()
@@ -155,7 +196,9 @@ def test_status_report_spares_history_of_retired_components() -> None:
     sbom_time = datetime(2026, 11, 20, tzinfo=UTC)
     world.uow.findings.resolve(
         history.id,
-        FindingResolution(FindingStatus.FIXED, sbom_time, "ausgebaut", ResolutionSource.SBOM),
+        FindingResolution(
+            FindingStatus.FIXED, sbom_time, "ausgebaut", ResolutionSource.SBOM, sbom_time
+        ),
     )
     assert world.report(
         ProgressReport(status=FindingStatus.IN_PROGRESS, comment="X", issue_url=_ISSUE)

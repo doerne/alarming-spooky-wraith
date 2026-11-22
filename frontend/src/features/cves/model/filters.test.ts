@@ -1,6 +1,20 @@
 import { describe, expect, it } from "vitest";
 
-import { advisoryOptionsOf, applicationsOf, columnOptionsOf, componentOptionsOf } from "./filters";
+import {
+  DEFAULT_FILTERS,
+  advisoryOptionsOf,
+  applicationsOf,
+  columnOptionsOf,
+  componentOptionsOf,
+  hasActiveFilters,
+} from "./filters";
+
+describe("DEFAULT_FILTERS", () => {
+  it("startet mit dem Status offen und gilt damit als aktiver Filter", () => {
+    expect(DEFAULT_FILTERS.statuses).toEqual(["offen"]);
+    expect(hasActiveFilters(DEFAULT_FILTERS)).toBe(true);
+  });
+});
 
 describe("applicationsOf", () => {
   it("liefert jede Anwendung einmal, alphabetisch", () => {

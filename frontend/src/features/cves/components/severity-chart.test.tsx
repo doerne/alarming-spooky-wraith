@@ -17,6 +17,6 @@ describe("SeverityChart", () => {
 
     const card = screen.getByTestId("cves-card-severity-chart");
     expect(card).toBeInTheDocument();
-    expect(card).toHaveTextContent("Funde nach Schweregrad");
+    expect(card).toHaveTextContent("Offen nach Schweregrad");
   });
 });

@@ -27,11 +27,16 @@ def _with_status(finding: Finding, status: FindingStatus, now: datetime) -> Find
         # Schon behoben (ggf. per SBOM nachgewiesen): Nachweis und Zeitpunkt bleiben.
         return finding
     if status != FindingStatus.FIXED:
-        return replace(finding.reopened(), status=status)
+        # closed_at folgt der Erledigt-Regel (akzeptiert/false_positive sind erledigt).
+        return replace(
+            finding.with_status(status, now),
+            resolved_at=None,
+            resolved_by=None,
+            resolution="",
+        )
     # Vorläufig: der nächste SBOM-Upload prüft nach (siehe UploadSbomVersion).
     return replace(
-        finding,
-        status=status,
+        finding.with_status(status, now),
         resolved_at=now,
         resolved_by=ResolutionSource.REPORTED,
         resolution=_reported_resolution(finding.issue_url),

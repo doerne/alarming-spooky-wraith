@@ -1,5 +1,9 @@
 import { useState } from "react";
 
+import { DEFAULT_TREND_WEEKS, type TrendWeeks } from "@/shared/api/finding-trend";
+import { TrendCards } from "@/shared/components/trend-cards";
+import { TrendChart } from "@/shared/components/trend-chart";
+import { TrendRangeSelect } from "@/shared/components/trend-range-select";
 import { describeScanFreshness } from "@/shared/lib/scan-freshness";
 
 import { ApplicationCvesPanel } from "./components/application-cves-panel";
@@ -8,9 +12,15 @@ import { GithubCreateDialog } from "./components/github-create-dialog";
 import { GithubSyncControls } from "./components/github-sync-controls";
 import { useApplication } from "./hooks/use-application";
 import { useApplicationFindings } from "./hooks/use-application-findings";
+import { useApplicationTrend } from "./hooks/use-application-trend";
 import { useGithubSyncPanel } from "./hooks/use-github-sync-panel";
 import { useScanStatus } from "./hooks/use-scan-status";
-import { type CveFilters, EMPTY_CVE_FILTERS, cveColumnOptionsOf } from "./model/cve-filters";
+import {
+  type CveFilters,
+  DEFAULT_CVE_FILTERS,
+  EMPTY_CVE_FILTERS,
+  cveColumnOptionsOf,
+} from "./model/cve-filters";
 
 interface ApplicationCvesPageProps {
   applicationId: number;
@@ -19,7 +29,9 @@ interface ApplicationCvesPageProps {
 
 /** Container des CVE-Reiters: Filterzustand, gefilterte Funde und GitHub-Anbindung. */
 export function ApplicationCvesPage({ applicationId, onSelectCve }: ApplicationCvesPageProps) {
-  const [filters, setFilters] = useState<CveFilters>(EMPTY_CVE_FILTERS);
+  const [filters, setFilters] = useState<CveFilters>(DEFAULT_CVE_FILTERS);
+  const [weeks, setWeeks] = useState<TrendWeeks>(DEFAULT_TREND_WEEKS);
+  const trend = useApplicationTrend(applicationId, weeks);
   const findings = useApplicationFindings(applicationId, filters);
   // Auswahlwerte für Advisory/Komponente aus allen Funden der Anwendung (ungefiltert).
   const allFindings = useApplicationFindings(applicationId, EMPTY_CVE_FILTERS);
@@ -46,6 +58,18 @@ export function ApplicationCvesPage({ applicationId, onSelectCve }: ApplicationC
           onConfirm={github.confirmCreate}
           onCancel={github.closeCreate}
         />
+      )}
+      <TrendRangeSelect value={weeks} onChange={setWeeks} feature="inventory" />
+      {trend.isError && (
+        <p role="alert" className="text-sm text-destructive" data-testid="inventory-error-trend">
+          Verlauf konnte nicht geladen werden.
+        </p>
+      )}
+      {trend.data && (
+        <>
+          <TrendCards trend={trend.data} feature="inventory" />
+          <TrendChart trend={trend.data} feature="inventory" />
+        </>
       )}
       <ApplicationCvesPanel
         page={findings.data}

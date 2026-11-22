@@ -6,7 +6,14 @@ import pytest
 from app.domain.errors import EntityNotFoundError
 from app.domain.inventory import Category, Component, Ecosystem
 from app.domain.sbom import Sbom, SbomVersion
-from app.domain.vulnerability import Finding, FindingStatus, RiskScore, Severity
+from app.domain.vulnerability import (
+    Finding,
+    FindingResolution,
+    FindingStatus,
+    ResolutionSource,
+    RiskScore,
+    Severity,
+)
 from tests.fakes import (
     InMemoryComponentRepository,
     InMemoryFindingRepository,
@@ -106,3 +113,43 @@ def test_fake_component_delete_and_list_for_sbom() -> None:
     assert manual.id is not None
     repository.delete_many([manual.id])
     assert [component.id for component in repository.list_all()] == [from_sbom.id]
+
+
+_NOW = datetime(2026, 11, 22, 12, 0, tzinfo=UTC)
+_EARLIER = datetime(2026, 11, 1, 9, 0, tzinfo=UTC)
+
+
+def _resolution(status: FindingStatus, closed_at: datetime | None) -> FindingResolution:
+    return FindingResolution(
+        status=status,
+        resolved_at=_NOW,
+        text="erledigt",
+        source=ResolutionSource.REPORTED,
+        closed_at=closed_at,
+    )
+
+
+def test_fake_resolve_writes_closed_at_of_resolution() -> None:
+    repository = InMemoryFindingRepository()
+    saved = repository.upsert(_finding())
+    assert saved.id is not None
+    repository.resolve(saved.id, _resolution(FindingStatus.FIXED, _NOW))
+    assert repository.list()[0].closed_at == _NOW
+
+
+def test_fake_resolve_overwrites_closed_at_with_resolution_value() -> None:
+    repository = InMemoryFindingRepository()
+    saved = repository.upsert(_finding())
+    assert saved.id is not None
+    repository.save_report(replace(saved, status=FindingStatus.ACCEPTED, closed_at=_EARLIER))
+    repository.resolve(saved.id, _resolution(FindingStatus.FIXED, None))
+    assert repository.list()[0].closed_at is None
+
+
+def test_fake_save_report_persists_closed_at_and_first_seen_at() -> None:
+    repository = InMemoryFindingRepository()
+    saved = repository.upsert(_finding())
+    repository.save_report(replace(saved, closed_at=_NOW, first_seen_at=_EARLIER))
+    stored = repository.list()[0]
+    assert stored.closed_at == _NOW
+    assert stored.first_seen_at == _EARLIER

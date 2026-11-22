@@ -186,6 +186,7 @@ class InMemoryFindingRepository:
 
     def resolve(self, finding_id: int, resolution: FindingResolution) -> None:
         finding = self._items[self._key_of(finding_id)]
+        finding.closed_at = resolution.closed_at
         finding.status = resolution.status
         finding.resolved_at = resolution.resolved_at
         finding.resolution = resolution.text

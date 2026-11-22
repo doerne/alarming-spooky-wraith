@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import UTC, datetime
 
 import pytest
@@ -11,8 +12,10 @@ from app.domain.sources import RunStatus, SourceSetting
 from app.domain.vulnerability import (
     Advisory,
     Finding,
+    FindingResolution,
     FindingStatus,
     IssueState,
+    ResolutionSource,
     RiskScore,
     Severity,
 )
@@ -366,3 +369,40 @@ def test_finding_issue_link_roundtrip(uow: SqlAlchemyUnitOfWork) -> None:
     loaded = uow.findings.list()[0]
     assert loaded.issue_url == "https://github.com/acme/shop/issues/7"
     assert loaded.issue_state == IssueState.CLOSED
+
+
+_NOW = datetime(2026, 11, 22, 12, 0, tzinfo=UTC)
+_EARLIER = datetime(2026, 11, 1, 9, 0, tzinfo=UTC)
+
+
+def _resolution(status: FindingStatus, closed_at: datetime | None) -> FindingResolution:
+    return FindingResolution(
+        status=status,
+        resolved_at=_NOW,
+        text="erledigt",
+        source=ResolutionSource.REPORTED,
+        closed_at=closed_at,
+    )
+
+
+def test_resolve_writes_closed_at_of_resolution(uow: SqlAlchemyUnitOfWork) -> None:
+    finding = _seeded_finding(uow)
+    assert finding.id is not None
+    uow.findings.resolve(finding.id, _resolution(FindingStatus.FIXED, _NOW))
+    assert uow.findings.list()[0].closed_at == _NOW
+
+
+def test_resolve_overwrites_closed_at_with_resolution_value(uow: SqlAlchemyUnitOfWork) -> None:
+    finding = _seeded_finding(uow)
+    assert finding.id is not None
+    uow.findings.save_report(replace(finding, status=FindingStatus.ACCEPTED, closed_at=_EARLIER))
+    uow.findings.resolve(finding.id, _resolution(FindingStatus.FIXED, None))
+    assert uow.findings.list()[0].closed_at is None
+
+
+def test_save_report_persists_closed_at_and_first_seen_at(uow: SqlAlchemyUnitOfWork) -> None:
+    finding = _seeded_finding(uow)
+    uow.findings.save_report(replace(finding, closed_at=_NOW, first_seen_at=_EARLIER))
+    stored = uow.findings.list()[0]
+    assert stored.closed_at == _NOW
+    assert stored.first_seen_at == _EARLIER

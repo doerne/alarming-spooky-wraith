@@ -12,7 +12,7 @@ gehärteten Containern. Angelegt mit dem Claude-Code-Plugin `fullstack-standards
 | Bereich | Was es kann |
 |---|---|
 | **Inventar** | Anwendungen und ihre Komponenten (Sprache, Framework, Library, Dienst) mit Version pflegen – von Hand oder per CycloneDX-SBOM-Upload mit Versionsverlauf |
-| **Schwachstellen** | Alle Treffer in einer Tabelle, nach Risk Score sortiert, mit Spaltenfiltern, Detailansicht und Statusänderung |
+| **Schwachstellen** | Offene Treffer in einer Tabelle, nach Risk Score sortiert, mit Spaltenfiltern, Detailansicht und Statusänderung; Kacheln und Verlauf zeigen die Entwicklung des offenen Bestands |
 | **Quellen** | CVE-Quellen ein- und ausschalten, API-Keys hinterlegen, Fortschritt des Scans je Quelle sehen |
 | **Export für KI** | Offene CVEs einer Anwendung als Markdown mit fertigen Issue-Texten für einen Agenten |
 | **Rückkanal** | Agenten melden Issue-Link und Status per API; „behoben“ wird mit der nächsten SBOM überprüft |
@@ -125,6 +125,22 @@ Status: `offen` · `in_arbeit` · `akzeptiert` · `false_positive` · `behoben`.
 
 Anleitungen zu SBOM-Upload, KI-Export und Einrichtung der GitHub App stehen in
 [`docs/local-development.md`](docs/local-development.md).
+
+## Verlauf
+
+Die Schwachstellen-Seite und der CVE-Reiter jeder Anwendung zeigen zuerst die Entwicklung:
+
+- **Tabelle:** startet mit dem Filter Status „offen“; Zurücksetzen zeigt alle Treffer.
+- **Kacheln:** Offener Bestand (mit Veränderung im Zeitraum), Unangetastet, In Arbeit,
+  Neu im Zeitraum, Erledigt im Zeitraum.
+- **Diagramm „Verlauf“:** Balken für neu und erledigt je ISO-Woche, Linie für den offenen
+  Bestand. Zeitraum 4, 12, 26 oder 52 Wochen (Standard 12).
+- **Schweregrad-Diagramm:** zählt nur den offenen Bestand.
+
+Begriffe: **Erledigt** = `behoben`, `akzeptiert`, `false_positive`. **Offener Bestand** =
+`offen` + `in_arbeit`; **Unangetastet** = `offen`. Funde, die vor Einführung der Zeiterfassung
+existierten, zählen mit nachgetragenem Datum zum Ausgangsbestand – der Verlauf ist anfangs
+daher flach und füllt sich mit neuen und erledigten Funden.
 
 ## Struktur
 
