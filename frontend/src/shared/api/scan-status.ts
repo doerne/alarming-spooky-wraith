@@ -14,6 +14,20 @@ export const scanRunSchema = z.object({
 });
 export type ScanRun = z.infer<typeof scanRunSchema>;
 
+export const scanStepStateSchema = z.enum(["pending", "running", "done", "skipped", "failed"]);
+export type ScanStepState = z.infer<typeof scanStepStateSchema>;
+
+export const scanStepSchema = z.object({
+  key: z.string(),
+  label: z.string(),
+  state: scanStepStateSchema,
+  detail: z.string(),
+});
+export type ScanStep = z.infer<typeof scanStepSchema>;
+
+/** Schlussschritte nach den Quellen, wie in backend/app/application/scan_progress.py. */
+export const FINAL_SCAN_STEP_KEYS: ReadonlySet<string> = new Set(["persist", "github-sync"]);
+
 export const scanStatusSchema = z.object({
   running: z.boolean(),
   startedAt: z.string().nullable(),
@@ -23,6 +37,7 @@ export const scanStatusSchema = z.object({
   error: z.string().nullable(),
   lastRun: scanRunSchema.nullable(),
   lastUsableRun: scanRunSchema.nullable(),
+  steps: z.array(scanStepSchema),
 });
 export type ScanStatus = z.infer<typeof scanStatusSchema>;
 

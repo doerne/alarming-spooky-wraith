@@ -5,6 +5,8 @@ import { ScanFreshness } from "@/shared/components/scan-freshness";
 import type { ScanFreshnessView } from "@/shared/lib/scan-freshness";
 import { Button } from "@/shared/ui/button";
 
+import { ScanProgress } from "./scan-progress";
+
 interface IngestControlProps {
   state: ScanStatus | undefined;
   alreadyRunning: boolean;
@@ -19,6 +21,12 @@ function LastError({ state }: { state: ScanStatus }) {
       {state.error}
     </span>
   );
+}
+
+/** Fortschritt nur während eines Laufs und erst, wenn das Backend Schritte meldet. */
+function RunningProgress({ state }: { state: ScanStatus | undefined }) {
+  if (!state?.running || state.steps.length === 0) return null;
+  return <ScanProgress steps={state.steps} />;
 }
 
 export function IngestControl({ state, alreadyRunning, freshness, onStart }: IngestControlProps) {
@@ -42,6 +50,7 @@ export function IngestControl({ state, alreadyRunning, freshness, onStart }: Ing
         {running ? <Loader2 className="animate-spin" aria-hidden /> : <Play aria-hidden />}
         {running ? "Scan läuft …" : "Scan starten"}
       </Button>
+      <RunningProgress state={state} />
     </div>
   );
 }

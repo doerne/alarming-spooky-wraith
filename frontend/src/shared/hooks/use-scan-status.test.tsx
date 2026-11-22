@@ -15,6 +15,7 @@ function statusBody(running: boolean) {
     error: null,
     lastRun: null,
     lastUsableRun: null,
+    steps: [],
   };
 }
 
