@@ -74,6 +74,9 @@ def _to_application(model: ApplicationModel) -> Application:
         else None,
         github_synced_at=as_utc(model.github_synced_at) if model.github_synced_at else None,
         github_sync_message=model.github_sync_message or "",
+        inventory_changed_at=as_utc(model.inventory_changed_at)
+        if model.inventory_changed_at
+        else None,
     )
 
 
@@ -88,6 +91,7 @@ def _application_values(application: Application) -> dict[str, object]:
         "auto_issue_enabled_at": application.auto_issue_enabled_at,
         "github_synced_at": application.github_synced_at,
         "github_sync_message": application.github_sync_message,
+        "inventory_changed_at": application.inventory_changed_at,
     }
 
 

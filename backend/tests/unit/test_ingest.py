@@ -38,6 +38,7 @@ from tests.fakes import (
     InMemoryUnitOfWork,
     VulnerabilitySourceFake,
     descriptor,
+    fixed_clock,
 )
 
 _NOW = datetime(2026, 11, 1, 12, 0, tzinfo=UTC)
@@ -62,10 +63,10 @@ def _vuln(source_key: str = "osv", **overrides: object) -> SourceVuln:
 
 def _uow(*components: Component) -> InMemoryUnitOfWork:
     uow = InMemoryUnitOfWork()
-    application = CreateApplication(uow).execute(name="Shop")
+    application = CreateApplication(uow, fixed_clock).execute(name="Shop")
     assert application.id is not None
     for component in components:
-        AddComponent(uow).execute(application_id=application.id, component=component)
+        AddComponent(uow, fixed_clock).execute(application_id=application.id, component=component)
     return uow
 
 
@@ -549,7 +550,7 @@ class _PartlyFailingSource(FakePackageSource):
 
 def test_ingest_partial_failure_of_reporting_source_blocks_resolution() -> None:
     uow = _retired_world()
-    AddComponent(uow).execute(
+    AddComponent(uow, fixed_clock).execute(
         application_id=uow.components.list_all()[0].application_id or 0,
         component=_component("svelte", Ecosystem.NPM),
     )

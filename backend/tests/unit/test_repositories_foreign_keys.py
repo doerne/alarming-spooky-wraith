@@ -24,7 +24,7 @@ from app.infrastructure import models  # noqa: F401  (Modelle registrieren)
 from app.infrastructure.database import Base
 from app.infrastructure.models import AdvisoryAliasModel
 from app.infrastructure.unit_of_work import SqlAlchemyUnitOfWork
-from tests.fakes import FakeAdvisoryStore
+from tests.fakes import FakeAdvisoryStore, fixed_clock
 
 
 def _enable_foreign_keys(connection: Any, _: Any) -> None:
@@ -159,7 +159,7 @@ def test_retired_component_roundtrip_and_delete_sbom(uow: SqlAlchemyUnitOfWork) 
     [finding] = uow.findings.list_for_advisory("GHSA-1")
     assert (finding.status, finding.resolution) == (FindingStatus.FIXED, "ausgebaut")
     assert finding.resolved_at == resolved_at
-    DeleteSbom(uow).execute(application_id=application_id, sbom_id=sbom.id)
+    DeleteSbom(uow, fixed_clock).execute(application_id=application_id, sbom_id=sbom.id)
     assert [c.id for c in uow.components.list_all()] == [component_id]
 
 

@@ -13,7 +13,7 @@ from app.domain.errors import EntityNotFoundError
 from app.domain.inventory import Application, Category, Component, Ecosystem
 from app.domain.sbom import ParsedSbom, SbomEntry
 from app.domain.vulnerability import Finding, RiskScore, Severity
-from tests.fakes import FakeSbomParser, InMemoryUnitOfWork
+from tests.fakes import FIXED_NOW, FakeSbomParser, InMemoryUnitOfWork, fixed_clock
 
 _NOW = datetime(2026, 11, 21, 9, 30, tzinfo=UTC)
 _REACT = SbomEntry("react", "18.2.0", Category.LIBRARY, Ecosystem.NPM, True, None)
@@ -69,7 +69,7 @@ def test_sbom_of_other_application_is_not_found() -> None:
     with pytest.raises(EntityNotFoundError):
         GetSbomVersion(uow).execute(application_id=other, sbom_id=sbom_id, version_id=version.id)
     with pytest.raises(EntityNotFoundError):
-        DeleteSbom(uow).execute(application_id=other, sbom_id=sbom_id)
+        DeleteSbom(uow, fixed_clock).execute(application_id=other, sbom_id=sbom_id)
     assert uow.sboms.get(sbom_id).name == "backend"
 
 
@@ -121,7 +121,7 @@ def test_delete_sbom_removes_components_findings_versions() -> None:
         )
     )
     commits = uow.commits
-    DeleteSbom(uow).execute(application_id=application_id, sbom_id=sbom_id)
+    DeleteSbom(uow, fixed_clock).execute(application_id=application_id, sbom_id=sbom_id)
     assert uow.commits == commits + 1
     assert uow.components.list_for_application(application_id) == [manual]
     assert uow.findings.list() == []
@@ -137,5 +137,13 @@ def test_delete_sbom_removes_retired_components() -> None:
     react = uow.components.list_for_sbom(sbom_id)[0]
     assert react.id is not None
     uow.components.retire_many([react.id], 1)
-    DeleteSbom(uow).execute(application_id=application_id, sbom_id=sbom_id)
+    DeleteSbom(uow, fixed_clock).execute(application_id=application_id, sbom_id=sbom_id)
     assert uow.components.list_for_application(application_id) == []
+
+
+def test_delete_sbom_marks_inventory_changed() -> None:
+    uow = InMemoryUnitOfWork()
+    application_id = _application(uow)
+    sbom_id = _upload(uow, application_id, "backend", "1.0", _REACT)
+    DeleteSbom(uow, fixed_clock).execute(application_id=application_id, sbom_id=sbom_id)
+    assert uow.applications.get(application_id).inventory_changed_at == FIXED_NOW

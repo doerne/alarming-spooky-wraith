@@ -468,6 +468,14 @@ class InMemoryUnitOfWork:
         self.commits += 1
 
 
+FIXED_NOW = datetime(2026, 11, 22, 10, 0, tzinfo=UTC)
+
+
+def fixed_clock() -> datetime:
+    """Feste Uhr für Tests, die nur irgendeinen Zeitpunkt brauchen."""
+    return FIXED_NOW
+
+
 def uow_factory_for(uow: InMemoryUnitOfWork) -> UnitOfWorkFactory:
     """Factory, die immer dieselbe In-Memory-Unit-of-Work liefert."""
 

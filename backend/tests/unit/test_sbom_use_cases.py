@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -309,3 +309,28 @@ def test_sbom_fix_is_not_reopened() -> None:
     )
     _upload(uow, application_id, _parsed(_REACT, label="1.1.0"))
     assert uow.findings.list()[0].status == FindingStatus.FIXED
+
+
+def _changed_at(uow: InMemoryUnitOfWork, application_id: int) -> datetime | None:
+    return uow.applications.get(application_id).inventory_changed_at
+
+
+def test_upload_marks_inventory_changed() -> None:
+    uow = InMemoryUnitOfWork()
+    application_id = _application(uow)
+    _upload(uow, application_id, _parsed(_REACT))
+    assert _changed_at(uow, application_id) == _NOW
+
+
+def test_rejected_upload_keeps_inventory_change_time() -> None:
+    uow = InMemoryUnitOfWork()
+    application_id = _application(uow)
+    _upload(uow, application_id, _parsed(_REACT, serial="urn:uuid:1"))
+    later = UploadSbomVersion(
+        uow, FakeSbomParser(_parsed(_REACT, serial="urn:uuid:1")), lambda: _NOW + timedelta(days=1)
+    )
+    with pytest.raises(DuplicateSbomVersionError):
+        later.execute(
+            application_id=application_id, name="backend-image", label=None, document=_DOCUMENT
+        )
+    assert _changed_at(uow, application_id) == _NOW

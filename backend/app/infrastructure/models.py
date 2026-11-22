@@ -42,6 +42,9 @@ class ApplicationModel(Base):
         DateTime(timezone=True), nullable=True
     )
     github_sync_message: Mapped[str] = mapped_column(Text, default="", server_default="")
+    inventory_changed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
 
 class ComponentModel(Base):

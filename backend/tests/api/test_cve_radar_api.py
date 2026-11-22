@@ -41,7 +41,9 @@ def _build(vulns: list[SourceVuln]) -> FastAPI:
     )
     return create_app(
         factory,
-        services=AppServices(ingest_runner=runner, source_registry=registry, advisory_store=store),
+        services=AppServices(
+            ingest_runner=runner, source_registry=registry, advisory_store=store, clock=_now
+        ),
     )
 
 
@@ -143,6 +145,14 @@ def test_get_application_returns_components() -> None:
     assert detail["name"] == "Shop"
     assert [c["name"] for c in detail["components"]] == ["react"]
     assert detail["components"][0]["version"] == "18.2.0"
+
+
+def test_application_detail_reports_inventory_change_time() -> None:
+    client = _client(_build([]))
+    _add_react(client)
+    app_id = client.get("/api/applications").json()[0]["id"]
+    detail = client.get(f"/api/applications/{app_id}").json()
+    assert detail["inventoryChangedAt"] is not None
 
 
 def test_get_unknown_application_is_404() -> None:
@@ -260,7 +270,8 @@ def _app_with_runner(runner: FakeIngestRunner, uow: InMemoryUnitOfWork | None = 
         yield uow
 
     return create_app(
-        factory, services=AppServices(ingest_runner=runner, source_registry=SourceRegistry([]))
+        factory,
+        services=AppServices(ingest_runner=runner, source_registry=SourceRegistry([]), clock=_now),
     )
 
 

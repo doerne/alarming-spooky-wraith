@@ -15,7 +15,13 @@ from app.domain.vulnerability import (
     Severity,
 )
 from app.infrastructure.univers_matcher import UniversVersionMatcher
-from tests.fakes import FakeAdvisoryStore, FakePackageSource, InMemoryUnitOfWork, descriptor
+from tests.fakes import (
+    FakeAdvisoryStore,
+    FakePackageSource,
+    InMemoryUnitOfWork,
+    descriptor,
+    fixed_clock,
+)
 
 
 def _vuln(advisory: str, base: float) -> SourceVuln:
@@ -34,9 +40,9 @@ def _vuln(advisory: str, base: float) -> SourceVuln:
 
 def _ingested_uow() -> InMemoryUnitOfWork:
     uow = InMemoryUnitOfWork()
-    application = CreateApplication(uow).execute(name="Shop")
+    application = CreateApplication(uow, fixed_clock).execute(name="Shop")
     assert application.id is not None
-    AddComponent(uow).execute(
+    AddComponent(uow, fixed_clock).execute(
         application_id=application.id,
         component=Component(
             name="react",
@@ -106,14 +112,14 @@ def _seeded() -> tuple[InMemoryUnitOfWork, int, int]:
     """Shop: react (npm) mit CVE-1 kritisch, CVE-2 mittel/false_positive.
     Blog: redis (ohne Ökosystem) mit CVE-3 hoch, django (PyPI) mit CVE-4 mittel."""
     uow = InMemoryUnitOfWork()
-    shop = CreateApplication(uow).execute(name="Shop")
-    blog = CreateApplication(uow).execute(name="Blog")
+    shop = CreateApplication(uow, fixed_clock).execute(name="Shop")
+    blog = CreateApplication(uow, fixed_clock).execute(name="Blog")
     assert shop.id is not None
     assert blog.id is not None
 
     def add(app_id: int, name: str, ecosystem: Ecosystem | None) -> Component:
         component = Component(name, "1.0.0", Category.LIBRARY, ecosystem, True)
-        return AddComponent(uow).execute(application_id=app_id, component=component)
+        return AddComponent(uow, fixed_clock).execute(application_id=app_id, component=component)
 
     react = add(shop.id, "react", Ecosystem.NPM)
     redis = add(blog.id, "redis", None)
