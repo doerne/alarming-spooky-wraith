@@ -73,6 +73,19 @@ describe("CvesPage", () => {
     expect(screen.getByTestId("cves-section-overview")).toBeInTheDocument();
   });
 
+  it("meldet einen Fehler, wenn der Trend nicht geladen werden kann", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      if (String(input).startsWith("/api/findings/trend"))
+        return Promise.resolve(new Response("{}", { status: 422 }));
+      return respondWith({ items: [], total: 0, unfilteredTotal: 0 });
+    });
+    renderPage();
+
+    expect(await screen.findByTestId("cves-error-trend")).toHaveTextContent(
+      "Verlauf konnte nicht geladen werden.",
+    );
+  });
+
   it("lädt den Trend für den gewählten Zeitraum neu", async () => {
     const fetchMock = mockApi();
     renderPage();

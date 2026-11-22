@@ -1,13 +1,12 @@
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime
-from typing import get_args
 
+import pytest
 from fastapi.testclient import TestClient
 
-from app.domain.finding_trend import DEFAULT_TREND_WEEKS, TREND_WEEK_OPTIONS
+from app.domain.finding_trend import TREND_WEEK_OPTIONS
 from app.presentation.app_factory import AppServices, create_app
-from app.presentation.trend_router import DEFAULT_WEEKS, TrendWeeks
 from tests.fakes import InMemoryUnitOfWork
 
 _NOW = datetime(2026, 11, 22, 9, 0, tzinfo=UTC)
@@ -41,6 +40,17 @@ def test_get_trend_unknown_application_404() -> None:
     assert _client().get("/api/findings/trend?applicationId=999").status_code == 404
 
 
-def test_week_literal_agrees_with_domain_options() -> None:
-    assert get_args(TrendWeeks) == TREND_WEEK_OPTIONS
-    assert DEFAULT_WEEKS == DEFAULT_TREND_WEEKS
+@pytest.mark.parametrize("weeks", TREND_WEEK_OPTIONS)
+def test_get_trend_accepts_every_supported_range(weeks: int) -> None:
+    # Das Frontend schickt weeks immer als Query-Text mit.
+    response = _client().get(f"/api/findings/trend?weeks={weeks}")
+    assert response.status_code == 200
+    assert len(response.json()["weeks"]) == weeks
+
+
+def test_get_trend_for_known_application() -> None:
+    client = _client()
+    application_id = client.post("/api/applications", json={"name": "Shop"}).json()["id"]
+    response = client.get(f"/api/findings/trend?weeks=4&applicationId={application_id}")
+    assert response.status_code == 200
+    assert response.json()["untouchedNow"] == 0

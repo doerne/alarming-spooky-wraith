@@ -95,6 +95,11 @@ export function CvesPage({ onSelectCve }: { onSelectCve: (advisoryId: string) =>
         />
       </div>
       <TrendRangeSelect value={weeks} onChange={setWeeks} feature="cves" />
+      {trend.isError && (
+        <p role="alert" className="text-sm text-destructive" data-testid="cves-error-trend">
+          Verlauf konnte nicht geladen werden.
+        </p>
+      )}
       {trend.data ? (
         <>
           <TrendCards trend={trend.data} feature="cves" />

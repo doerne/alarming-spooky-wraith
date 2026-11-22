@@ -1,21 +1,28 @@
 """Router für den Wochenverlauf der Funde. Enthält keine Logik."""
 
 from datetime import date
-from typing import Annotated, Literal
+from typing import Annotated
 
 from fastapi import APIRouter, Query
+from pydantic import AfterValidator
 
 from app.application.finding_trend import GetFindingTrend
-from app.domain.finding_trend import FindingTrend
+from app.domain.finding_trend import DEFAULT_TREND_WEEKS, TREND_WEEK_OPTIONS, FindingTrend
 from app.domain.vulnerability import Severity
 from app.presentation.dependencies import ClockDep, UnitOfWorkDep
 from app.presentation.schemas import ApiModel
 
 router = APIRouter(prefix="/api", tags=["findings"])
 
-# Muss mit TREND_WEEK_OPTIONS / DEFAULT_TREND_WEEKS der Domain übereinstimmen (Test).
-TrendWeeks = Literal[4, 12, 26, 52]
-DEFAULT_WEEKS: TrendWeeks = 12
+
+def _supported_weeks(weeks: int) -> int:
+    """Nur die Zeiträume der Domain; alles andere beantwortet FastAPI mit 422."""
+    if weeks not in TREND_WEEK_OPTIONS:
+        raise ValueError(f"weeks muss einer von {TREND_WEEK_OPTIONS} sein")
+    return weeks
+
+
+TrendWeeks = Annotated[int, AfterValidator(_supported_weeks)]
 
 
 class TrendWeekResponse(ApiModel):
@@ -59,7 +66,7 @@ def _to_response(trend: FindingTrend) -> FindingTrendResponse:
 def get_finding_trend(
     uow: UnitOfWorkDep,
     clock: ClockDep,
-    weeks: TrendWeeks = DEFAULT_WEEKS,
+    weeks: TrendWeeks = DEFAULT_TREND_WEEKS,
     application_id: Annotated[int | None, Query(alias="applicationId")] = None,
 ) -> FindingTrendResponse:
     return _to_response(GetFindingTrend(uow, clock).execute(weeks, application_id))
