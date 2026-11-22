@@ -16,6 +16,7 @@ from app.domain.vulnerability import (
     ResolutionSource,
     RiskScore,
     Severity,
+    closed_at_after,
     is_valid_advisory_id,
     severity_rank,
 )
@@ -201,3 +202,51 @@ def test_application_github_fields_default_to_unset() -> None:
     assert app.auto_issue_enabled_at is None
     assert app.github_synced_at is None
     assert app.github_sync_message == ""
+
+
+NOW = datetime(2026, 11, 22, 9, 0, tzinfo=UTC)
+EARLIER = datetime(2026, 10, 1, tzinfo=UTC)
+
+
+def test_closed_at_set_when_leaving_open_states() -> None:
+    assert closed_at_after(FindingStatus.OPEN, None, FindingStatus.ACCEPTED, NOW) == NOW
+    assert closed_at_after(FindingStatus.IN_PROGRESS, None, FindingStatus.FIXED, NOW) == NOW
+
+
+def test_closed_at_kept_between_closed_states() -> None:
+    assert closed_at_after(FindingStatus.ACCEPTED, EARLIER, FindingStatus.FIXED, NOW) == EARLIER
+
+
+def test_closed_at_cleared_when_back_to_open_states() -> None:
+    assert closed_at_after(FindingStatus.FIXED, EARLIER, FindingStatus.IN_PROGRESS, NOW) is None
+    assert closed_at_after(FindingStatus.FIXED, EARLIER, FindingStatus.OPEN, NOW) is None
+
+
+def test_with_status_applies_closed_at_rule() -> None:
+    finding = _plain_finding()
+    assert finding.with_status(FindingStatus.FALSE_POSITIVE, NOW).closed_at == NOW
+
+
+def test_reopened_clears_closed_at() -> None:
+    finding = replace(_plain_finding(), status=FindingStatus.FIXED, closed_at=EARLIER)
+    assert finding.reopened().closed_at is None
+
+
+def test_absorb_keeps_earliest_first_seen() -> None:
+    newer = replace(_plain_finding(), first_seen_at=NOW)
+    older = replace(_plain_finding(), first_seen_at=EARLIER)
+    assert newer.absorb(older).first_seen_at == EARLIER
+    assert replace(_plain_finding(), first_seen_at=None).absorb(older).first_seen_at == EARLIER
+
+
+def test_absorb_takes_donor_closed_at_with_status() -> None:
+    donor = replace(_plain_finding(), status=FindingStatus.ACCEPTED, closed_at=EARLIER)
+    merged = _plain_finding().absorb(donor)
+    assert merged.status == FindingStatus.ACCEPTED
+    assert merged.closed_at == EARLIER
+
+
+def test_absorb_keeps_own_closed_at_when_not_open() -> None:
+    own = replace(_plain_finding(), status=FindingStatus.FIXED, closed_at=NOW)
+    donor = replace(_plain_finding(), status=FindingStatus.ACCEPTED, closed_at=EARLIER)
+    assert own.absorb(donor).closed_at == NOW
