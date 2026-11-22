@@ -20,6 +20,7 @@ from app.domain.vulnerability import (
     ResolutionSource,
     RiskScore,
     Severity,
+    closed_at_after,
 )
 from app.infrastructure.models import (
     AdvisoryAliasModel,
@@ -139,6 +140,7 @@ def _to_finding(model: FindingModel) -> Finding:
         issue_url=model.issue_url or "",
         issue_state=IssueState(model.issue_state) if model.issue_state else None,
         first_seen_at=as_utc(model.first_seen_at) if model.first_seen_at else None,
+        closed_at=as_utc(model.closed_at) if model.closed_at else None,
     )
 
 
@@ -335,6 +337,7 @@ class SqlAlchemyFindingRepository:
                 status=finding.status.value,
                 comment=finding.comment,
                 first_seen_at=finding.first_seen_at,
+                closed_at=finding.closed_at,
             )
             self._session.add(model)
         model.found_version = finding.found_version
@@ -395,6 +398,12 @@ class SqlAlchemyFindingRepository:
 
     def resolve(self, finding_id: int, resolution: FindingResolution) -> None:
         model = self._model(finding_id)
+        model.closed_at = closed_at_after(
+            FindingStatus(model.status),
+            as_utc(model.closed_at) if model.closed_at else None,
+            resolution.status,
+            resolution.resolved_at,
+        )
         model.status = resolution.status.value
         model.resolved_at = resolution.resolved_at
         model.resolution = resolution.text
@@ -410,6 +419,8 @@ class SqlAlchemyFindingRepository:
         model.resolved_at = finding.resolved_at
         model.resolution = finding.resolution
         model.resolved_by = finding.resolved_by.value if finding.resolved_by else None
+        model.first_seen_at = finding.first_seen_at
+        model.closed_at = finding.closed_at
         self._session.flush()
 
     def save_issue_link(

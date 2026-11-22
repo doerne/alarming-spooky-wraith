@@ -34,6 +34,7 @@ from app.domain.vulnerability import (
     FindingResolution,
     FindingStatus,
     IssueState,
+    closed_at_after,
 )
 
 
@@ -186,6 +187,9 @@ class InMemoryFindingRepository:
 
     def resolve(self, finding_id: int, resolution: FindingResolution) -> None:
         finding = self._items[self._key_of(finding_id)]
+        finding.closed_at = closed_at_after(
+            finding.status, finding.closed_at, resolution.status, resolution.resolved_at
+        )
         finding.status = resolution.status
         finding.resolved_at = resolution.resolved_at
         finding.resolution = resolution.text

@@ -126,6 +126,7 @@ class FindingModel(Base):
     issue_url: Mapped[str | None] = mapped_column(String(ISSUE_URL_MAX_LENGTH), nullable=True)
     issue_state: Mapped[str | None] = mapped_column(String(10), nullable=True)
     first_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC),
