@@ -10,13 +10,20 @@ from dataclasses import dataclass, replace
 from datetime import datetime
 from typing import cast
 
-from app.application.advisory_merge import MergedAdvisory, advisory_key, merge_vulns
+from app.application.advisory_merge import (
+    MergedAdvisory,
+    group_by_identity,
+    identity_ids,
+    merge_vulns,
+)
+from app.application.alias_absorber import AliasAbsorber
 from app.application.component_matching import ComponentMatcher, normalize_package_name
+from app.application.retired_findings import ResolveRetiredFindings
 from app.application.risk_score import compute_risk_score
 from app.application.source_registry import SourceRegistry
 from app.application.source_use_cases import load_setting
 from app.application.unit_of_work import UnitOfWork, UnitOfWorkFactory
-from app.domain.errors import EntityNotFoundError, SourceAccessError
+from app.domain.errors import SourceAccessError
 from app.domain.inventory import Component
 from app.domain.ports import (
     AdvisoryStore,
@@ -58,6 +65,13 @@ class SourceRunResult:
     status: RunStatus
     findings: int
     message: str
+    # False bei Teilausfall: einzelne Abfragen scheiterten, der Lauf gilt trotzdem als OK.
+    complete: bool = True
+
+    @property
+    def unreliable(self) -> bool:
+        """Ob die Quelle in diesem Lauf Lücken übersehen haben kann (SKIPPED zählt nicht)."""
+        return self.status == RunStatus.ERROR or not self.complete
 
 
 @dataclass(frozen=True)
@@ -131,6 +145,7 @@ def _normalized_name(component: Component) -> str:
 class _Collected:
     hits: list[_Hit]
     message: str = ""
+    complete: bool = True
 
 
 class _SourceCollector:
@@ -179,7 +194,7 @@ class _SourceCollector:
         if not failures:
             return _Collected(hits)
         note = f"{len(failures)} von {len(targets)} Abfragen fehlgeschlagen: {failures[0]}"
-        return _Collected(hits, note[:_MAX_MESSAGE_LENGTH])
+        return _Collected(hits, note[:_MAX_MESSAGE_LENGTH], complete=False)
 
     def _query(
         self, source: PackageQuerySource, api_key: str | None, component: Component
@@ -209,10 +224,20 @@ class RunIngest:
         self._clock = clock
 
     def execute(self) -> IngestResult:
+        # Nur was schon vor dem Lauf ausgebaut war, wird aufgelöst: später ausgebaute
+        # Komponenten haben ihren Nachfolger in diesem Lauf noch nicht geprüft bekommen.
+        retired_before = frozenset(
+            component.id
+            for component in self._uow.components.list_all()
+            if component.id is not None and component.is_retired
+        )
         components = [
             component
             for component in self._uow.components.list_all()
-            if component.id is not None and component.application_id is not None
+            if component.id is not None
+            and component.application_id is not None
+            and component.checked
+            and not component.is_retired
         ]
         results: list[SourceRunResult] = []
         hits: list[_Hit] = []
@@ -221,6 +246,10 @@ class RunIngest:
             results.append(result)
             hits.extend(source_hits)
         found = self._persist(hits)
+        failed = frozenset(result.source_key for result in results if result.unreliable)
+        ResolveRetiredFindings(self._uow, self._store, self._clock).execute(
+            failed, eligible=retired_before
+        )
         self._uow.commit()
         return IngestResult(len(components), found, results)
 
@@ -237,7 +266,8 @@ class RunIngest:
         except Exception as error:
             return self._finish(setting, RunStatus.ERROR, _error_message(error), None), []
         hits = collected.hits
-        return self._finish(setting, RunStatus.OK, collected.message, len(hits)), hits
+        result = self._finish(setting, RunStatus.OK, collected.message, len(hits))
+        return replace(result, complete=collected.complete), hits
 
     def _finish(
         self, setting: SourceSetting, status: RunStatus, message: str, findings: int | None
@@ -259,22 +289,33 @@ class RunIngest:
         self._uow.commit()
 
     def _persist(self, hits: Sequence[_Hit]) -> int:
-        groups: dict[str, list[_Hit]] = {}
-        for hit in hits:
-            groups.setdefault(advisory_key(hit.vuln)[0], []).append(hit)
+        # Während des Laufs kann ein SBOM-Upload Komponenten gelöscht oder ausgebaut haben.
+        existing = {
+            component.id
+            for component in self._uow.components.list_all()
+            if not component.is_retired
+        }
+        current = [hit for hit in hits if hit.component.id in existing]
+        groups = group_by_identity(current, lambda hit: identity_ids(hit.vuln))
         order = [*MERGE_PRECEDENCE, *(d.key for d in self._registry.descriptors())]
-        return sum(self._persist_advisory(group, order) for group in groups.values())
+        return sum(self._persist_advisory(group, order) for group in groups)
 
     def _keep_known_values(self, merged: MergedAdvisory) -> MergedAdvisory:
-        """Fällt eine Quelle in diesem Lauf aus, bleiben bekannte Werte stehen (Spec §5.2)."""
-        try:
-            previous = self._uow.advisories.get(merged.advisory_id)
-        except EntityNotFoundError:
-            return merged
+        """Fällt eine Quelle in diesem Lauf aus, bleiben bekannte Werte stehen (Spec §5.2).
+
+        Gesucht wird auch unter den Alias-IDs, die gleich in die kanonische Advisory aufgehen.
+        """
+        known = [
+            advisory
+            for advisory_id in (merged.advisory_id, *merged.aliases)
+            if (advisory := self._uow.advisories.find(advisory_id)) is not None
+        ]
+        cvss = next((a.cvss_base for a in known if a.cvss_base is not None), None)
+        fixed = next((a.fixed_version for a in known if a.fixed_version), None)
         return replace(
             merged,
-            cvss_base=merged.cvss_base if merged.cvss_base is not None else previous.cvss_base,
-            fixed_version=merged.fixed_version or previous.fixed_version,
+            cvss_base=merged.cvss_base if merged.cvss_base is not None else cvss,
+            fixed_version=merged.fixed_version or fixed,
         )
 
     def _persist_advisory(self, hits: Sequence[_Hit], order: Sequence[str]) -> int:
@@ -301,6 +342,7 @@ class RunIngest:
             # Unzulässige ID aus einer Fremdquelle: verwerfen, Lauf geht weiter.
             return 0
         self._uow.advisories.upsert(replace(advisory, okf_path=okf_path))
+        AliasAbsorber(self._uow, self._store).absorb(merged.advisory_id, merged.aliases)
         components = {hit.component.id: hit.component for hit in hits}
         for component in components.values():
             assert component.id is not None
@@ -312,6 +354,7 @@ class RunIngest:
                     application_id=component.application_id,
                     found_version=component.version,
                     risk=risk,
+                    first_seen_at=self._clock(),
                 )
             )
         return len(components)
@@ -327,3 +370,13 @@ def run_ingest_job(
     """Führt einen Lauf mit eigener Unit of Work aus (für den Hintergrund-Thread)."""
     with uow_factory() as uow:
         return RunIngest(uow, registry, matcher, store, clock).execute()
+
+
+def run_scan_then_sync(scan: Callable[[], IngestResult], sync: Callable[[], None]) -> IngestResult:
+    """Scan, danach der Abgleich. Ein Fehler im Abgleich wird nur protokolliert."""
+    result = scan()
+    try:
+        sync()
+    except Exception:
+        _logger.exception("GitHub-Abgleich nach dem Scan fehlgeschlagen")
+    return result

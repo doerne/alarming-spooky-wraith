@@ -1,16 +1,17 @@
-import { useState } from "react";
-import { ArrowLeft } from "lucide-react";
-
-import { Button } from "@/shared/ui/button";
-import { Skeleton } from "@/shared/ui/skeleton";
+import { useMemo, useState } from "react";
 
 import { ApplicationCvesPage } from "./application-cves-page";
+import { ApplicationGithubSettings } from "./application-github-settings";
+import { ApplicationSbomsPage } from "./application-sboms-page";
+import { DetailHeader } from "./components/detail-header";
 import { DetailTabs } from "./components/detail-tabs";
 import { useAddComponent } from "./hooks/use-add-component";
 import { useApplication } from "./hooks/use-application";
+import { useSboms } from "./hooks/use-sboms";
 import { useUpdateComponent } from "./hooks/use-update-component";
 import type { ComponentInput } from "./model/schema";
 import type { Component } from "./model/types";
+import { Skeleton } from "@/shared/ui/skeleton";
 
 interface ApplicationDetailPageProps {
   applicationId: number;
@@ -24,6 +25,11 @@ export function ApplicationDetailPage({
   onSelectCve,
 }: ApplicationDetailPageProps) {
   const detail = useApplication(applicationId);
+  const sboms = useSboms(applicationId);
+  const sbomNames = useMemo(
+    () => new Map((sboms.data ?? []).map((sbom) => [sbom.id, sbom.name])),
+    [sboms.data],
+  );
   const addComponent = useAddComponent();
   const updateComponent = useUpdateComponent();
   const [editing, setEditing] = useState<Component | null>(null);
@@ -41,25 +47,20 @@ export function ApplicationDetailPage({
 
   return (
     <section className="flex flex-col gap-4" data-testid="inventory-section-detail">
-      <div className="flex items-center gap-3">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onBack}
-          aria-label="Zurück zur Übersicht"
-          data-testid="inventory-btn-back"
-        >
-          <ArrowLeft />
-        </Button>
-        <h2 className="text-lg font-semibold" data-testid="inventory-text-app-name">
-          {detail.data?.name ?? "Anwendung"}
-        </h2>
-      </div>
+      <DetailHeader
+        name={detail.data?.name ?? "Anwendung"}
+        onBack={onBack}
+        actions={
+          <ApplicationGithubSettings applicationId={applicationId} application={detail.data} />
+        }
+      />
       {detail.isPending ? (
         <Skeleton className="h-40 w-full" />
       ) : (
         <DetailTabs
           components={detail.data?.components ?? []}
+          sbomNames={sbomNames}
+          sbomsPanel={<ApplicationSbomsPage applicationId={applicationId} />}
           cvesPanel={
             <ApplicationCvesPage applicationId={applicationId} onSelectCve={onSelectCve} />
           }

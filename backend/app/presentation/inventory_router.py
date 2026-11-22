@@ -1,7 +1,10 @@
 """Router zur manuellen Inventar-Pflege. Enthaelt keine Logik."""
 
+from datetime import datetime
+
 from fastapi import APIRouter, status
 
+from app.application.github_settings import GitHubSettingsChange, UpdateGitHubSettings
 from app.application.inventory_use_cases import (
     AddComponent,
     CreateApplication,
@@ -9,8 +12,9 @@ from app.application.inventory_use_cases import (
     ListApplications,
     UpdateComponent,
 )
-from app.domain.inventory import Category, Component, Ecosystem
-from app.presentation.dependencies import UnitOfWorkDep
+from app.domain.inventory import Application, Category, Component, Ecosystem
+from app.domain.vulnerability import Severity
+from app.presentation.dependencies import ClockDep, UnitOfWorkDep
 from app.presentation.schemas import ApiModel
 
 router = APIRouter(prefix="/api", tags=["inventory"])
@@ -43,6 +47,8 @@ class ComponentResponse(ApiModel):
     category: Category
     ecosystem: Ecosystem | None
     direct: bool
+    sbom_id: int | None
+    checked: bool
 
 
 class ApplicationDetailResponse(ApiModel):
@@ -50,6 +56,17 @@ class ApplicationDetailResponse(ApiModel):
     name: str
     description: str
     components: list[ComponentResponse]
+    github_repository: str | None
+    auto_issue_min_level: Severity | None
+    github_synced_at: datetime | None
+    github_sync_message: str
+
+
+class UpdateApplicationRequest(ApiModel):
+    """Nur übergebene Felder ändern etwas; ``null`` entfernt den Wert."""
+
+    github_repository: str | None = None
+    auto_issue_min_level: Severity | None = None
 
 
 def _component_from_request(body: CreateComponentRequest) -> Component:
@@ -73,6 +90,8 @@ def _to_component_response(component: Component) -> ComponentResponse:
         category=component.category,
         ecosystem=component.ecosystem,
         direct=component.direct,
+        sbom_id=component.sbom_id,
+        checked=component.checked,
     )
 
 
@@ -95,16 +114,38 @@ def list_applications(uow: UnitOfWorkDep) -> list[ApplicationResponse]:
     ]
 
 
-@router.get("/applications/{application_id}")
-def get_application(application_id: int, uow: UnitOfWorkDep) -> ApplicationDetailResponse:
-    application = GetApplication(uow).execute(application_id)
+def _to_detail_response(application: Application) -> ApplicationDetailResponse:
     assert application.id is not None
     return ApplicationDetailResponse(
         id=application.id,
         name=application.name,
         description=application.description,
         components=[_to_component_response(component) for component in application.components],
+        github_repository=application.github_repository,
+        auto_issue_min_level=application.auto_issue_min_level,
+        github_synced_at=application.github_synced_at,
+        github_sync_message=application.github_sync_message,
     )
+
+
+@router.get("/applications/{application_id}")
+def get_application(application_id: int, uow: UnitOfWorkDep) -> ApplicationDetailResponse:
+    return _to_detail_response(GetApplication(uow).execute(application_id))
+
+
+@router.patch("/applications/{application_id}")
+def update_application(
+    application_id: int, body: UpdateApplicationRequest, uow: UnitOfWorkDep, clock: ClockDep
+) -> ApplicationDetailResponse:
+    fields = body.model_fields_set
+    change = GitHubSettingsChange(
+        repository=body.github_repository,
+        min_level=body.auto_issue_min_level,
+        set_repository="github_repository" in fields,
+        set_min_level="auto_issue_min_level" in fields,
+    )
+    UpdateGitHubSettings(uow, clock).execute(application_id, change)
+    return _to_detail_response(GetApplication(uow).execute(application_id))
 
 
 @router.post(

@@ -23,6 +23,7 @@ class FindingView:
     risk_level: Severity
     fix_version: str | None
     status: FindingStatus
+    issue_url: str | None = None
 
 
 # Sonderwert im Ökosystem-Filter: Komponenten ohne Paket-Ökosystem (Produkte/Runtimes).
@@ -134,4 +135,5 @@ class ListFindings:
             risk_level=finding.risk.level,
             fix_version=advisory.fixed_version,
             status=finding.status,
+            issue_url=finding.issue_url or None,
         )

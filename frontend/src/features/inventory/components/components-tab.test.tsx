@@ -13,12 +13,20 @@ const component: Component = {
   category: "library",
   ecosystem: "npm",
   direct: true,
+  sbomId: null,
+  checked: true,
 };
 
 function renderTab(editing: Component | null) {
   const handlers = { onEdit: vi.fn(), onSubmit: vi.fn(), onCancelEdit: vi.fn() };
   render(
-    <ComponentsTab components={[component]} editing={editing} isSubmitting={false} {...handlers} />,
+    <ComponentsTab
+      components={[component]}
+      sbomNames={new Map()}
+      editing={editing}
+      isSubmitting={false}
+      {...handlers}
+    />,
   );
   return handlers;
 }

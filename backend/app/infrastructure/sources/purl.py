@@ -34,3 +34,13 @@ def package_url(component: Component) -> str | None:
         return None
     version = quote(component.version, safe="")
     return f"pkg:{_PURL_TYPE[ecosystem]}/{_name_path(ecosystem, component.name)}@{version}"
+
+
+_ECOSYSTEM_BY_PURL_TYPE: dict[str, Ecosystem] = {
+    purl_type: ecosystem for ecosystem, purl_type in _PURL_TYPE.items()
+}
+
+
+def ecosystem_for_purl_type(purl_type: str) -> Ecosystem | None:
+    """Umkehrung von ``package_url``: purl-Typ → Ökosystem, unbekannt → None."""
+    return _ECOSYSTEM_BY_PURL_TYPE.get(purl_type.lower())

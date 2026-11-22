@@ -12,7 +12,7 @@ from typing import Any
 import yaml
 
 from app.domain.ports import AdvisoryDocument, SourceReference
-from app.domain.vulnerability import ADVISORY_ID_MAX_LENGTH, Advisory
+from app.domain.vulnerability import Advisory, is_valid_advisory_id
 
 _DOCUMENT = re.compile(r"\A---\n(.*?\n)---\n(.*)\Z", re.DOTALL)
 _COMPUTATION_HEADING = "\n# Computation\n"
@@ -20,12 +20,9 @@ _REFERENCES_HEADING = "\n# References\n"
 _HTTP_URL = re.compile(r"^https?://", re.IGNORECASE)
 _INDEX = '---\nokf_version: "0.2"\n---\n\n# CVE-Radar Advisories\n'
 
-# Erlaubte Advisory-IDs: keine Pfad-Trenner, kein '..'. Deckt CVE-/GHSA-/OSV-IDs.
-_ID_RE = re.compile(rf"^[A-Za-z0-9][A-Za-z0-9_-]{{1,{ADVISORY_ID_MAX_LENGTH - 1}}}$")
-
 
 def _safe_id(advisory_id: str) -> str:
-    if not _ID_RE.fullmatch(advisory_id):
+    if not is_valid_advisory_id(advisory_id):
         raise ValueError(f"Unzulaessige Advisory-ID: {advisory_id!r}")
     return advisory_id
 
@@ -47,6 +44,9 @@ class FileAdvisoryStore:
         content = f"---\n{yaml_block}---\n\n{body}\n"
         path.write_text(content, encoding="utf-8")
         return f"advisories/{safe_id}.md"
+
+    def delete(self, advisory_id: str) -> None:
+        (self._dir / f"{_safe_id(advisory_id)}.md").unlink(missing_ok=True)
 
     def read(self, advisory_id: str) -> str:
         safe_id = _safe_id(advisory_id)

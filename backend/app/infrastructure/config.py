@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     okf_root: Path = Path("/data/okf")
     osv_base_url: str = "https://api.osv.dev"
     source_cache_root: Path = Path("/data/sources")
+    github_app_id: str | None = None
+    github_app_private_key_file: Path = Path("/run/secrets/github_app_private_key")
+    github_api_url: str = "https://api.github.com"
 
     def sqlalchemy_url(self) -> str:
         if self.database_url:

@@ -7,7 +7,7 @@ import type { CveColumnOptions, CveFilters } from "../model/cve-filters";
 import type { ApplicationFinding } from "../model/types";
 import { ApplicationCvesHeader } from "./application-cves-header";
 
-const COLUMN_COUNT = 6;
+const COLUMN_COUNT = 7;
 
 const RISK_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
   kritisch: "destructive",
@@ -23,6 +23,23 @@ interface ApplicationCvesProps {
   onFiltersChange: (filters: CveFilters) => void;
   onReset: () => void;
   onSelect: (advisoryId: string) => void;
+}
+
+/** Link zum GitHub-Issue; nur https-Adressen, damit keine fremden Schemata verlinkt werden. */
+function IssueLink({ url, advisoryId }: { url: string | null; advisoryId: string }) {
+  if (!url || !url.startsWith("https://")) return <span>-</span>;
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="underline underline-offset-4"
+      aria-label={`GitHub-Issue zu ${advisoryId}`}
+      data-testid={`inventory-link-github-issue-${advisoryId}`}
+    >
+      Issue
+    </a>
+  );
 }
 
 function FindingRow({
@@ -53,6 +70,9 @@ function FindingRow({
       <TableCell>{finding.ecosystem ?? "-"}</TableCell>
       <TableCell>{finding.fixVersion ?? "-"}</TableCell>
       <TableCell>{finding.status}</TableCell>
+      <TableCell>
+        <IssueLink url={finding.issueUrl} advisoryId={finding.advisoryId} />
+      </TableCell>
     </ClickableRow>
   );
 }

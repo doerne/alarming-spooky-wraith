@@ -144,3 +144,89 @@ Der Scan läuft im Hintergrund; „Scan starten“ kehrt sofort zurück, die Que
 zeigt pro Quelle den Fortschritt. Große Abzüge (CVE.org rund 650 MB, OSV-Dumps)
 werden im Volume `sourcecache` (`/data/sources`) zwischengespeichert. Im Notweg ohne
 `buildx` dafür `SOURCE_CACHE_ROOT` auf ein beschreibbares Verzeichnis setzen.
+
+## Software-Stückliste (SBOM)
+
+Der Workflow `.github/workflows/sbom.yml` erzeugt mit Trivy CycloneDX-SBOMs für Backend und
+Frontend – aus den Lockfiles und aus den gebauten Docker-Images. Die Dateien liegen nicht im
+Repo, sondern:
+
+- an jedem Workflow-Lauf als Artefakt `sbom` (*Actions → SBOM → Lauf → Artifacts*, 90 Tage),
+- an jedem veröffentlichten GitHub-Release als Anhang (dauerhaft, pro Version).
+
+| Datei | Inhalt |
+|---|---|
+| `backend-source.cdx.json` | Python-Pakete aus `backend/uv.lock` |
+| `frontend-source.cdx.json` | npm-Pakete aus `frontend/package-lock.json` |
+| `backend-image.cdx.json` | Backend-Image: Basis-Image, Debian-Pakete, Python-Umgebung |
+| `frontend-image.cdx.json` | Frontend-Image: nginx-Basis-Image und dessen Pakete |
+
+Manuell starten: *Actions → SBOM → Run workflow*. Lokal geht dasselbe ohne Installation per
+Container (`aquasec/trivy` in der Version aus `TRIVY_VERSION` in `sbom.yml`):
+
+```bash
+docker run --rm -v "$PWD/backend:/src:ro" aquasec/trivy:<TRIVY_VERSION ohne v> fs --format cyclonedx /src
+```
+
+### SBOM im CVE-Radar hinterlegen
+
+In der Anwendung → Reiter **SBOMs** → *SBOM hochladen* eine CycloneDX-JSON-Datei (1.4–1.7,
+höchstens 25 MB / 50 000 Komponenten) wählen. Name und Versionsbezeichnung werden aus der Datei
+vorbelegt.
+
+- Jeder Upload unter demselben Namen ist eine neue Version; die bisherige wird archiviert
+  (*Verlauf* zeigt ihre Komponentenliste). Dieselbe Datei zweimal hintereinander wird abgelehnt.
+- Abgeglichen werden nur die Komponenten der **aktuellen** Version. Unveränderte Komponenten
+  behalten ihre Treffer samt Status und Kommentar; weggefallene verlieren sie.
+- Pakete ohne passendes Ökosystem (z. B. `pkg:deb`, `pkg:apk` aus Image-SBOMs) erscheinen als
+  „nicht geprüft“ und werden nicht abgeglichen.
+- Fällt eine Komponente mit Treffern aus einer neuen Version heraus (entfernt oder neue
+  Version), wird sie „ausgebaut“. Der **nächste Scan** markiert ihre Treffer als „behoben“ –
+  oder überträgt Status und Kommentar auf den Treffer der neuen Version, wenn die Lücke dort
+  noch besteht. Ist eine Quelle ausgefallen, die die Lücke gemeldet hat, wartet er einen
+  weiteren Lauf.
+- SBOM-Komponenten sind nicht von Hand bearbeitbar. Neue Treffer erscheinen beim nächsten
+  Scan (täglich oder *Scan starten* auf der Schwachstellen-Seite).
+
+## CVEs als GitHub-Issues exportieren
+
+In der Anwendung → Reiter **CVEs** → *Für KI exportieren* lädt eine Markdown-Datei mit allen
+offenen Schwachstellen (Status „offen“ und „in Arbeit“), ein Abschnitt pro CVE, nach Risk
+Score sortiert. Oben steht eine Anleitung für die KI; jeder Issue-Text endet mit einem
+unsichtbaren Marker `<!-- cve-radar:application=<id>;advisory=<id> -->`, über den bereits
+angelegte Issues erkannt werden. Labels: `security`, `risk:<stufe>`.
+
+Ein Agent im Repo (z. B. Claude Code mit `gh`) kann die Datei auch selbst holen:
+
+```bash
+curl -s http://127.0.0.1:8000/api/applications/<id>/cves/export -o cve-issues.md
+```
+
+Rückmeldung des Agenten (wirkt auf alle Treffer der CVE in der Anwendung; alte IDs aus
+früheren Markern werden aufgelöst):
+
+```bash
+curl -X PATCH http://127.0.0.1:8000/api/applications/<id>/cves/<advisory-id> \
+  -H 'Content-Type: application/json' -d '{"issueUrl": "https://github.com/…/issues/12"}'
+curl -X PATCH http://127.0.0.1:8000/api/applications/<id>/cves/<advisory-id> \
+  -H 'Content-Type: application/json' -d '{"status": "behoben"}'
+```
+
+Ein so gemeldetes „behoben“ ist vorläufig: Enthält die nächste SBOM-Version die Komponente
+unverändert, wird der Treffer automatisch wieder „offen“ (mit Kommentar).
+
+## GitHub-Anbindung einrichten
+
+CVE-Radar kann für offene CVEs Issues im Repo einer Anwendung anlegen und den Status abgleichen.
+Dafür braucht es eine **GitHub App** (keine persönlichen Tokens):
+
+1. In der Organisation eine GitHub App anlegen. Repository-Rechte: *Issues: Read & write*,
+   *Metadata: Read*. Webhook deaktivieren. In die gewünschten Repos installieren.
+2. App-ID in die Umgebung setzen, z. B. in `.env` für Compose: `GITHUB_APP_ID=123456`.
+3. Den privaten Schlüssel der App als `secrets/github_app_private_key.pem` ablegen.
+   `./scripts/generate-secrets.sh` legt eine leere Datei an, damit Compose ohne GitHub startet.
+   Ohne App-ID oder mit leerer Datei meldet CVE-Radar „GitHub nicht konfiguriert“.
+4. In CVE-Radar je Anwendung das Repository (`owner/repo`) unter „GitHub“ hinterlegen.
+   Optional „Neue CVEs automatisch anlegen ab“ wählen (Standard: aus).
+
+Der Schlüssel wird nur im Backend gelesen; er landet weder im Log noch in API-Antworten.

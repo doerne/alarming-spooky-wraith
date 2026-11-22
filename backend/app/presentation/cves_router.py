@@ -2,15 +2,23 @@
 
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, Query, Request
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, Query, Request, Response
+from pydantic import BaseModel, Field, model_validator
 
 from app.application.advisory_detail import AdvisoryDetail, GetAdvisoryDetail
+from app.application.finding_report import ProgressReport, ReportFindingProgress
+from app.application.issue_export import ExportApplicationIssues
 from app.application.list_findings import FindingFilter, ListFindings
 from app.domain.inventory import Ecosystem
 from app.domain.ports import AdvisoryStore
-from app.domain.vulnerability import FindingStatus, Severity
-from app.presentation.dependencies import UnitOfWorkDep
+from app.domain.vulnerability import (
+    ISSUE_URL_MAX_LENGTH,
+    REPORT_COMMENT_MAX_LENGTH,
+    FindingStatus,
+    Severity,
+)
+from app.presentation.dependencies import ClockDep, UnitOfWorkDep
+from app.presentation.issue_export_markdown import export_filename, render_issue_export
 from app.presentation.schemas import ApiModel
 
 router = APIRouter(prefix="/api", tags=["cves"])
@@ -30,6 +38,7 @@ class FindingResponse(ApiModel):
     risk_level: Severity
     fix_version: str | None
     status: FindingStatus
+    issue_url: str | None = None
 
 
 class FindingsPage(ApiModel):
@@ -86,6 +95,7 @@ def list_cves(uow: UnitOfWorkDep, finding_filter: FindingFilterDep) -> FindingsP
             risk_level=view.risk_level,
             fix_version=view.fix_version,
             status=view.status,
+            issue_url=view.issue_url,
         )
         for view in result.items
     ]
@@ -151,3 +161,60 @@ def _to_detail_response(detail: AdvisoryDetail) -> CveDetailResponse:
 @router.get("/cves/{advisory_id}")
 def get_cve(advisory_id: str, uow: UnitOfWorkDep, store: StoreDep) -> CveDetailResponse:
     return _to_detail_response(GetAdvisoryDetail(uow, store).execute(advisory_id))
+
+
+MARKDOWN_MEDIA_TYPE = "text/markdown; charset=utf-8"
+
+
+@router.get("/applications/{application_id}/cves/export")
+def export_application_issues(
+    application_id: int, uow: UnitOfWorkDep, store: StoreDep, clock: ClockDep
+) -> Response:
+    """Offene CVEs als Markdown-Vorlagen für GitHub-Issues (Download)."""
+    export = ExportApplicationIssues(uow, store, clock).execute(application_id)
+    return Response(
+        content=render_issue_export(export),
+        media_type=MARKDOWN_MEDIA_TYPE,
+        headers={"Content-Disposition": f'attachment; filename="{export_filename(export)}"'},
+    )
+
+
+# Nur http(s); keine Leer-/Steuerzeichen und keine Zeichen, die in Markdown Links,
+# Code oder HTML bilden (die URL landet in Issue-Texten).
+_ISSUE_URL_PATTERN = r"^https?://[^\x00-\x20\x7f<>\"'`()\[\]]+$"
+
+
+class ProgressReportRequest(ApiModel):
+    status: FindingStatus | None = None
+    issue_url: str | None = Field(
+        default=None, max_length=ISSUE_URL_MAX_LENGTH, pattern=_ISSUE_URL_PATTERN
+    )
+    comment: str | None = Field(default=None, max_length=REPORT_COMMENT_MAX_LENGTH)
+
+    @model_validator(mode="after")
+    def _needs_one_field(self) -> "ProgressReportRequest":
+        if self.status is None and self.issue_url is None and not self.comment:
+            raise ValueError("status, issueUrl oder comment angeben")
+        return self
+
+
+class ProgressReportResponse(ApiModel):
+    advisory_id: str
+    updated: int
+
+
+@router.patch("/applications/{application_id}/cves/{advisory_id}")
+def report_progress(
+    application_id: int,
+    advisory_id: str,
+    body: ProgressReportRequest,
+    uow: UnitOfWorkDep,
+    clock: ClockDep,
+) -> ProgressReportResponse:
+    """Rückmeldung eines Agenten (Issue angelegt, in Arbeit, behoben …)."""
+    canonical_id, updated = ReportFindingProgress(uow, clock).execute(
+        application_id=application_id,
+        advisory_id=advisory_id,
+        report=ProgressReport(status=body.status, issue_url=body.issue_url, comment=body.comment),
+    )
+    return ProgressReportResponse(advisory_id=canonical_id, updated=updated)

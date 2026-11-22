@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import UTC, datetime
 
 from app.application.component_matching import ComponentMatcher
@@ -6,7 +7,14 @@ from app.application.inventory_use_cases import AddComponent, CreateApplication
 from app.application.source_registry import SourceRegistry
 from app.domain.errors import SourceAccessError
 from app.domain.inventory import Category, Component, Ecosystem
-from app.domain.ports import AffectedPackage, RangeEvent, SourceVuln
+from app.domain.ports import (
+    AdvisoryDocument,
+    AffectedPackage,
+    RangeEvent,
+    SourceReference,
+    SourceVuln,
+)
+from app.domain.sbom import Sbom, SbomVersion
 from app.domain.sources import (
     ApiKeyRequirement,
     MatchScope,
@@ -14,7 +22,14 @@ from app.domain.sources import (
     SourceKind,
     SourceSetting,
 )
-from app.domain.vulnerability import ADVISORY_TITLE_MAX_LENGTH, FindingStatus
+from app.domain.vulnerability import (
+    ADVISORY_TITLE_MAX_LENGTH,
+    Advisory,
+    Finding,
+    FindingStatus,
+    RiskScore,
+    Severity,
+)
 from app.infrastructure.univers_matcher import UniversVersionMatcher
 from tests.fakes import (
     FakeAdvisoryStore,
@@ -342,3 +357,226 @@ def test_body_always_ends_with_own_sections() -> None:
     _run(uow, FakePackageSource(descriptor("osv"), {"react": [tricky]}), store=store)
     body = store.saved["CVE-2024-123"]
     assert body.rstrip().endswith("# References")
+
+
+def test_ingest_skips_unchecked_components() -> None:
+    openssl = replace(_component("openssl", None, "3.0.11"), checked=False)
+    curl = _component("curl", None, "8.0.0")
+    uow = _uow(curl, openssl)
+    bulk = FakeBulkSource(descriptor("cve-org", kind=SourceKind.BULK, scope=MatchScope.PRODUCT))
+    _run(uow, bulk)
+    assert bulk.names == [frozenset({"curl"})]
+
+
+class _DeletingSource(FakePackageSource):
+    """Simuliert ein paralleles Löschen: während der Abfrage verschwindet eine Komponente."""
+
+    def __init__(self, uow: InMemoryUnitOfWork, doomed_id: int, vuln: SourceVuln) -> None:
+        super().__init__(descriptor("osv"), {"react": [vuln], "vue": [vuln]})
+        self._uow = uow
+        self._doomed_id = doomed_id
+
+    def query(self, component: Component, api_key: str | None) -> list[SourceVuln]:
+        self._uow.components.delete_many([self._doomed_id])
+        return super().query(component, api_key)
+
+
+def test_ingest_drops_findings_of_components_deleted_meanwhile() -> None:
+    vue = _component("vue", Ecosystem.NPM)
+    uow = _uow(_REACT, vue)
+    react_id, vue_id = (c.id for c in uow.components.list_all())
+    assert react_id is not None
+    assert vue_id is not None
+    vuln = _vuln(
+        affected=[
+            AffectedPackage("npm", "react", _REACT_RANGE),
+            AffectedPackage("npm", "vue", _REACT_RANGE),
+        ]
+    )
+    _run(uow, _DeletingSource(uow, vue_id, vuln))
+    assert [finding.component_id for finding in uow.findings.list()] == [react_id]
+
+
+_CERTIFI = _component("certifi", Ecosystem.PYPI, "2026.5.20")
+_CERTIFI_RANGE = (RangeEvent("introduced", "0"), RangeEvent("fixed", "2026.10.18"))
+
+
+def _certifi_vuln(vuln_id: str, aliases: list[str]) -> SourceVuln:
+    return _vuln(
+        id=vuln_id,
+        aliases=aliases,
+        affected=(AffectedPackage("PyPI", "certifi", _CERTIFI_RANGE),),
+    )
+
+
+def test_ingest_merges_ghsa_and_pysec_into_one_finding() -> None:
+    uow = _uow(_CERTIFI)
+    ghsa = _certifi_vuln("GHSA-6q48-6c7w-9gw2", [])
+    pysec = _certifi_vuln("PYSEC-2026-4320", ["GHSA-6q48-6c7w-9gw2"])
+    store = FakeAdvisoryStore()
+    _run(uow, FakePackageSource(descriptor("osv"), {"certifi": [ghsa, pysec]}), store=store)
+    assert [finding.advisory_id for finding in uow.findings.list()] == ["GHSA-6q48-6c7w-9gw2"]
+    assert uow.advisories.find("PYSEC-2026-4320") is None
+    assert uow.advisory_aliases.resolve("PYSEC-2026-4320") == "GHSA-6q48-6c7w-9gw2"
+
+
+def test_ingest_moves_ghsa_into_later_cve() -> None:
+    uow = _uow(_CERTIFI)
+    store = FakeAdvisoryStore()
+    first = _certifi_vuln("GHSA-6q48-6c7w-9gw2", [])
+    _run(uow, FakePackageSource(descriptor("osv"), {"certifi": [first]}), store=store)
+    triaged = uow.findings.list()[0]
+    assert triaged.id is not None
+    uow.findings.save_triage(triaged.id, FindingStatus.IN_PROGRESS, "PR #7")
+    later = _certifi_vuln("GHSA-6q48-6c7w-9gw2", ["CVE-2026-1111"])
+    _run(uow, FakePackageSource(descriptor("osv"), {"certifi": [later]}), store=store)
+    [finding] = uow.findings.list()
+    assert (finding.advisory_id, finding.status, finding.comment) == (
+        "CVE-2026-1111",
+        FindingStatus.IN_PROGRESS,
+        "PR #7",
+    )
+    assert uow.advisories.find("GHSA-6q48-6c7w-9gw2") is None
+    assert "GHSA-6q48-6c7w-9gw2" not in store.saved
+
+
+def test_ingest_keeps_known_values_of_absorbed_alias() -> None:
+    uow = _uow(_CERTIFI)
+    store = FakeAdvisoryStore()
+    first = replace(
+        _certifi_vuln("GHSA-6q48-6c7w-9gw2", []), cvss_base=9.1, fixed_version="2026.10.18"
+    )
+    _run(uow, FakePackageSource(descriptor("osv"), {"certifi": [first]}), store=store)
+    later = replace(
+        _certifi_vuln("GHSA-6q48-6c7w-9gw2", ["CVE-2026-1111"]), cvss_base=None, fixed_version=None
+    )
+    _run(uow, FakePackageSource(descriptor("osv"), {"certifi": [later]}), store=store)
+    advisory = uow.advisories.get("CVE-2026-1111")
+    assert (advisory.cvss_base, advisory.fixed_version) == (9.1, "2026.10.18")
+
+
+def test_ingest_skips_retired_components() -> None:
+    retired = replace(_component("vue", Ecosystem.NPM), retired_in_version_id=3)
+    uow = _uow(_REACT, retired)
+    source = FakePackageSource(descriptor("osv"), {})
+    _run(uow, source)
+    assert [name for name, _ in source.calls] == ["react"]
+
+
+def _retired_world() -> InMemoryUnitOfWork:
+    uow = _uow(_REACT, _component("vue", Ecosystem.NPM))
+    retired = uow.components.list_all()[0]
+    assert retired.id is not None
+    sbom = uow.sboms.add(Sbom(application_id=retired.application_id or 0, name="img"))
+    assert sbom.id is not None
+    version = uow.sbom_versions.add(SbomVersion(sbom.id, "v2", _NOW, None, True, ()))
+    assert version.id is not None
+    uow.components.update(replace(retired, sbom_id=sbom.id, retired_in_version_id=version.id))
+    uow.advisories.upsert(Advisory("CVE-9", "CVE-9", "t", "d", 7.5, None, [], ""))
+    uow.findings.upsert(
+        Finding(
+            "CVE-9",
+            retired.id,
+            retired.application_id or 0,
+            "18.2.0",
+            RiskScore(value=75, level=Severity.HOCH, rationale=""),
+        )
+    )
+    return uow
+
+
+def _store_reported_by(source_key: str) -> FakeAdvisoryStore:
+    store = FakeAdvisoryStore()
+    store.documents["CVE-9"] = AdvisoryDocument(
+        "d", "", [], [SourceReference(source_key, "https://example.org/CVE-9")]
+    )
+    return store
+
+
+def test_ingest_resolves_after_successful_run() -> None:
+    uow = _retired_world()
+    _run(uow, FakePackageSource(descriptor("osv"), {}), store=_store_reported_by("osv"))
+    assert uow.findings.list()[0].status == FindingStatus.FIXED
+
+
+def test_ingest_does_not_resolve_when_reporting_source_failed() -> None:
+    uow = _retired_world()
+    failing = FakePackageSource(descriptor("osv"), error=SourceAccessError("down"))
+    _run(uow, failing, store=_store_reported_by("osv"))
+    assert uow.findings.list()[0].status == FindingStatus.OPEN
+
+
+def test_ingest_resolves_when_unrelated_source_failed() -> None:
+    uow = _retired_world()
+    failing = FakePackageSource(descriptor("ghsa"), error=SourceAccessError("Key"))
+    working = FakePackageSource(descriptor("osv"), {})
+    _run(uow, failing, working, store=_store_reported_by("osv"))
+    assert uow.findings.list()[0].status == FindingStatus.FIXED
+
+
+class _RetiringSource(FakePackageSource):
+    """Simuliert einen parallelen SBOM-Upload, der während der Abfrage eine Komponente ausbaut."""
+
+    def __init__(self, uow: InMemoryUnitOfWork, doomed: Component, vuln: SourceVuln) -> None:
+        super().__init__(descriptor("osv"), {"vue": [vuln]})
+        self._uow = uow
+        self._doomed = doomed
+
+    def query(self, component: Component, api_key: str | None) -> list[SourceVuln]:
+        doomed = self._doomed
+        if not doomed.is_retired:
+            doomed = replace(doomed, retired_in_version_id=99)
+        self._uow.components.update(doomed)
+        return super().query(component, api_key)
+
+
+def test_ingest_drops_findings_of_components_retired_meanwhile() -> None:
+    uow = _uow(_REACT, _component("vue", Ecosystem.NPM))
+    _, vue = uow.components.list_all()
+    vuln = _vuln(affected=[AffectedPackage("npm", "vue", _REACT_RANGE)])
+    _run(uow, _RetiringSource(uow, vue, vuln))
+    assert uow.findings.list() == []
+
+
+class _PartlyFailingSource(FakePackageSource):
+    """Eine Abfrage scheitert, die anderen gelingen (Teilausfall, Lauf bleibt OK)."""
+
+    def query(self, component: Component, api_key: str | None) -> list[SourceVuln]:
+        if component.name == "vue":
+            raise SourceAccessError("Timeout")
+        return super().query(component, api_key)
+
+
+def test_ingest_partial_failure_of_reporting_source_blocks_resolution() -> None:
+    uow = _retired_world()
+    AddComponent(uow).execute(
+        application_id=uow.components.list_all()[0].application_id or 0,
+        component=_component("svelte", Ecosystem.NPM),
+    )
+    _run(uow, _PartlyFailingSource(descriptor("osv"), {}), store=_store_reported_by("osv"))
+    assert uow.findings.list()[0].status == FindingStatus.OPEN
+
+
+def test_ingest_only_resolves_components_retired_before_the_run() -> None:
+    uow = _uow(_REACT, _component("vue", Ecosystem.NPM))
+    _, vue = uow.components.list_all()
+    assert vue.id is not None
+    sbom = uow.sboms.add(Sbom(application_id=vue.application_id or 0, name="img"))
+    assert sbom.id is not None
+    version = uow.sbom_versions.add(SbomVersion(sbom.id, "v2", _NOW, None, True, ()))
+    uow.advisories.upsert(Advisory("CVE-9", "CVE-9", "t", "d", 7.5, None, [], ""))
+    uow.findings.upsert(
+        Finding(
+            "CVE-9",
+            vue.id,
+            vue.application_id or 0,
+            "18.2.0",
+            RiskScore(value=75, level=Severity.HOCH, rationale=""),
+        )
+    )
+    retiring = _RetiringSource(uow, replace(vue, sbom_id=sbom.id), _vuln())
+    retiring._doomed = replace(vue, sbom_id=sbom.id, retired_in_version_id=version.id)
+    _run(uow, retiring, store=_store_reported_by("osv"))
+    [finding] = uow.findings.list()
+    assert finding.status == FindingStatus.OPEN
+    assert finding.resolved_at is None

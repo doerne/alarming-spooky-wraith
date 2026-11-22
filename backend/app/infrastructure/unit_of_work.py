@@ -4,10 +4,13 @@ from contextlib import contextmanager
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.infrastructure.repositories import (
+    SqlAlchemyAdvisoryAliasRepository,
     SqlAlchemyAdvisoryRepository,
     SqlAlchemyApplicationRepository,
     SqlAlchemyComponentRepository,
     SqlAlchemyFindingRepository,
+    SqlAlchemySbomRepository,
+    SqlAlchemySbomVersionRepository,
     SqlAlchemySourceSettingRepository,
 )
 
@@ -21,10 +24,16 @@ class SqlAlchemyUnitOfWork:
         self.components = SqlAlchemyComponentRepository(session)
         self.findings = SqlAlchemyFindingRepository(session)
         self.advisories = SqlAlchemyAdvisoryRepository(session)
+        self.advisory_aliases = SqlAlchemyAdvisoryAliasRepository(session)
         self.source_settings = SqlAlchemySourceSettingRepository(session)
+        self.sboms = SqlAlchemySbomRepository(session)
+        self.sbom_versions = SqlAlchemySbomVersionRepository(session)
 
     def commit(self) -> None:
         self._session.commit()
+
+    def rollback(self) -> None:
+        self._session.rollback()
 
 
 @contextmanager

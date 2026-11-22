@@ -2,13 +2,17 @@
 
 from datetime import UTC, datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import JSON, DateTime, ForeignKey, String, Text, UniqueConstraint, true
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.domain.inventory import COMPONENT_NAME_MAX_LENGTH, COMPONENT_VERSION_MAX_LENGTH
+from app.domain.sbom import SBOM_LABEL_MAX_LENGTH, SBOM_NAME_MAX_LENGTH, SBOM_SERIAL_MAX_LENGTH
 from app.domain.vulnerability import (
     ADVISORY_ID_MAX_LENGTH,
     ADVISORY_TITLE_MAX_LENGTH,
     FIX_VERSION_MAX_LENGTH,
+    ISSUE_URL_MAX_LENGTH,
+    RESOLUTION_SOURCE_MAX_LENGTH,
 )
 from app.infrastructure.database import Base
 
@@ -19,6 +23,15 @@ class ApplicationModel(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(200))
     description: Mapped[str] = mapped_column(String(1000), default="")
+    github_repository: Mapped[str | None] = mapped_column(String(140), nullable=True)
+    auto_issue_min_level: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    auto_issue_enabled_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    github_synced_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    github_sync_message: Mapped[str] = mapped_column(Text, default="", server_default="")
 
 
 class ComponentModel(Base):
@@ -26,11 +39,40 @@ class ComponentModel(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     application_id: Mapped[int] = mapped_column(ForeignKey("application.id"))
-    name: Mapped[str] = mapped_column(String(200))
-    version: Mapped[str] = mapped_column(String(100))
+    name: Mapped[str] = mapped_column(String(COMPONENT_NAME_MAX_LENGTH))
+    version: Mapped[str] = mapped_column(String(COMPONENT_VERSION_MAX_LENGTH))
     category: Mapped[str] = mapped_column(String(20))
     ecosystem: Mapped[str | None] = mapped_column(String(20), nullable=True)
     direct: Mapped[bool] = mapped_column(default=True)
+    sbom_id: Mapped[int | None] = mapped_column(
+        ForeignKey("sbom.id", name="fk_component_sbom"), nullable=True
+    )
+    checked: Mapped[bool] = mapped_column(default=True, server_default=true())
+    retired_in_version_id: Mapped[int | None] = mapped_column(
+        ForeignKey("sbom_version.id", name="fk_component_retired_version"), nullable=True
+    )
+
+
+class SbomModel(Base):
+    __tablename__ = "sbom"
+    __table_args__ = (UniqueConstraint("application_id", "name", name="uq_sbom_application_name"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    application_id: Mapped[int] = mapped_column(ForeignKey("application.id"))
+    name: Mapped[str] = mapped_column(String(SBOM_NAME_MAX_LENGTH))
+
+
+class SbomVersionModel(Base):
+    __tablename__ = "sbom_version"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    sbom_id: Mapped[int] = mapped_column(ForeignKey("sbom.id"))
+    label: Mapped[str] = mapped_column(String(SBOM_LABEL_MAX_LENGTH))
+    uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    serial_number: Mapped[str | None] = mapped_column(String(SBOM_SERIAL_MAX_LENGTH), nullable=True)
+    is_current: Mapped[bool] = mapped_column(default=True)
+    # Momentaufnahme der Komponenten dieser Version (Liste von Objekten)
+    components: Mapped[list[dict[str, object]]] = mapped_column(JSON)
 
 
 class AdvisoryModel(Base):
@@ -62,11 +104,29 @@ class FindingModel(Base):
     risk_level: Mapped[str] = mapped_column(String(20))
     status: Mapped[str] = mapped_column(String(20), default="offen")
     comment: Mapped[str] = mapped_column(Text, default="")
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # nullable, weil MariaDB-TEXT-Spalten ohne Default in Bestandszeilen leer sind
+    resolution: Mapped[str | None] = mapped_column(Text, nullable=True, default="")
+    resolved_by: Mapped[str | None] = mapped_column(
+        String(RESOLUTION_SOURCE_MAX_LENGTH), nullable=True
+    )
+    issue_url: Mapped[str | None] = mapped_column(String(ISSUE_URL_MAX_LENGTH), nullable=True)
+    issue_state: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    first_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC),
         onupdate=lambda: datetime.now(UTC),
     )
+
+
+class AdvisoryAliasModel(Base):
+    """Frühere ID einer zusammengeführten Advisory. Ohne FK: das Ziel kann selbst umziehen."""
+
+    __tablename__ = "advisory_alias"
+
+    alias_id: Mapped[str] = mapped_column(String(ADVISORY_ID_MAX_LENGTH), primary_key=True)
+    advisory_id: Mapped[str] = mapped_column(String(ADVISORY_ID_MAX_LENGTH))
 
 
 class SourceSettingModel(Base):
