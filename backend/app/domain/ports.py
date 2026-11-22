@@ -252,3 +252,9 @@ class VersionMatcher(Protocol):
     def is_affected(
         self, ecosystem: str | None, version: str, package: AffectedPackage
     ) -> bool: ...
+
+
+class VersionComparator(Protocol):
+    """Vergleicht Versionen; ``True`` nur, wenn beide lesbar sind und ``candidate > current``."""
+
+    def is_newer(self, ecosystem: str | None, candidate: str, current: str) -> bool: ...

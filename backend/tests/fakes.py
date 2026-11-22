@@ -616,3 +616,17 @@ class FakeSyncRunner:
 
     def state(self) -> SyncRunState:
         return SyncRunState(running=self.busy)
+
+
+class TupleVersionComparator:
+    """Vergleicht Punkt-Zahlen numerisch; Unlesbares ergibt immer ``False``."""
+
+    def is_newer(self, ecosystem: str | None, candidate: str, current: str) -> bool:
+        try:
+            return self._parse(candidate) > self._parse(current)
+        except ValueError:
+            return False
+
+    @staticmethod
+    def _parse(version: str) -> tuple[int, ...]:
+        return tuple(int(part) for part in version.split("."))

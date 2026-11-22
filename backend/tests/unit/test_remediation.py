@@ -1,7 +1,16 @@
 from datetime import UTC, datetime, timedelta
 
-from app.domain.remediation import ClosureKind, closure_kind_of, compute_deadlines, due_at
+from app.domain.remediation import (
+    ClosureKind,
+    OpenItem,
+    UpdateTarget,
+    closure_kind_of,
+    compute_deadlines,
+    compute_update_targets,
+    due_at,
+)
 from app.domain.vulnerability import Finding, FindingStatus, ResolutionSource, RiskScore, Severity
+from tests.fakes import TupleVersionComparator
 
 NOW = datetime(2026, 12, 1, 12, 0, tzinfo=UTC)
 
@@ -90,3 +99,49 @@ def test_closed_findings_never_count_and_in_progress_does() -> None:
 def test_no_open_findings() -> None:
     summary = compute_deadlines([], NOW)
     assert (summary.overdue, summary.due_soon, summary.next_due_at) == (0, 0, None)
+
+
+VERSIONS = TupleVersionComparator()
+
+
+def item(
+    package: str = "lodash",
+    found: str = "4.17.0",
+    fixed: str | None = "4.17.21",
+    app: str = "A",
+    ecosystem: str | None = "npm",
+) -> OpenItem:
+    return OpenItem(package, ecosystem, found, fixed, app)
+
+
+def test_groups_by_package_and_takes_highest_valid_fix() -> None:
+    summary = compute_update_targets(
+        [item(fixed="4.17.12"), item(fixed="4.17.21", app="B"), item(fixed="4.17.19")], VERSIONS
+    )
+    assert summary.targets == [UpdateTarget("lodash", "npm", "4.17.21", 3, 2)]
+    assert (summary.fixable_open, summary.open_total, summary.more_packages) == (3, 3, 0)
+
+
+def test_fix_not_newer_or_missing_is_not_fixable() -> None:
+    summary = compute_update_targets(
+        [item(found="5.0.0", fixed="4.17.21"), item(fixed=None), item(fixed="kaputt")], VERSIONS
+    )
+    assert summary.targets == []
+    assert (summary.fixable_open, summary.open_total) == (0, 3)
+
+
+def test_same_name_in_other_ecosystem_is_separate_package() -> None:
+    summary = compute_update_targets(
+        [item(), item(ecosystem="PyPI", found="1.0", fixed="2.0")], VERSIONS
+    )
+    assert len(summary.targets) == 2
+
+
+def test_sorted_by_findings_then_name_and_limited() -> None:
+    items = [item(package=f"p{index}") for index in range(6)] + [
+        item(package="z"),
+        item(package="z"),
+    ]
+    summary = compute_update_targets(items, VERSIONS, limit=5)
+    assert [target.package_name for target in summary.targets] == ["z", "p0", "p1", "p2", "p3"]
+    assert summary.more_packages == 2
