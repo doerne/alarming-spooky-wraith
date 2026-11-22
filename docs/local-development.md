@@ -186,7 +186,7 @@ vorbelegt.
   noch besteht. Ist eine Quelle ausgefallen, die die Lücke gemeldet hat, wartet er einen
   weiteren Lauf.
 - SBOM-Komponenten sind nicht von Hand bearbeitbar. Neue Treffer erscheinen beim nächsten
-  Scan (täglich oder *Scan starten* auf der Schwachstellen-Seite).
+  Scan (*Scan starten* auf der Schwachstellen-Seite; einen Zeitplan gibt es noch nicht).
 
 ## CVEs als GitHub-Issues exportieren
 
