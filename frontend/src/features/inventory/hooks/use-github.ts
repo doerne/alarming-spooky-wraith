@@ -24,8 +24,11 @@ export function useUpdateGitHubSettings(applicationId: number) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: ApplicationGitHubInput) => updateApplicationGitHub(applicationId, input),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: queryKeys.application(applicationId) }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.application(applicationId) });
+      // Die Übersicht zeigt das Repository mit an.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.applicationsOverview });
+    },
   });
 }
 

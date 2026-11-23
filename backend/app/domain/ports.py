@@ -3,6 +3,7 @@
 import builtins
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Protocol
 
 from app.domain.inventory import Application, Component
@@ -99,6 +100,10 @@ class SbomRepository(Protocol):
     def get(self, sbom_id: int) -> Sbom: ...
     def find_by_name(self, application_id: int, name: str) -> Sbom | None: ...
     def list_for_application(self, application_id: int) -> list[Sbom]: ...
+    def latest_upload_by_application(self) -> dict[int, datetime]:
+        """Je Anwendung der späteste Upload über alle Versionen ihrer SBOMs (ohne SBOM: fehlt)."""
+        ...
+
     def delete(self, sbom_id: int) -> None:
         """Löscht die SBOM samt aller Versionen. Ihre Komponenten müssen vorher entfernt sein."""
         ...

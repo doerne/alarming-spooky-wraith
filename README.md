@@ -11,7 +11,7 @@ gehärteten Containern. Angelegt mit dem Claude-Code-Plugin `fullstack-standards
 
 | Bereich | Was es kann |
 |---|---|
-| **Inventar** | Anwendungen und ihre Komponenten (Sprache, Framework, Library, Dienst) mit Version pflegen – von Hand oder per CycloneDX-SBOM-Upload mit Versionsverlauf; Anwendungen samt Komponenten, SBOMs und Funden löschen |
+| **Inventar** | Übersicht mit Kennzahlen je Anwendung (offene Funde je Schweregrad, überfällige Fristen, SBOM-Alter, Scan-Stand) und Kacheln, die auf Handlungsbedarf filtern; Anwendungen und ihre Komponenten (Sprache, Framework, Library, Dienst) mit Version pflegen – von Hand oder per CycloneDX-SBOM-Upload mit Versionsverlauf; Anwendungen samt Komponenten, SBOMs und Funden löschen |
 | **Schwachstellen** | Treffer in einer Tabelle, nach Risk Score sortiert (startet mit den offenen, „Filter zurücksetzen“ zeigt alle), mit Spaltenfiltern, Detailansicht und Statusänderung; Kacheln und Verlauf zeigen die Entwicklung des offenen Bestands |
 | **Quellen** | CVE-Quellen ein- und ausschalten, API-Keys hinterlegen, Fortschritt des Scans je Quelle sehen |
 | **Export für KI** | Offene CVEs einer Anwendung als Markdown mit fertigen Issue-Texten für einen Agenten |
@@ -31,8 +31,8 @@ make up       # gehärteter Stack auf http://localhost:8080
 make help     # alle Befehle
 ```
 
-Danach: unter **Inventar** eine Anwendung anlegen, Komponenten eintragen oder eine SBOM
-hochladen, dann unter **Schwachstellen** *Scan starten*. Die Treffer erscheinen dort, den
+Danach: unter **Inventar** über *Anwendung anlegen* eine Anwendung anlegen, Komponenten
+eintragen oder eine SBOM hochladen, dann unter **Schwachstellen** *Scan starten*. Die Treffer erscheinen dort, den
 Fortschritt je Quelle zeigt **Quellen**.
 
 Ausführliche Anleitung, Notweg ohne `buildx` und Migrationen:

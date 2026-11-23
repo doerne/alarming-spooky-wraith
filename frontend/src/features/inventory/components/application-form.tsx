@@ -7,7 +7,12 @@ import { Input } from "@/shared/ui/input";
 
 import { type ApplicationInput, applicationSchema } from "../model/schema";
 
-export function ApplicationForm({ onCreate }: { onCreate: (values: ApplicationInput) => void }) {
+interface ApplicationFormProps {
+  onCreate: (values: ApplicationInput) => void;
+  isSubmitting?: boolean;
+}
+
+export function ApplicationForm({ onCreate, isSubmitting = false }: ApplicationFormProps) {
   const {
     register,
     handleSubmit,
@@ -34,7 +39,7 @@ export function ApplicationForm({ onCreate }: { onCreate: (values: ApplicationIn
           <FieldError data-testid="inventory-error-app-name">{errors.name.message}</FieldError>
         )}
       </Field>
-      <Button type="submit" data-testid="inventory-btn-create-app">
+      <Button type="submit" disabled={isSubmitting} data-testid="inventory-btn-create-app">
         Anlegen
       </Button>
     </form>

@@ -7,6 +7,9 @@ export function useCreateApplication() {
   const queryClient = useQueryClient();
   return useMutation<Application, Error, { name: string }>({
     mutationFn: createApplication,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.applications }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.applications });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.applicationsOverview });
+    },
   });
 }
